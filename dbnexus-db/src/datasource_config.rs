@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::db::OptionMustBeSomeErr;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -6,54 +8,78 @@ pub struct MongoDBConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub db: Option<String>,
     pub read_only: bool,
-    #[serde(flatten)]
-    pub ssl: MongoSsl,
+    pub ssl_enable: bool,
+    pub allow_invalid_hostnames: Option<bool>,
+    pub allow_invalid_certificates: Option<bool>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
-pub struct MongoSsl {
-    pub enable_ssl: bool,
-    #[serde(flatten)]
-    pub ssl_files: SSLFiles,
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
+pub struct DuckDBConfig {
+    pub path: String,
+    pub read_only: bool,
+    pub db: Option<String>,
+    pub schema: Option<String>,
+    pub conn_timeout: Option<SomeTimeOut>,
+    pub max_memory: Option<String>,
 }
+
+impl DuckDBConfig {
+    pub fn schema_str(&self) -> &str {
+        self.schema.as_ref().expect("must be some")
+    }
+
+    pub fn db_str(&self) -> &str {
+        self.db.as_ref().expect("must be some")
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct MysqlDBConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
-
     pub db: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
-    pub ssl: MysqlSsl,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub ssl: SslFilesWithStrModel,
+    pub conn_timeout: Option<SomeTimeOut>,
+    pub charset: MysqlCharset,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct MysqlCharset(pub String);
+
+impl From<String> for MysqlCharset {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for MysqlCharset {
+    fn default() -> Self {
+        Self("utf8mb4".into())
+    }
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(transparent)]
-pub struct ConnTimeOut(pub u32);
+pub struct SomeTimeOut(pub u32);
 
-impl From<i32> for ConnTimeOut {
+impl From<i32> for SomeTimeOut {
     fn from(value: i32) -> Self {
-        ConnTimeOut(value as u32)
+        SomeTimeOut(value as u32)
     }
 }
 
-impl From<ConnTimeOut> for std::time::Duration {
-    fn from(value: ConnTimeOut) -> Self {
+impl From<SomeTimeOut> for std::time::Duration {
+    fn from(value: SomeTimeOut) -> Self {
         std::time::Duration::from_millis(value.0 as u64)
     }
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
-pub struct MysqlSsl {
-    pub ssl_mode: MySqlSslMode,
-    #[serde(flatten)]
-    pub ssl_files: SSLFiles,
 }
 
 impl MysqlDBConfig {
@@ -68,7 +94,7 @@ pub struct LibSqlDBConfig {
     #[serde(flatten)]
     pub source: LibSqlDBConfigSource,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 #[derive(Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "source", rename_all = "lowercase")]
@@ -104,7 +130,7 @@ pub struct ClickHouseConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 impl ClickHouseConfig {
@@ -117,16 +143,8 @@ impl ClickHouseConfig {
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
-pub struct DuckDBConfig {
-    pub path: String,
-    pub read_only: bool,
-    pub db: Option<String>,
-    pub schema: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
+    pub locking_model: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -135,22 +153,10 @@ pub struct FireBirdConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-
     pub db: String,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
-}
-
-impl DuckDBConfig {
-    #[allow(unused)]
-    pub(crate) fn schema_str(&self) -> &str {
-        self.schema.as_ref().expect("must be some")
-    }
-
-    #[allow(unused)]
-    pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().expect("must be some")
-    }
+    pub conn_timeout: Option<SomeTimeOut>,
+    pub dialect: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -163,7 +169,7 @@ pub struct RedisDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub enable_ssl: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 impl RedisDBConfig {
@@ -273,13 +279,15 @@ pub struct PGDBConfig {
     pub schema: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
-    pub ssl: PgSsl,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub ssl: SslFilesWithStrModel,
+    pub conn_timeout: Option<SomeTimeOut>,
+    // https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html#method.options
+    pub options: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
-pub struct PgSsl {
-    pub ssl_mode: PgSslMode,
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
+pub struct SslFilesWithStrModel {
+    pub ssl_mode: String,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }
@@ -311,7 +319,7 @@ pub struct SqlServerDBConfig {
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub cert_ca: Option<String>,
 }
 
@@ -334,7 +342,7 @@ pub struct OracleDBConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub read_only: bool,
     pub db: String,
 }
@@ -342,20 +350,26 @@ pub struct OracleDBConfig {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct CassandraDBConfig {
     pub host: String,
-    pub port: Option<u16>,
+    pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
-
     pub db: Option<String>,
     pub read_only: bool,
-    pub ssl: CassandraSsl,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub ssl_enable: bool,
+    pub ssl_ca_file: Option<String>,
+    pub conn_timeout: Option<SomeTimeOut>,
+    pub dialect: CassandraDialect,
+    pub consistency: CassandraConsistency,
 }
 
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct CassandraConsistency(pub u16);
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
-pub struct CassandraSsl {
-    #[serde(flatten)]
-    pub ssl_files: SSLFiles,
+pub enum CassandraDialect {
+    Cassandra,
+    Scylla,
 }
 
 impl CassandraDBConfig {
@@ -365,95 +379,12 @@ impl CassandraDBConfig {
     }
 }
 
-// this struct copied from sqlx postgres
-#[derive(Clone, Copy, Default, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum PgSslMode {
-    /// Only try a non-SSL connection.
-    ///
-    Disable,
-
-    /// First try a non-SSL connection; if that fails, try an SSL connection.
-    Allow,
-
-    /// First try an SSL connection; if that fails, try a non-SSL connection.
-    ///
-    /// This is the default if no other mode is specified
-    #[default]
-    Prefer,
-
-    /// Only try an SSL connection. If a root CA file is present, verify the connection
-    /// in the same way as if `VerifyCa` was specified.
-    Require,
-
-    /// Only try an SSL connection, and verify that the server certificate is issued by a
-    /// trusted certificate authority (CA).
-    VerifyCa,
-
-    /// Only try an SSL connection; verify that the server certificate is issued by a trusted
-    /// CA and that the requested server host name matches that in the certificate.
-    VerifyFull,
-}
-
-impl From<PgSslMode> for sqlx::postgres::PgSslMode {
-    fn from(x: PgSslMode) -> Self {
-        match x {
-            PgSslMode::Disable => sqlx::postgres::PgSslMode::Disable,
-            PgSslMode::Allow => sqlx::postgres::PgSslMode::Allow,
-            PgSslMode::Prefer => sqlx::postgres::PgSslMode::Prefer,
-            PgSslMode::Require => sqlx::postgres::PgSslMode::Require,
-            PgSslMode::VerifyCa => sqlx::postgres::PgSslMode::VerifyCa,
-            PgSslMode::VerifyFull => sqlx::postgres::PgSslMode::VerifyFull,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde ::Deserialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum MySqlSslMode {
-    /// Establish an unencrypted connection.
-    Disabled,
-
-    /// Establish an encrypted connection if the server supports encrypted connections, falling
-    /// back to an unencrypted connection if an encrypted connection cannot be established.
-    ///
-    /// This is the default if `ssl_mode` is not specified.
-    #[default]
-    Preferred,
-
-    /// Establish an encrypted connection if the server supports encrypted connections.
-    /// The connection attempt fails if an encrypted connection cannot be established.
-    Required,
-
-    /// Like `Required`, but additionally verify the server Certificate Authority (CA)
-    /// certificate against the configured CA certificates. The connection attempt fails
-    /// if no valid matching CA certificates are found.
-    VerifyCa,
-
-    /// Like `VerifyCa`, but additionally perform host name identity verification by
-    /// checking the host name the client uses for connecting to the server against the
-    /// identity in the certificate that the server sends to the client.
-    VerifyIdentity,
-}
-
-impl From<MySqlSslMode> for sqlx::mysql::MySqlSslMode {
-    fn from(value: MySqlSslMode) -> Self {
-        match value {
-            MySqlSslMode::Disabled => sqlx::mysql::MySqlSslMode::Disabled,
-            MySqlSslMode::Preferred => sqlx::mysql::MySqlSslMode::Preferred,
-            MySqlSslMode::Required => sqlx::mysql::MySqlSslMode::Required,
-            MySqlSslMode::VerifyCa => sqlx::mysql::MySqlSslMode::VerifyCa,
-            MySqlSslMode::VerifyIdentity => sqlx::mysql::MySqlSslMode::VerifyIdentity,
-        }
-    }
-}
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct BigQueryDbConfig {
     pub dataset_id: Option<String>,
     pub credentials_file: String,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -467,7 +398,7 @@ pub struct Db2Config {
     pub db: String,
 
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub schema: Option<String>,
 }
 
@@ -481,19 +412,39 @@ impl Db2Config {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct OdbcCommon {
     pub driver_name: String,
-    pub max_str_len: usize,
-    pub max_bin_len: usize,
+    pub max_str_len: u32,
+    pub max_bin_len: u32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CouchBaseDBConfig {
-    pub conn_str: String,
+    pub host: String,
+    pub port: u16,
     pub username: String,
     pub password: String,
     pub read_only: bool,
     pub bucket: Option<String>,
     pub scope: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
+
+    pub ssl_enable: bool,
+    pub danger_accept_invalid_hostnames: Option<bool>,
+    pub danger_accept_invalid_certificates: Option<bool>,
+    pub ca_certificates: Vec<String>,
+}
+
+impl CouchBaseDBConfig {
+    pub(crate) fn conn_str(&self) -> String {
+        // Choose the protocol prefix based on whether SSL is enabled.
+        let protocol = if self.ssl_enable {
+            "couchbases://"
+        } else {
+            "couchbase://"
+        };
+
+        // Build the connection address: host:port.
+        format!("{}{}:{}", protocol, self.host, self.port)
+    }
 }
 
 impl CouchBaseDBConfig {
@@ -511,4 +462,24 @@ pub struct Neo4JDbConfig {
     pub read_only: bool,
     pub db: Option<String>,
     pub client_certificate: Option<String>,
+}
+
+#[cfg(test)]
+impl SSLFiles {
+    pub fn test_cert() -> Self {
+        Self {
+            ssl_ca: Some(Self::test_cert_append_path("ca.crt")),
+            ssl_cert: Some(Self::test_cert_append_path("client.crt")),
+            ssl_key: Some(Self::test_cert_append_path("client.key")),
+        }
+    }
+
+    pub(crate) fn test_cert_append_path(x: &str) -> String {
+        let path = cert_files_dir();
+        use crate::helper::cert_files_dir;
+        use std::path::PathBuf;
+        let mut p = PathBuf::from(&path);
+        p.push(x);
+        p.to_str().unwrap().to_owned()
+    }
 }

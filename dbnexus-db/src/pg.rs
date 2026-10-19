@@ -6,25 +6,28 @@ use sqlx::{AssertSqlSafe, Column, Executor, PgConnection, Postgres, Row, SqlSafe
 
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-use crate::datasource_config::PGDBConfig;
+use crate::datasource_config::{PGDBConfig, SslFilesWithStrModel};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
-    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NameWithParameter,
+    OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
+    TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::{LangServerCommon, LexerCompletionTrait};
+use crate::helper::create_csv;
+use crate::language_server::{
+    get_update_sql_from_result_set_impl, LangServerCommon, LexerCompletionTrait,
+};
 use crate::pg_format::*;
 
 /// postgres version of pg.
@@ -68,6 +71,27 @@ impl PostGresDB {
     }
 }
 
+impl PostGresDB {
+    pub(crate) async fn query_row(&self, sql: impl AsRef<str>) -> anyhow::Result<PgRow> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+
+        let row = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        anyhow::Ok(row)
+    }
+    pub(crate) async fn query_rows(&self, sql: impl AsRef<str>) -> anyhow::Result<Vec<PgRow>> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        anyhow::Ok(rows)
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -75,7 +99,6 @@ impl DBTrait for PostGresDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"
         SELECT schema_name 
@@ -85,16 +108,12 @@ impl DBTrait for PostGresDB {
             self.config.db_str()
         );
         log::info!("sql:{}", sql);
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-            if self.kind == BackendKindPostGres::CockRoach {
-                if name == "crdb_internal" {
-                    continue;
-                }
+            if self.kind == BackendKindPostGres::CockRoach && name == "crdb_internal" {
+                continue;
             }
             ret.push(name)
         }
@@ -111,7 +130,7 @@ impl DBTrait for PostGresDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE SCHEMA "{name}";"#);
         log::info!("sql:{}", sql);
@@ -159,10 +178,10 @@ impl PostGresDB {
 }
 
 /// AI help me impl this.
-// 当然可以,下面是一个 Rust 函数,用于解析 PostgreSQL 触发器的 tgtype 值:
+// Certainly. Here is a Rust function for parsing the PostgreSQL trigger tgtype value:
 //
-// rust
-// 复制
+// Rust
+// Copy
 // fn parse_trigger_type(tgtype: i32) -> String {
 // let mut result = String::new();
 //
@@ -190,14 +209,13 @@ impl PostGresDB {
 // result.trim_end_matches(", ").to_string()
 // }
 // }
-// 这个函数接受一个 i32 类型的 tgtype
-// 值,并返回一个描述触发器类型的字符串。它检查 tgtype 的每个位,并根据触发器的
-// timing 和 event 类型构建结果字符串。
+// This function accepts an i32 tgtype value and returns a string describing the trigger type.
+// It checks each bit in tgtype and builds the result based on the trigger's timing and event type.
 //
-// 如果没有找到任何匹配的位模式,它将返回 "UNKNOWN"
-// 字符串。否则,它将返回一个以逗号和空格分隔的触发器类型列表。
+// If no bit patterns match, it returns the string "UNKNOWN".
+// Otherwise, it returns a comma-and-space-separated list of trigger types.
 //
-// 您可以像这样使用这个函数:
+// You can use the function like this:
 fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTiming)> {
     if (tgtype & 0b1) == 0b1 {
         return anyhow::Ok((TriggerEvent::Insert, TriggerTiming::After));
@@ -257,10 +275,8 @@ impl PostGresDB {
             self.config.db_str(),
             schema
         );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
@@ -292,9 +308,7 @@ impl PostGresDB {
                     schema, name
                 );
 
-                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_one(conn.deref_mut())
-                    .await?;
+                let row = self.query_row(&sql).await?;
 
                 let create_sql: String = row.try_get(0)?;
                 create_sql
@@ -308,9 +322,7 @@ impl PostGresDB {
                 "#,
                     schema
                 );
-                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_one(conn.deref_mut())
-                    .await?;
+                let row = self.query_row(&sql).await?;
                 let start_value: i64 = row.try_get(0)?;
                 let min_value: i64 = row.try_get(1)?;
                 let max_value: i64 = row.try_get(2)?;
@@ -335,8 +347,78 @@ impl PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // 1. Drop the foreign key constraint (Postgres uses DROP CONSTRAINT and does not require dropping the index).
+        let drop_sql = format!(r#"ALTER TABLE "{}" DROP CONSTRAINT "{}""#, table, name);
+        self.simple_execute_sql(&drop_sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        // Query PostgreSQL foreign keys using the pg_catalog system tables.
+        let sql = format!(
+            r#"
+        SELECT
+            con.conname AS constraint_name,
+            -- Get the referenced parent table name (excluding the schema prefix).
+            rel_ns.nspname || '.' || rel.relname AS referenced_table_name,
+            -- Get the foreign key column name on the child table.
+            a.attname AS column_name,
+            -- Get the referenced column name on the parent table.
+            af.attname AS referenced_column_name,
+            -- Handle update and delete rules (c = CASCADE, n = SET NULL, r = RESTRICT, a = NO ACTION).
+            CASE confupdtype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'a' THEN 'NO ACTION' ELSE 'NO ACTION' END AS update_rule,
+            CASE confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'a' THEN 'NO ACTION' ELSE 'NO ACTION' END AS delete_rule
+        FROM
+            pg_constraint con
+        JOIN
+            pg_class rel ON rel.oid = con.confrelid
+        JOIN
+            pg_namespace rel_ns ON rel_ns.oid = rel.relnamespace
+        JOIN
+            pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = ANY(con.conkey)
+        JOIN
+            pg_attribute af ON af.attrelid = con.confrelid AND af.attnum = ANY(con.confkey)
+        WHERE
+            con.contype = 'f'
+            AND con.conrelid = '{}'::regclass
+        "#,
+            table
+        );
+
+        let rows = self.query_rows(&sql).await?;
+
+        log::info!("sql:{}", sql);
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            // Extract the foreign key name (column 0).
+            let constraint_name: Option<String> = r.try_get(0)?;
+            // Extract the referenced table (column 1).
+            let referenced_table: String = r.try_get(1)?;
+            // Extract the local column name (column 2), corresponding to SQLite's "from".
+            let from: String = r.try_get(2)?;
+            // Extract the referenced column name (column 3), corresponding to SQLite's "to".
+            let to: String = r.try_get(3)?;
+            // Update rule (column 4).
+            let on_update: String = r.try_get(4)?;
+            // Delete rule (column 5).
+            let on_delete: String = r.try_get(5)?;
+
+            ret.push(ForeignKeyDef {
+                name: constraint_name,
+                table: referenced_table,
+                from,
+                to,
+                on_update,
+                on_delete,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         self.list_sequences_impl(self.config.schema_str()).await
@@ -408,11 +490,7 @@ impl SchemaTrait for PostGresDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -475,11 +553,7 @@ impl SchemaTrait for PostGresDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&typ.typ, dv.as_str())?
-                    }
+                    self.encode_value_try_predefine(&typ.typ, dv.as_str())?
                 );
                 self.simple_execute_sql(&sql).await?;
                 sc.collect(sql);
@@ -512,7 +586,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
         SELECT  
@@ -526,27 +600,23 @@ impl SchemaTrait for PostGresDB {
             self.config.schema_str()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
             let p: String = r.try_get(1)?;
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 parameters: Some(p),
                 metas: vec![],
                 cassandra_parameters: None,
-                rand: generate_random_string(10),
             });
         }
 
         anyhow::Ok(ret)
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
                 SELECT 
@@ -564,15 +634,12 @@ impl SchemaTrait for PostGresDB {
             name.parameters.as_deref().unwrap_or_default(),
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(&sql).await?;
         let return_type: Option<String> = row.try_get(0)?;
         let parameters: String = row.try_get(1)?;
         let code: String = row.try_get(2)?;
 
-        anyhow::Ok(ProcedureDetail {
+        anyhow::Ok(DefAndMetas {
             def: code,
             metas: vec![
                 MetaValue::new("return_type", return_type),
@@ -581,7 +648,7 @@ impl SchemaTrait for PostGresDB {
         })
     }
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(
             "DROP PROCEDURE {}({})",
             name.name,
@@ -592,7 +659,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT  
@@ -609,27 +676,24 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
             let return_type: Option<String> = r.get(1);
             let arguments: Option<String> = r.get(2);
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 parameters: arguments,
                 metas: vec![MetaValue::new("return_type", return_type)],
                 cassandra_parameters: None,
-                rand: generate_random_string(10),
             });
         }
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
             SELECT  
@@ -646,10 +710,7 @@ impl SchemaTrait for PostGresDB {
             name.parameters.clone().unwrap_or_default()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
         let result_type: Option<String> = row.try_get(0)?;
         let arguments: Option<String> = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
@@ -662,7 +723,7 @@ impl SchemaTrait for PostGresDB {
         ))
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(
             "DROP FUNCTION IF EXISTS {}.{}({})",
             self.config.schema_str(),
@@ -709,7 +770,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql.into())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
                 SELECT tgname 
@@ -718,16 +779,13 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -744,10 +802,8 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
+
         let definition: String = row.get(0);
         let tgtype: i16 = row.get(1);
         let enable: Option<i8> = row.get(2);
@@ -797,7 +853,7 @@ impl SchemaTrait for PostGresDB {
         }
     }
 
-    /// FIXME 如果一个主键是自增的只能得到类型
+    /// FIXME: If a primary key is auto-incrementing, only its type can be retrieved.
     async fn show_create_table_sql(
         &self,
         table_name: &str,
@@ -838,21 +894,16 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
+
         let create_sql: String = row.try_get(0)?;
         let indexes = self.show_indexes(table_name).await?;
 
         let mut sqls = Vec::with_capacity(indexes.len());
         for index in indexes.iter() {
-            let index_sql = get_index_def(
-                &mut conn,
-                table_name,
-                index.name.as_ref().option_must_be_some()?,
-            )
-            .await?;
+            let index_sql = self
+                .get_index_def(table_name, index.name.as_ref().option_must_be_some()?)
+                .await?;
             sqls.push(index_sql);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -876,24 +927,22 @@ impl SchemaTrait for PostGresDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(view_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(view_name, para.filter.as_deref()).await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         while let Some(row) = stream.next().await {
             let row = row?;
             if first.get() {
                 emit.send(
                     QueryResp {
-                        fields: get_rows_types(&row),
-                        total,
+                        fields: get_row_fields(&row),
+                        total: total as f64,
                         ..Default::default()
                     }
                     .into(),
@@ -966,10 +1015,7 @@ impl SchemaTrait for PostGresDB {
                 sql
             }
         };
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -997,13 +1043,10 @@ impl SchemaTrait for PostGresDB {
                 WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
             "#,
             self.config.schema_str(),
-            &self.config.db_str()
+            self.config.db_str()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -1013,14 +1056,12 @@ impl SchemaTrait for PostGresDB {
                 table.as_str()
             );
             log::info!("sql:{}", sql);
-            let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_one(conn.deref_mut())
-                .await;
+            let row = self.query_row(sql).await;
             let size: Option<i64> = match row {
                 Ok(row) => row.get(0),
                 Err(_) => None,
             };
-            let t = ListTable::new(table, size.map(|x| x as u64));
+            let t = ListTable::new(table, size.map(|x| x as f64));
             ret.push(t);
         }
 
@@ -1040,10 +1081,8 @@ impl SchemaTrait for PostGresDB {
             schema,
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -1053,25 +1092,23 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let s = format!(
+        let sql = format!(
             r#"
-            SELECT  column_name , data_type,is_nullable,column_default,udt_name
+            SELECT  column_name,is_nullable,column_default
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
-            &self.config.db_str(),
+            self.config.db_str(),
             self.config.schema_str(),
             table_name
         );
 
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         let primary_keys = {
             let sql: String = format!(
                 r#"
-                -- 查表的主键详情
+                -- Get the table's primary key details.
                 SELECT  kcu.column_name
                     FROM information_schema.table_constraints AS tc
                     JOIN information_schema.key_column_usage  AS kcu
@@ -1082,9 +1119,7 @@ impl SchemaTrait for PostGresDB {
             );
             log::info!("sql:{}", sql);
 
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
 
             let mut keys = HashSet::new();
             for r in rows.iter() {
@@ -1093,15 +1128,23 @@ impl SchemaTrait for PostGresDB {
             }
             keys
         };
+        let types = self
+            .infer_fields_by_sql(&SqlBuilder::gen_show_sql(self, table_name, None, None))
+            .await?;
+        let mut types_map = HashMap::new();
+        for t in types.iter() {
+            types_map.insert(t.field.clone(), t);
+        }
 
         for r in rows.iter() {
-            let name: String = r.get(0_usize);
-            let data_type: String = r.get(1);
-            let data_type = data_type.to_uppercase();
-            let nullable: String = r.get(2);
-            let default_value: Option<String> = r.get(3);
-            let udt_name: Option<String> = r.get(4);
+            let name: String = r.get(0);
+            let nullable: String = r.get(1);
+            let default_value: Option<String> = r.get(2);
             let is_primary = primary_keys.contains(&name);
+            let data_type = match types_map.get(&name) {
+                Some(x) => x.data_type.clone(),
+                None => anyhow::bail!(format!("filed '{}' should have type", name)),
+            };
             let is_auto_increment = data_type.to_lowercase().contains("int")
                 && default_value
                     .as_ref()
@@ -1110,12 +1153,7 @@ impl SchemaTrait for PostGresDB {
 
             ret.push(Field::new(
                 name,
-                match udt_name {
-                    Some(udt_name) => {
-                        get_pg_type_base_on_data_type_and_udtname(&data_type, &udt_name)?
-                    }
-                    None => data_type,
-                },
+                data_type,
                 nullable.to_lowercase() != "no",
                 default_value,
                 is_primary,
@@ -1133,16 +1171,14 @@ impl SchemaTrait for PostGresDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         let fields = self.show_table_columns(table_name).await?;
         let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         log::info!("sql:{}", sql);
         emit.send(
             QueryResp {
                 fields,
-                total,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -1172,12 +1208,8 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let mut conn = self.get_conn().await?;
-
-        // this sql copied from https://stackoverflow.com/questions/2204058/list-columns-with-indexes-in-postgresql
-        let rows = sqlx::raw_sql(AssertSqlSafe(
-            format!(
-                r#"
+        let sql = format!(
+            r#"
             SELECT
                 t.relname as table_name,
                 i.relname as index_name,
@@ -1201,18 +1233,16 @@ impl SchemaTrait for PostGresDB {
                 t.relname,
                 i.relname;
         "#
-            )
-            .as_str(),
-        ))
-        .fetch_all(conn.deref_mut())
-        .await?;
+        );
+
+        // this sql copied from https://stackoverflow.com/questions/2204058/list-columns-with-indexes-in-postgresql
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let index_name: String = r.get(1);
             let column_names: Option<Vec<String>> = r.get(2);
-            let index_kind = self
-                .get_index_kind(&mut conn, table_name, &index_name)
-                .await?;
+            let index_kind = self.get_index_kind(table_name, &index_name).await?;
             ret.push(Index::new(
                 index_name,
                 index_kind,
@@ -1229,12 +1259,11 @@ impl PostGresDB {
         schema: &str,
         skip_null_create_sql: bool,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        /*在
-        pg_type.typtype  里：
-        c = composite（复合类型 / 行类型）
-        d = domain（域类型，基于已有类型的约束包装）
-        e = enum（枚举类型）
-        r = range（范围类型，如 int4range、daterange）
+        /* In pg_type.typtype:
+                c = composite (composite/row type)
+                d = domain (a constraint wrapper around an existing type)
+                e = enum (enumerated type)
+                r = range (range type, such as int4range or daterange)
 
         */
         let sql = format!(
@@ -1304,12 +1333,7 @@ impl PostGresDB {
         "#,
             schema
         );
-
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
@@ -1330,16 +1354,12 @@ impl PostGresDB {
         name: &str,
         where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
-        let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str();
         let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await
-            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
+        let row = self.query_row(sql).await?;
         let count: i64 = row.get(0);
         anyhow::Ok(count as usize)
     }
@@ -1364,8 +1384,8 @@ impl PostGresDB {
         if let Some(db) = config.db.as_ref() {
             opts = opts.database(db);
         }
-        println!("ssl:{:?}", config.ssl);
-        opts = opts.ssl_mode(config.ssl.ssl_mode.into());
+
+        opts = opts.ssl_mode(FromStr::from_str(&config.ssl.ssl_mode)?);
         if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
             opts = opts.ssl_root_cert(ca);
         }
@@ -1375,6 +1395,7 @@ impl PostGresDB {
         if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
             opts = opts.ssl_client_key(key);
         }
+        let opts = opts.options(config.options.iter());
         let mut pool_opts = PoolOptions::new();
         if let Some(x) = config.conn_timeout {
             pool_opts = pool_opts.acquire_timeout(x.into());
@@ -1403,7 +1424,7 @@ impl PostGresDB {
     }
 }
 
-fn get_rows_types(row: &PgRow) -> Vec<Field> {
+fn get_row_fields(row: &PgRow) -> Vec<Field> {
     log::trace!("infer type by:{:?}", row.columns());
     let mut ret = Vec::with_capacity(row.columns().len());
     for c in row.columns().iter() {
@@ -1414,57 +1435,6 @@ fn get_rows_types(row: &PgRow) -> Vec<Field> {
         });
     }
     ret
-}
-
-fn get_pg_type_base_on_data_type_and_udtname(
-    data_type: &str,
-    udt_name: &str,
-) -> anyhow::Result<String> {
-    if data_type.to_uppercase() == "ARRAY" {
-        let x = match udt_name {
-            "_macaddr8" => "MACADDR8[]".to_string(),
-            "_bytea" => "BYTEA[]".to_string(),
-            "_bool" => "BOOL[]".to_string(),
-            "_name" => "NAME[]".to_string(),
-            "_bpchar" => "BPCHAR[]".to_string(),
-            "_int2" => "INT2[]".to_string(),
-            "_int4" => "INT4[]".to_string(),
-            "_text" => "TEXT[]".to_string(),
-            "_varchar" => "VARCHAR[]".to_string(),
-            "_int8" => "INT8[]".to_string(),
-            "_path" => "PATH[]".to_string(),
-            "_float4" => "FLOAT4[]".to_string(),
-            "_float8" => "FLOAT8[]".to_string(),
-            "_macaddr" => "MACADDR[]".to_string(),
-            "_inet" => "INET[]".to_string(),
-            "_timestamp" => "TIMESTAMP[]".to_string(),
-            "_date" => "DATE[]".to_string(),
-            "_time" => "TIME[]".to_string(),
-            "_timestamptz" => "TIMESTAMPTZ[]".to_string(),
-            "_interval" => "INTERVAL[]".to_string(),
-            "_numeric" => "NUMERIC[]".to_string(),
-            "_timetz" => "TIMETZ[]".to_string(),
-            "_bit" => "BIT[]".to_string(),
-            "_varbit" => "VARBIT[]".to_string(),
-            "_uuid" => "UUID[]".to_string(),
-            "_jsonb" => "JSONB[]".to_string(),
-            "_int4range" => "INT4RANGE[]".to_string(),
-            "_numrange" => "NUMRANGE[]".to_string(),
-            "_tsrange" => "TSRANGE[]".to_string(),
-            "_tstzrange" => "TSTZRANGE[]".to_string(),
-            "_daterange" => "DATERANGE[]".to_string(),
-            "_int8range" => "INT8RANGE[]".to_string(),
-            "_jsonpath" => "JSONPATH[]".to_string(),
-            "_money" => "MONEY[]".to_string(),
-            _ => {
-                log::error!("udtname '{}' not handled", udt_name);
-                anyhow::bail!(format!("udtname '{}' not handled", udt_name));
-            }
-        };
-        return Ok(x);
-    }
-
-    Ok(data_type.to_string())
 }
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
@@ -1501,7 +1471,7 @@ impl ExportQueryResult for PostGresDB {
             }
         };
         let mut conn = conn.lock().await;
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
@@ -1532,15 +1502,15 @@ impl ExportQueryResult for PostGresDB {
                 ExportKind::Sql { .. } => {
                     anyhow::bail!("can't export query result as sql")
                 }
-                ExportKind::Xlsx { include_header } => {
+                ExportKind::Xlsx { include_header, .. } => {
                     if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             sender
                                 .send(
                                     XlsxEdit {
                                         row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
-                                        content: col.name().to_string(),
+                                        column: index as u16,
+                                        content: col.name().to_string().into(),
                                     }
                                     .into(),
                                 )
@@ -1548,7 +1518,7 @@ impl ExportQueryResult for PostGresDB {
                         }
                         row_num += 1;
                     }
-                    let data = encode_row(&row)?;
+                    let data = encode_row_as_xlsx(&row)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
@@ -1583,6 +1553,20 @@ impl ExportQueryResult for PostGresDB {
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
@@ -1714,11 +1698,16 @@ impl QuerySql for PostGresDB {
                 }
                 sqlx::Either::Right(row) => {
                     has_result = true;
-                    let fields = get_rows_types(&row);
+                    let fields = get_row_fields(&row);
                     if emit_fields.is_empty() || !emit_fields.eq(&fields) {
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
+                                sql: Some(sql.to_owned()),
+                                tables: crate::language_server::LangServerCommon::extract_tables(
+                                    self, sql,
+                                )
+                                .unwrap_or_default(),
                                 ..Default::default()
                             }
                             .into(),
@@ -1734,38 +1723,32 @@ impl QuerySql for PostGresDB {
         drop(stream);
         if !has_result {
             let fields = self.infer_fields_by_sql(sql).await?;
-            emit.send(QueryResp::new(fields, 0, vec![], sql.to_owned())?.into())?;
+            emit.send(QueryResp::new(fields, 0f64, vec![], sql.to_owned())?.into())?;
         }
         anyhow::Ok(())
     }
 }
 
-async fn get_index_def(
-    conn: &mut PoolConnection<Postgres>,
-    table_name: &str,
-    index_name: &str,
-) -> anyhow::Result<String> {
-    let sql = format!(
+impl PostGresDB {
+    async fn get_index_def(&self, table_name: &str, index_name: &str) -> anyhow::Result<String> {
+        let sql = format!(
         "SELECT indexdef from pg_indexes where tablename='{table_name}' and indexname='{index_name}'"
     );
-    log::info!("sql:{}", sql);
-    let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-        .fetch_one(conn.deref_mut())
-        .await?;
-
-    let sql: String = row.get(0);
-
-    anyhow::Ok(sql)
+        log::info!("sql:{}", sql);
+        let row = self.query_row(sql).await?;
+        let sql: String = row.get(0);
+        anyhow::Ok(sql)
+    }
 }
 
 impl PostGresDB {
     async fn get_index_kind(
         &self,
-        conn: &mut PoolConnection<Postgres>,
+
         table_name: &str,
         index_name: &str,
     ) -> anyhow::Result<IndexKind> {
-        let sql: String = get_index_def(conn, table_name, index_name).await?;
+        let sql: String = self.get_index_def(table_name, index_name).await?;
         let statements = self.parse_statements(&sql)?;
         if statements.len() != 1 {
             anyhow::bail!("parse create index should contains one statement");
@@ -1783,7 +1766,7 @@ impl PostGresDB {
             }
 
             _ => {
-                anyhow::bail!(format!("the sql is not a create index"))
+                anyhow::bail!("the sql is not a create index".to_string())
             }
         }
     }
@@ -1823,7 +1806,7 @@ impl CatalogTrait for PostGresDB {
     async fn create_database(
         &self,
         name: &str,
-        _extra: Option<CreateDatabaseExtra>,
+        _extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE DATABASE "{name}""#);
         log::info!("sql:{}", sql);
@@ -1843,8 +1826,19 @@ impl CatalogTrait for PostGresDB {
     }
 }
 
+impl SslFilesWithStrModel {
+    #[cfg(test)]
+    pub(crate) fn pg_default() -> Self {
+        SslFilesWithStrModel {
+            ssl_mode: "disable".into(),
+            ssl_files: crate::datasource_config::SSLFiles::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> PostGresDB {
+    use crate::datasource_config::SslFilesWithStrModel;
     let pg = PostGresDB::new(
         PGDBConfig {
             host: crate::TEST_HOST.to_string(),
@@ -1854,8 +1848,9 @@ pub(crate) async fn make_test_object() -> PostGresDB {
             db: Some("test".into()),
             schema: Some("xxx".to_string()),
             read_only: false,
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::pg_default(),
             conn_timeout: Some(5000.into()),
+            options: Default::default(),
         },
         BackendKindPostGres::PostGres,
     )
@@ -1864,26 +1859,114 @@ pub(crate) async fn make_test_object() -> PostGresDB {
     pg
 }
 
-/// postgres有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
-/// PostgreSQL 里可以直接写在 SQL 语句中的 CURRENT_* 字面量
+/// Provide a complete Rust list of PostgreSQL values that can be written directly in SQL statements, such as CURRENT_TIMESTAMP.
+/// CURRENT_* literals that can be written directly in PostgreSQL SQL statements.
 pub const PG_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_DATE",      //  2025-08-25
     "CURRENT_TIME",      //  14:36:07.123+02
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123+02
     "CURRENT_USER",      //  alice
-    "CURRENT_ROLE",      //  alice（或 SET ROLE 后的角色）
+    "CURRENT_ROLE",      //  alice (or the role set by SET ROLE).
 ];
+
+impl ExtractSqlValeFromJsonValue for PostGresDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let ty = ty.trim().to_uppercase();
+        let ty = ty.as_str();
+        let err = anyhow::Error::msg(format!(
+            "not valid value,type '{}',value:{}",
+            ty,
+            serde_json::to_string(value)?
+        ));
+
+        if ty.eq_ignore_ascii_case("JSON") {
+            match value {
+                serde_json::Value::Null => return anyhow::Ok(None),
+                _ => return anyhow::Ok(Some(serde_json::to_string(value)?)),
+            }
+        }
+        if is_text_array_ty(ty) {
+            match value {
+                serde_json::Value::Null => return anyhow::Ok(None),
+                serde_json::Value::Array(values) => {
+                    let mut results = Vec::with_capacity(values.len());
+                    for value in values.iter() {
+                        let value = match value {
+                            serde_json::Value::String(x) => x,
+                            _ => return Err(err),
+                        };
+                        results.push(escape_double_quote(value));
+                    }
+
+                    return anyhow::Ok(Some(format!("{{{}}}", results.join(","))));
+                }
+                _ => return Err(err),
+            }
+        }
+        if ty.eq_ignore_ascii_case("JSON[]") {
+            anyhow::bail!("JSON[] not supported")
+        }
+
+        if ty.eq_ignore_ascii_case("INT4RANGE[]")
+            || ty.eq_ignore_ascii_case("TSRANGE[]")
+            || ty.eq_ignore_ascii_case("TSTZRANGE[]")
+            || ty.eq_ignore_ascii_case("DATERANGE[]")
+            || ty.eq_ignore_ascii_case("INT8RANGE[]")
+        {
+            match value {
+                serde_json::Value::Null => return anyhow::Ok(None),
+                serde_json::Value::Array(values) => {
+                    let mut results = Vec::with_capacity(values.len());
+                    for value in values.iter() {
+                        let value = match value {
+                            serde_json::Value::String(x) => x,
+                            _ => return Err(err),
+                        };
+                        results.push(format!("\"{}\"", value));
+                    }
+
+                    return anyhow::Ok(Some(format!("{{{}}}", results.join(","))));
+                }
+                _ => return Err(err),
+            }
+        }
+
+        fn encode_value(v: &serde_json::Value) -> anyhow::Result<Option<String>> {
+            let r = match v {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => Some(x.clone()),
+                serde_json::Value::Array(values) => {
+                    let mut result = Vec::with_capacity(values.len());
+                    for v in values.iter() {
+                        result.push(encode_value(v)?.unwrap_or("null".to_owned()));
+                    }
+                    Some(format!("{{{}}}", result.join(",")))
+                }
+                serde_json::Value::Object(map) => Some(serde_json::to_string(map)?),
+            };
+            anyhow::Ok(r)
+        }
+        anyhow::Ok(encode_value(value)?)
+    }
+}
+
 impl SqlBuilder for PostGresDB {
     fn get_schema(&self) -> Option<&str> {
         self.config.schema.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         PG_CURRENT_LITERALS
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        sql_encode_value(typ, value)
     }
 
     fn type_support_compare(&self, typ: &str) -> bool {
@@ -1907,20 +1990,22 @@ impl SqlBuilder for PostGresDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
+                filter: where_str,
+                sort: order_by,
                 ..
-            } = para;
+            } = &para;
             if let Some(where_str) = where_str {
                 sql.push_str(format!(" WHERE {where_str} ").as_str());
             }
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
-            let offset = (page - 1) * page_size;
-            sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
+            let offset = para.offset();
+            if let Some(offset) = offset {
+                sql.push_str(
+                    format!(" OFFSET {} LIMIT {}", offset.offset, offset.page_size).as_str(),
+                );
+            }
         }
         sql
     }
@@ -1932,22 +2017,23 @@ impl GetTestExportTableKinds for PostGresDB {
     }
 }
 #[cfg(test)]
-
 mod tests {
     use super::make_test_object;
     #[allow(unused_imports)]
     use crate::enable_test_log;
     use crate::{
-        datasource_config::PGDBConfig,
+        datasource_config::{PGDBConfig, SSLFiles, SslFilesWithStrModel},
         db::{
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
             CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
-            NamedStaff, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
+            NameWithParameter, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
+            TestQueryEventEmit,
         },
+        helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
         pg::PostGresDB,
     };
-    use sqlx::Executor;
-    use std::{collections::HashMap, ops::DerefMut};
+    use sqlx::{Column, Executor, Row, SqlSafeStr, Statement};
+    use std::{collections::HashMap, ops::DerefMut, process::Command, sync::Arc, time::Duration};
 
     #[test]
     fn test_output_bytes() {
@@ -1966,8 +2052,9 @@ mod tests {
                 db: Some("test".into()),
                 schema: Some("xxx".to_string()),
                 read_only: true,
-                ssl: Default::default(),
+                ssl: SslFilesWithStrModel::pg_default(),
                 conn_timeout: Some(5000.into()),
+                options: Default::default(),
             },
             BackendKindPostGres::PostGres,
         )
@@ -2024,7 +2111,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -2057,7 +2144,7 @@ mod tests {
         let parameter = "a integer".to_string();
         let name = "test_procedure";
         let err = db
-            .drop_procedure(&NamedStaff {
+            .drop_procedure(&NameWithParameter {
                 name: name.to_string(),
                 parameters: Some(parameter.clone()),
                 ..Default::default()
@@ -2175,6 +2262,24 @@ mod tests {
     async fn test_check_conn() {
         let db = make_test_object().await;
         CheckConn::check_conn(&db).await.unwrap();
+    }
+
+    // right now we only support receive data from the database
+    #[tokio::test]
+    async fn test_regproc() {
+        let db = make_test_object().await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
+        select  aggfnoid , aggtransfn  from pg_catalog.pg_aggregate limit 4
+
+        "#,
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2344,7 +2449,7 @@ mod tests {
         let name = "test_udf";
 
         let _ = pg
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: name.to_string(),
                 parameters: Some("a integer, b integer".to_string()),
                 ..Default::default()
@@ -2416,7 +2521,7 @@ mod tests {
         .unwrap()
         .unwrap();
         let _ = db
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: "trigger_insert_test_create_trigger".to_string(),
                 parameters: Some("".into()),
                 ..Default::default()
@@ -2511,7 +2616,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
 
@@ -2531,7 +2636,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 
@@ -2625,16 +2730,13 @@ mod tests {
 
         let mut values = HashMap::new();
         values.insert("bool_column".to_string(), Some("true".to_string()));
-        values.insert(
-            "bytea_column".to_string(),
-            Some("\\\\x0123456789ABCDEF".to_string()),
-        );
+        values.insert("bytea_column".to_string(), Some("\\x010203".to_string()));
         values.insert("char_column".to_string(), Some("A".to_string()));
         values.insert("name_column".to_string(), Some("John".to_string()));
         values.insert("int8_column".to_string(), Some("1".to_string()));
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
-        pg.table_insert(table_name, values.clone()).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -2645,11 +2747,13 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
-        //
         let table_name = "test_types2";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -2682,20 +2786,20 @@ mod tests {
         values.insert("oid_column".to_string(), Some("12345".to_string()));
         values.insert(
             "json_column".to_string(),
-            Some("{\"key\": \"value\"}".to_string()),
+            Some(r#"{"key":"value"}"#.to_string()),
         );
         values.insert("float4_column".to_string(), Some("3.14".to_string()));
         values.insert("float8_column".to_string(), Some("5.6789".to_string()));
         values.insert(
             "macaddr8_column".to_string(),
-            Some("08:00:2b:01:02:03:04:05".to_string()),
+            Some("08:00:2B:01:02:03:04:05".to_string()),
         );
         values.insert(
             "macaddr8_array_column".to_string(),
-            Some("{08:00:2b:01:02:03:04:06, 08:00:2b:01:02:03:04:07}".to_string()),
+            Some("{08:00:2B:01:02:03:04:06,08:00:2B:01:02:03:04:07}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -2704,6 +2808,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2801,27 +2907,27 @@ mod tests {
         let mut values = HashMap::new();
         values.insert(
             "macaddr_column".to_string(),
-            Some("08:00:2b:01:02:03".to_string()),
+            Some("08:00:2B:01:02:03".to_string()),
         );
-        values.insert("inet_column".to_string(), Some("192.168.0.1".to_string()));
         values.insert(
-            "bool_array_column".to_string(),
-            Some("{true , false }".to_string()),
+            "inet_column".to_string(),
+            Some("192.168.0.1/32".to_string()),
         );
+        values.insert("bool_array_column".to_string(), Some("{t,f}".to_string()));
         values.insert(
             "bytea_array_column".to_string(),
-            Some("{0x12345}".to_string()),
+            Some(r#"{"\\x010203"}"#.to_string()),
         );
         values.insert(
             "char_array_column".to_string(),
-            Some("{a  , b }".to_string()),
+            Some("{\"a\",\"b\"}".to_string()),
         );
         values.insert(
             "name_array_column".to_string(),
-            Some("{ a  , b }".to_string()),
+            Some("{\"a\",\"b\"}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(
@@ -2833,11 +2939,12 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
     async fn test_types4() {
-        //
         let table_name = "test_types4";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -2865,14 +2972,17 @@ mod tests {
         let mut values = HashMap::new();
         values.insert("int2_array_column".to_string(), Some("{1,2}".to_string()));
         values.insert("int4_array_column".to_string(), Some("{1,2}".to_string()));
-        values.insert("text_array_column".to_string(), Some("{a,b}".to_string()));
+        values.insert(
+            "text_array_column".to_string(),
+            Some(r#"{"a","b"}"#.to_string()),
+        );
         values.insert(
             "varchar_array_column".to_string(),
-            Some("{c,d}".to_string()),
+            Some(r#"{"c\"","d"}"#.to_string()),
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(
@@ -2884,6 +2994,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2895,7 +3007,6 @@ mod tests {
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
-            // TODO Support path
             format!(
                 r#"
         CREATE TABLE {table_name} (
@@ -2915,16 +3026,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-
         let mut values = HashMap::new();
-        // values.insert(
-        //     "path_column".to_string(),
-        //     Some("(1.0,2.0),(3.0,4.0)".to_string()),
-        // );
-        // values.insert(
-        //     "path_array_column".to_string(),
-        //     Some("{\"((5,6),(7,8))\",\"((9,10),(11,12))\"}".to_string()),
-        // );
         values.insert("float4_array_column".to_string(), Some("{1,2}".to_string()));
         values.insert("float8_array_column".to_string(), Some("{3,4}".to_string()));
 
@@ -2934,12 +3036,12 @@ mod tests {
         );
         values.insert(
             "inet_array_column".to_string(),
-            Some("{192.168.1.1}".to_string()),
+            Some("{192.168.1.1/32}".to_string()),
         );
 
         values.insert("date_column".to_string(), Some("2022-01-01".to_string()));
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -2948,6 +3050,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -3004,14 +3108,14 @@ mod tests {
         );
         values.insert(
             "col_timestamptz".to_string(),
-            Some("2024-03-01 10:00:00+00".to_string()),
+            Some("2024-03-01 10:00:00 +00:00".to_string()),
         );
         values.insert(
             "col_timestamptz_array".to_string(),
-            Some("{\"2024-03-01 10:00:00+00\",\"2024-03-02 12:00:00+00\"}".to_string()),
+            Some("{\"2024-03-01 10:00:00 +00:00\",\"2024-03-02 12:00:00 +00:00\"}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(
@@ -3023,6 +3127,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3060,18 +3166,18 @@ mod tests {
         );
         values.insert(
             "interval_array_col".to_string(),
-            Some("{\"2 days\",03:00:00,00:04:00}".to_string()),
+            Some("{\"2 days\",\"03:00:00\",\"00:04:00\"}".to_string()),
         );
         values.insert(
             "numeric_array_col".to_string(),
-            Some("{1.23,4.56,7.89}".to_string()),
+            Some("{1.2300,4.5600,7.8900}".to_string()),
         );
-        values.insert("timetz_col".to_string(), Some("12:30:00+03".to_string()));
+        values.insert("timetz_col".to_string(), Some("12:30:00+03:00".to_string()));
         values.insert(
             "timetz_array_col".to_string(),
-            Some("{10:00:00+03,15:30:00+03}".to_string()),
+            Some("{10:00:00+03:00,15:30:00+03:00}".to_string()),
         );
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -3082,6 +3188,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3103,7 +3211,7 @@ mod tests {
             varbit_column VARBIT,
             varbit_array_column VARBIT[],
             numeric_column NUMERIC
-          );
+        );
 "#,
             )
             .as_str(),
@@ -3121,8 +3229,8 @@ mod tests {
             Some("{101,010}".to_string()),
         );
 
-        values.insert("numeric_column".to_string(), Some("123.45".to_string()));
-        pg.table_insert(table_name, values).await.unwrap();
+        values.insert("numeric_column".to_string(), Some("123.4500".to_string()));
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
@@ -3130,6 +3238,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3148,10 +3258,9 @@ mod tests {
                 uuid_column UUID,
                 uuid_array_column UUID[],
                 jsonb_column JSONB,
-                jsonb_array_column JSONB[],
                 int4range_column INT4RANGE,
                 int4range_array_column INT4RANGE[]
-              );
+            );
     "#,
             )
             .as_str(),
@@ -3174,14 +3283,7 @@ mod tests {
         );
         values.insert(
             "jsonb_column".to_string(),
-            Some(r#"{"key1": "value1", "key2": "value2"}"#.to_string()),
-        );
-        values.insert(
-            "jsonb_array_column".to_string(),
-            Some(
-                "{\"{\\\"key3\\\": \\\"value3\\\"}\",\"{\\\"key4\\\": \\\"value4\\\"}\"}"
-                    .to_string(),
-            ),
+            Some(r#"{"key1":"value1","key2":"value2"}"#.to_string()),
         );
         values.insert("int4range_column".to_string(), Some("[10,20)".to_string()));
         values.insert(
@@ -3189,7 +3291,7 @@ mod tests {
             Some("{\"[30,40)\",\"[50,60)\"}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -3200,15 +3302,15 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
     async fn test_types10() {
         let table_name = "test_types10";
         let pg = make_test_object().await;
-
         let _ = pg.drop_table(table_name, false).await;
-
         let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
@@ -3219,9 +3321,7 @@ mod tests {
                 num_range NUMRANGE,
                 num_range_array NUMRANGE[],
                 ts_range TSRANGE,
-                ts_range_array TSRANGE[],
-                tstz_range TSTZRANGE,
-                tstz_range_array TSTZRANGE[]
+                tstz_range TSTZRANGE
             );
     "#,
             )
@@ -3241,17 +3341,12 @@ mod tests {
             "ts_range".to_string(),
             Some(r#"["2024-01-01 00:00:00","2024-01-10 00:00:00")"#.to_string()),
         );
-        values.insert("ts_range_array".to_string(), Some(r#"{"[\"2024-01-01 00:00:00\",\"2024-01-05 00:00:00\")","[\"2024-01-06 00:00:00\",\"2024-01-10 00:00:00\")"}"#.to_string()));
         values.insert(
             "tstz_range".to_string(),
-            Some(r#"["2024-01-01 00:00:00+00","2024-01-10 00:00:00+00")"#.to_string()),
-        );
-        values.insert(
-            "tstz_range_array".to_string(),
-            Some(r#"{"[\"2024-07-01 08:00:00+00\",\"2024-07-01 18:00:00+00\")"}"#.to_string()),
+            Some(r#"["2024-01-01 00:00:00 +00:00",2024-01-10 00:00:00 +00:00)"#.to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -3262,6 +3357,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3323,7 +3420,7 @@ mod tests {
             "money_value_array".to_string(),
             Some("{$5.00,$15.75}".to_string()),
         );
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -3331,5 +3428,203 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &["id", "money_value_array"])
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object().await;
+
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        // PG foreign key names usually follow the format {table}_{column}_fkey.
+        // In practice, query the system tables for the exact name rather than guessing.
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "fk_comments_posts", // Name generated by default in PostgreSQL.
+            )
+            .await;
+
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. Create the parent table test_posts.
+        // PG uses SERIAL instead of AUTO_INCREMENT.
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_posts (
+            id SERIAL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. Create the child table test_comments.
+        // As in MySQL, PG foreign key constraints are defined at the table level.
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_comments (
+            comment_id SERIAL PRIMARY KEY,
+            author_name VARCHAR(255),
+            post_id INT,
+            CONSTRAINT fk_comments_posts FOREIGN KEY (post_id) 
+            REFERENCES test_posts(id) 
+            ON DELETE CASCADE
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. List and print the foreign keys.
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
+    }
+
+    #[ignore = "run by hand,right now I think linux can pass"]
+    #[tokio::test]
+
+    async fn test_ssl() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+        // 2. Dynamically build the data volume mount argument path.
+        let ca_volume = format!("{}/ca.crt:/etc/postgresql/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/postgresql/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/postgresql/server.key", cert_dir);
+
+        // 3. Build and execute the command in sequence using std::process::Command.
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "postgres-ssl-test"])
+            .args(["-p", format!("{}:5432", port).as_str()])
+            .args(["-e", "POSTGRES_USER=testuser"])
+            .args(["-e", "POSTGRES_PASSWORD=testpass"])
+            .args(["-e", "POSTGRES_DB=testdb"])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .arg("postgres")
+            .args(["-c", "ssl=on"])
+            .args(["-c", "ssl_cert_file=/etc/postgresql/server.crt"])
+            .args(["-c", "ssl_key_file=/etc/postgresql/server.key"])
+            .args(["-c", "ssl_ca_file=/etc/postgresql/ca.crt"])
+            .args(["-c", "log_connections=on"])
+            .output()
+            .unwrap(); // Capture standard output and standard error.
+
+        // 4. Check the command result.
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("PostgreSQL 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        start_docker_container(&container_id).unwrap();
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        //  test ssl
+        let config = PGDBConfig {
+            options: Default::default(),
+            host: "127.0.0.1".to_string(),
+            port,
+            username: "testuser".to_string(),
+            password: "testpass".to_string().into(),
+            db: Some("postgres".to_string()),
+            schema: None,
+            read_only: true,
+            ssl: SslFilesWithStrModel {
+                ssl_mode: "disable".to_string(),
+                ssl_files: SSLFiles {
+                    ssl_ca: None,
+                    ssl_cert: None,
+                    ssl_key: None,
+                },
+            },
+            conn_timeout: Some(5000.into()),
+        };
+        let kind = BackendKindPostGres::PostGres;
+        {
+            let db = PostGresDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+        }
+
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "require".to_string();
+            let db = PostGresDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+        }
+
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "verify-ca".to_string();
+            config.ssl.ssl_files = SSLFiles::test_cert();
+            println!("config:{:?}", config);
+
+            let db = PostGresDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_type_regproc() {
+        let db = make_test_object().await;
+
+        let sql = r#"
+                SELECT "oid","amname","amhandler","amtype" from "pg_catalog"."pg_am" ORDER BY "amhandler" ASC  OFFSET 0 LIMIT 5
+"#;
+
+        let mut conn: sqlx::pool::PoolConnection<sqlx::Postgres> = db.get_conn().await.unwrap();
+
+        let stmt: sqlx::postgres::PgStatement = conn.prepare(sql.into_sql_str()).await.unwrap();
+
+        for col in stmt.columns() {
+            println!("!!!:{} {}", col.name(), col.type_info());
+        }
+
+        let rows = sqlx::query(sql.into_sql_str())
+            .fetch_all(conn.deref_mut())
+            .await
+            .unwrap();
+
+        for row in rows.iter() {
+            for col in row.columns().iter() {
+                println!("!!!:{} {}", col.name(), col.type_info());
+            }
+        }
     }
 }

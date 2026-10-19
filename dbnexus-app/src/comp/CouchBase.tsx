@@ -2,13 +2,14 @@ import {
   Button,
   ButtonGroup,
   Chip,
+  Dialog,
   IconButton,
   Pagination,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
-import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import { UploadIcon, ArrowCircleDownRoundedIcon } from "./icons";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -24,42 +25,66 @@ import {
   SliderSize,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
-import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   DataSourceKind,
   getEditorText,
   handleCopyToClipboard,
   jumpToEditorText,
   QueryIDEditorChatCtx,
-  resizeHandlerSize,
   secondConfirm,
   shrinkAble,
+  TabContent,
+  DbnameContext,
+  resizeHandlerSize,
 } from "./helper.ts";
 
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV, FaUpload } from "react-icons/fa";
-import { SelectPageSize } from "./CommonComp.tsx";
+import {
+  DeleteForeverIcon,
+  PlayArrowIcon,
+  FilterAltIcon,
+  FaArrowsAltV,
+  FaUpload,
+} from "./icons";
+import {
+  ExportTableOnTheFilterSort,
+  SelectPageSize,
+  SqlExportTableOnFilterSortNotice,
+  VirtualVarListLeft,
+} from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { NameAndQueryId, uuidv4 } from "./Common.ts";
-import { editor } from "monaco-editor";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
 import {
   CBQueryViewMode,
   useCBQueryViewStore,
   useNotification,
-  useOneShotDialogUI,
   usePageSize,
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
   useTabSize,
+  useTabsManage,
 } from "./store.tsx";
 import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
+import { useDebounce } from "use-debounce";
+import { isEqual } from "lodash-es";
+import { CouchbaseTableImportFile } from "./CreateTable.tsx";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -70,12 +95,12 @@ function newDataDefault(): Data {
   return { count: 0, data: [] };
 }
 
-function CouchBaseTable(props: { uuid: string; table: string }) {
-  const { uuid, table } = props;
+function CouchBaseTable_(props: { table: string }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table } = props;
   const [page, setPage] = useState(1);
   const { couchbase: pageSize, setPageSize } = usePageSize();
-
-  const [where, setWhere] = useState("");
+  const [filter, setFilter] = useState("");
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -86,6 +111,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
   const tabSize = useTabSize();
+  const { appendTab } = useTabsManage();
 
   const handleReload = useCallback(() => {
     const c = new Channel<QueryEvent>((event) => {
@@ -129,12 +155,12 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
 
     commands
       .showTable(
-        uuid,
+        dbName,
         false,
         table,
         {
-          where_str: where ? where : undefined,
-          order_by: sort ? sort : undefined,
+          filter: filter ? filter : undefined,
+          sort: sort ? sort : undefined,
           page_size: pageSize,
           page: page,
           tab_size: tabSize,
@@ -148,7 +174,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [page, pageSize, showNotification, sort, tabSize, table, uuid, where]);
+  }, [page, pageSize, showNotification, sort, tabSize, table, dbName, filter]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -167,7 +193,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           />
           <Tooltip title="filter something like 'age=18'">
             <Chip
-              label={where}
+              label={filter ? filter : "..."}
               onClick={() => {
                 setShowSetWhere(true);
               }}
@@ -176,9 +202,9 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               color="primary"
               icon={<FilterAltIcon />}
               onDelete={
-                where
+                filter
                   ? () => {
-                      setWhere("");
+                      setFilter("");
                     }
                   : undefined
               }
@@ -186,7 +212,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           </Tooltip>
           <Tooltip title="sort something like 'age asc'">
             <Chip
-              label={sort}
+              label={sort ? sort : "..."}
               onClick={() => {
                 setShowSetSort(true);
               }}
@@ -205,10 +231,32 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             />
           </Tooltip>
 
-          <AddTableModal
-            uuid={uuid}
-            kind={DataSourceKind.CouchBase}
+          <AddTableModal kind={DataSourceKind.CouchBase} tableName={table} />
+          <IconButton
+            color="success"
+            onClick={() => {
+              appendTab(
+                new TabContent(
+                  table,
+                  <CouchbaseTableImportFile hasTableName={table} />,
+                  <UploadIcon />,
+                  dbName,
+                  kind,
+                ),
+              );
+            }}>
+            <UploadIcon />
+          </IconButton>
+          <ExportTableOnTheFilterSort
+            isTable
             tableName={table}
+            para={{
+              filter: filter ? filter : null,
+              sort: sort ? sort : null,
+              page,
+              page_size: pageSize,
+            }}
+            extraUI=<SqlExportTableOnFilterSortNotice />
           />
         </Stack>
         <Typography variant="h5"> {table} </Typography>
@@ -240,7 +288,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               docid={item.id}
               value={item.data}
               handleDelete={async () => {
-                await commands.tableDelete(uuid, table, { id: item.id });
+                await commands.tableDelete(dbName, table, { id: item.id });
                 setResp((resp) => {
                   return {
                     count: resp.count - 1,
@@ -251,7 +299,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               warnModify
               handleValue={async (newV) => {
                 await commands.tableUpdate(
-                  uuid,
+                  dbName,
                   table,
                   {
                     id: item.id,
@@ -305,16 +353,15 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         <SetFilterSort
           tableName={table}
           open={showSetWhere}
-          value={where}
+          value={filter}
           setValue={(v) => {
-            setWhere(v);
+            setFilter(v);
           }}
           handleClose={() => {
             setShowSetWhere(false);
           }}
           label="filter"
           kind={kind}
-          uuid={uuid}
         />
       )}
       {showSetSort && (
@@ -330,12 +377,13 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             setShowSetSort(false);
           }}
           label="sort"
-          uuid={uuid}
         />
       )}
     </Stack>
   );
 }
+
+const CouchBaseTable = React.memo(CouchBaseTable_);
 
 function CouchBaseEditor(props: {
   value: string;
@@ -351,7 +399,7 @@ function CouchBaseEditor(props: {
   const { showNotification } = useNotification();
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
-  const [changed, setChanged] = useState(false);
+  const [newValueD] = useDebounce(newValue, 1000);
   const doModify = async () => {
     if (warnModify) {
       const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -363,7 +411,6 @@ function CouchBaseEditor(props: {
     handleValue(newValue)
       .then(() => {
         showNotification({ severity: "success", title: `${modifyName} OK` });
-        setChanged(false);
       })
       .catch((e) => {
         showNotification({
@@ -376,6 +423,9 @@ function CouchBaseEditor(props: {
         setLoading(false);
       });
   };
+  const oldObject = useMemo(() => {
+    return JSON.parse(value);
+  }, [value]);
   const doDelete = handleDelete
     ? async () => {
         const confirm = await secondConfirm({ title: "sure to delete?" });
@@ -406,7 +456,6 @@ function CouchBaseEditor(props: {
         value={newValue}
         handleValue={async (newValue) => {
           setNewValue(newValue);
-          setChanged(true);
         }}
         language="json"
       />
@@ -415,6 +464,15 @@ function CouchBaseEditor(props: {
         {doModify && (
           <>
             <IconButton
+              disabled={(function () {
+                let x;
+                try {
+                  x = JSON.parse(newValueD);
+                } catch {
+                  return true;
+                }
+                return isEqual(oldObject, x);
+              })()}
               onClick={() => {
                 doModify();
               }}
@@ -445,14 +503,14 @@ function CouchBaseEditor(props: {
             </Typography>
           </Tooltip>
         )}
-        {changed && <Typography color="warning"> modified </Typography>}
       </Stack>
     </Stack>
   );
 }
 
-function CouchBaseInsert({ uuid, table }) {
+function CouchBaseInsert({ table }) {
   const [id, setId] = useState("");
+  const { dbName } = useContext(DbnameContext);
   return (
     <CouchBaseEditor
       warnModify={false}
@@ -482,7 +540,7 @@ function CouchBaseInsert({ uuid, table }) {
         if (!id.trim()) {
           throw "id is empty";
         }
-        await commands.tableInsert(uuid, table, {
+        await commands.tableInsert(dbName, table, {
           id: id.trim(),
           value,
         });
@@ -492,10 +550,10 @@ function CouchBaseInsert({ uuid, table }) {
 }
 
 interface ExecuteButtonProps {
-  handleExecute: (text: string) => void; // 修正了拼写
+  handleExecute: (text: string) => void; // Corrected the spelling.
   getText: () => string;
   disabled: boolean;
-  loading?: boolean; // 保留原有的 loading 属性支持
+  loading?: boolean; // Retain support for the existing loading property.
 }
 
 export function ExecuteButton(props: ExecuteButtonProps) {
@@ -504,7 +562,7 @@ export function ExecuteButton(props: ExecuteButtonProps) {
   return (
     <Tooltip title="execute">
       <span>
-        {/* 当 IconButton 禁用时，Tooltip 需要一个 span 包裹才能正常触发 */}
+        {/* When IconButton is disabled, Tooltip needs a span wrapper to trigger correctly. */}
         <IconButton
           loading={loading}
           onClick={() => {
@@ -523,25 +581,21 @@ export function ExecuteButton(props: ExecuteButtonProps) {
   );
 }
 
-function CouchBaseQuery(props: { uuid: string; value?: string }) {
-  const { uuid, value } = props;
+function CouchBaseQuery_(props: { value?: string }) {
+  const { value } = props;
+  const { dbName } = useContext(DbnameContext);
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { getSize } = useSizeStore();
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
-  const kind = DataSourceKind.CouchBase;
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
-  const setEditorContext = useContext(QueryIDEditorChatCtx);
+  const { editor, setEditor } = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
-  const [hightlightStr, setHighlightStr] = useState("");
-  const { setUi } = useOneShotDialogUI();
-  useEffect(() => {
-    setEditorContext.setEditor(editor);
-  }, [editor, setEditor, setEditorContext]);
-
+  const [matchStr, setMatchStr] = useState("");
+  const [showExport, setShowExport] = useState(false);
   const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {
     if (viewMode != CBQueryViewMode.Table) {
@@ -594,7 +648,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
       data.push(d);
     }
     setTableResp({ fields, data: data as any, sql: "", total: null });
-  }, [resp, uuid, viewMode]);
+  }, [resp, dbName, viewMode]);
 
   const handleQuery = (text: string) => {
     setLoading(true);
@@ -630,29 +684,39 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
     });
 
     commands
-      .querySql(uuid, "", getSize(UseSizeConfig.queryLimit), text, channel)
+      .querySql(dbName, "", getSize(UseSizeConfig.couchbaseQueryLimit), text, channel)
 
       .catch((e) => {
         showNotification({ severity: "error", title: "query failed", message: e });
-        saveQueryLog(uuid, text, false);
+        saveQueryLog(dbName, text, false);
       })
       .then(() => {
-        saveQueryLog(uuid, text, true);
+        saveQueryLog(dbName, text, true);
       })
       .finally(() => {
         setLoading(false);
       });
   };
+  const [matchStrDelay] = useDebounce(matchStr, 1000);
+  const showResp = useMemo(() => {
+    return resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
+  }, [matchStrDelay, resp]);
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "couchbase-query-panel-group",
+    panelIds: ["query-panel", "resp-panel"],
+  });
   return (
     <PanelGroup
-      style={{ height: "100%" }}
-      direction="vertical"
-      autoSaveId="couchbase-query">
+      style={{ height: "100%", paddingRight: "0.7rem" }}
+      orientation="vertical"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}>
       <Panel
+        id="query-panel"
         collapsible
-        collapsedSize={0}
-        minSize={10}
-        defaultSize={35}
+        collapsedSize={"0%"}
+        minSize={"10%"}
+        defaultSize={"35%"}
         style={{ display: "flex", flexDirection: "column" }}>
         <QueryStatus status={queryStatus} />
         <Stack
@@ -682,20 +746,38 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               kind={DataSourceKind.CouchBase}
             />
 
-            <ButtonGroup>
-              {[CBQueryViewMode.Json, CBQueryViewMode.Table].map((e) => (
-                <Button
-                  key={e}
-                  disabled={e == viewMode}
-                  onClick={() => {
-                    setViewMode(e);
-                  }}>
-                  {e}
-                </Button>
-              ))}
-            </ButtonGroup>
+            <Tooltip title="view model">
+              <ButtonGroup>
+                {[CBQueryViewMode.Json, CBQueryViewMode.Table].map((e) => (
+                  <Button
+                    key={e}
+                    disabled={e == viewMode}
+                    onClick={() => {
+                      setViewMode(e);
+                    }}>
+                    {e}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </Tooltip>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
+            {viewMode == CBQueryViewMode.Json && (
+              <>
+                <ClearableTextField
+                  value={matchStr}
+                  onChange={(e) => {
+                    setMatchStr(e.target.value);
+                  }}
+                  onClear={() => {
+                    setMatchStr("");
+                  }}
+                  label="match string"
+                  style={{ width: "13rem" }}
+                />
+              </>
+            )}
+
             <Tooltip title="export query result to a file">
               <IconButton
                 loading={loading}
@@ -705,37 +787,13 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                   if (!value) {
                     return;
                   }
-
-                  setUi(
-                    <ExportView
-                      supportKind={["json", "jsonline"]}
-                      exportOP={(kind, file, taskId, sizeEmitter) => {
-                        const sql = getEditorText(editor, showNotification, true);
-                        return commands.exportQueryResultToFile(
-                          uuid,
-                          taskId,
-                          sql,
-                          "",
-                          kind,
-                          file,
-                          sizeEmitter,
-                        );
-                      }}
-                      name="export_query_result"
-                    />,
-
-                    "export query to file",
-                  );
+                  setShowExport(true);
                 }}
                 color="primary">
                 <ArrowCircleDownRoundedIcon />
               </IconButton>
             </Tooltip>
-            <ShowQueryLog uuid={uuid} kind={kind} />
-
-            {viewMode == CBQueryViewMode.Json && (
-              <SliderSize config={UseSizeConfig.gridCol} />
-            )}
+            <ShowQueryLog />
 
             <ToggleChatShow />
             <AiMarkdownModelSwitch
@@ -743,9 +801,34 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               markdownModel={markdownModel}
             />
             <FetchTimeAndLoadingStatus isLoading={loading} />
-            <SliderSize config={UseSizeConfig.queryLimit} />
+            <SliderSize config={UseSizeConfig.couchbaseQueryLimit} />
           </Stack>
         </Stack>
+
+        {showExport && (
+          <Dialog
+            open={showExport}
+            onClose={() => {
+              setShowExport(false);
+            }}>
+            <ExportView
+              supportKind={["json", "jsonline"]}
+              exportOP={(kind, file, taskId, sizeEmitter) => {
+                const sql = getEditorText(editor, showNotification, true);
+                return commands.exportQueryResultToFile(
+                  dbName,
+                  taskId,
+                  sql,
+                  "",
+                  kind,
+                  file,
+                  sizeEmitter,
+                );
+              }}
+              name="export_query_result"
+            />
+          </Dialog>
+        )}
 
         <AiMarkdownModel
           markdownModel={markdownModel}
@@ -780,7 +863,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             handleEditor={(e) => {
               setEditor(e);
               e.getModel()._dbpal_query_id = new NameAndQueryId(
-                uuid,
+                dbName,
                 DataSourceKind.CouchBase,
                 "",
               );
@@ -788,54 +871,31 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           />
         </div>
       </Panel>
-      <PanelResizeHandle
+
+      <Separator
         style={{
           height: resizeHandlerSize,
         }}
         id="chat-resize-bar"
         className="resize-handle"
       />
-      <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
-        <Stack
-          direction="row"
-          style={{ justifyContent: "space-between", marginTop: "0.6rem" }}>
-          {viewMode == CBQueryViewMode.Json ? (
-            <ClearableTextField
-              value={hightlightStr}
-              onChange={(e) => {
-                setHighlightStr(e.target.value);
-              }}
-              onClear={() => {
-                setHighlightStr("");
-              }}
-              label="hight light string"
-              style={{ width: "13rem" }}
-            />
-          ) : (
-            <span> </span>
-          )}
-        </Stack>
 
+      <Panel
+        collapsible
+        collapsedSize={"0%"}
+        minSize={"10%"}
+        id="resp-panel"
+        style={{ overflow: "auto" }}>
         {viewMode == CBQueryViewMode.Json && (
-          <div
-            style={{
-              overflow: "auto",
-              display: "grid",
-              gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
-              paddingRight: "1.2rem",
-            }}>
-            {resp.map((value, index) => {
-              return (
-                <AppCode
-                  key={index}
-                  language="json"
-                  codeBlock={value}
-                  highlightStr={hightlightStr}
-                />
-              );
-            })}
-          </div>
+          <VirtualVarListLeft
+            data={showResp}
+            show={(d) => {
+              return <AppCode codeBlock={d} language="json" highlightStr={matchStr} />;
+            }}
+            height="100%"
+          />
         )}
+
         {viewMode == CBQueryViewMode.Table && tableResp && (
           <QueryResp data={tableResp} />
         )}
@@ -843,5 +903,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
     </PanelGroup>
   );
 }
+
+const CouchBaseQuery = React.memo(CouchBaseQuery_);
 
 export { CouchBaseTable, CouchBaseQuery, CouchBaseInsert };

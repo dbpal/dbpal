@@ -26,10 +26,10 @@ export const commands = {
 	querySqlCloseConnection: (dbName: string, queryId: string) => __TAURI_INVOKE<null>("query_sql_close_connection", { dbName, queryId }),
 	querySqlOpenConnection: (dbName: string, id: string) => __TAURI_INVOKE<null>("query_sql_open_connection", { dbName, id }),
 	exportTableOrView: (dbName: string, taskId: string, sizeEmitter: Channel<number>, tableOrView: string, para: {
-	where_str?: string | null,
-	order_by?: string | null,
-	page?: number,
-	page_size?: number,
+	filter?: string | null,
+	sort?: string | null,
+	page?: number | null,
+	page_size?: number | null,
 	limit?: number | null,
 	min?: number | null,
 	max?: number | null,
@@ -73,12 +73,12 @@ export const commands = {
 } | null) => __TAURI_INVOKE<string>("modify_table_column", { dbName, tableName, oldName, newName, typ }),
 	dropTrigger: (dbName: string, tableName: string, trigger: string) => __TAURI_INVOKE<string>("drop_trigger", { dbName, tableName, trigger }),
 	enableTrigger: (dbName: string, tableName: string, trigger: string, enable: boolean) => __TAURI_INVOKE<string>("enable_trigger", { dbName, tableName, trigger, enable }),
-	listProcedure: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("list_procedure", { dbName }),
-	showProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<ProcedureDetail>("show_procedure", { dbName, procedure }),
-	dropProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<string>("drop_procedure", { dbName, procedure }),
-	listUdf: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("list_udf", { dbName }),
-	showUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<DefAndMetas>("show_udf", { dbName, udf }),
-	dropUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<string>("drop_udf", { dbName, udf }),
+	listProcedure: (dbName: string) => __TAURI_INVOKE<NameWithParameter[]>("list_procedure", { dbName }),
+	showProcedure: (dbName: string, procedure: NameWithParameter) => __TAURI_INVOKE<DefAndMetas>("show_procedure", { dbName, procedure }),
+	dropProcedure: (dbName: string, procedure: NameWithParameter) => __TAURI_INVOKE<string>("drop_procedure", { dbName, procedure }),
+	listUdf: (dbName: string) => __TAURI_INVOKE<NameWithParameter[]>("list_udf", { dbName }),
+	showUdf: (dbName: string, udf: NameWithParameter) => __TAURI_INVOKE<DefAndMetas>("show_udf", { dbName, udf }),
+	dropUdf: (dbName: string, udf: NameWithParameter) => __TAURI_INVOKE<string>("drop_udf", { dbName, udf }),
 	addTableColumn: (dbName: string, tableName: string, colName: string, typ: ColumnType) => __TAURI_INVOKE<string>("add_table_column", { dbName, tableName, colName, typ }),
 	checkConn: (dbName: string) => __TAURI_INVOKE<number>("check_conn", { dbName }),
 	closeConn: (dbName: string) => __TAURI_INVOKE<null>("close_conn", { dbName }),
@@ -92,7 +92,7 @@ export const commands = {
 	isDangerousSql: (dbName: string, sql: string) => __TAURI_INVOKE<boolean>("is_dangerous_sql", { dbName, sql }),
 	exportQueryResultToFile: (dbName: string, taskId: string, sql: string, queryId: string, kind: ExportKind, file: string, sizeEmitter: Channel<number>) => __TAURI_INVOKE<null>("export_query_result_to_file", { dbName, taskId, sql, queryId, kind, file, sizeEmitter }),
 	pageInitCallback: () => __TAURI_INVOKE<null>("page_init_callback"),
-	mongoQueryCollectionCountDocs: (dbName: string, col: string) => __TAURI_INVOKE<number>("mongo_query_collection_count_docs", { dbName, col }),
+	mongoQueryCollectionCountDocs: (dbName: string, col: string, filter: Uint8Array | null) => __TAURI_INVOKE<number>("mongo_query_collection_count_docs", { dbName, col, filter }),
 	mongoQueryCollectionCreateIndex: (dbName: string, col: string, index: Uint8Array) => __TAURI_INVOKE<string>("mongo_query_collection_create_index", { dbName, col, index }),
 	mongoQueryCollectionCreateSearchIndex: (dbName: string, col: string, index: Uint8Array, indexName: string | null) => __TAURI_INVOKE<string>("mongo_query_collection_create_search_index", { dbName, col, index, indexName }),
 	mongoQueryCollectionDeleteMany: (dbName: string, col: string, query: Uint8Array) => __TAURI_INVOKE<string>("mongo_query_collection_delete_many", { dbName, col, query }),
@@ -105,7 +105,7 @@ export const commands = {
 	mongoQueryDbDrop: (dbName: string) => __TAURI_INVOKE<null>("mongo_query_db_drop", { dbName }),
 	mongoQueryDbListCollectionNames: (dbName: string) => __TAURI_INVOKE<string[]>("mongo_query_db_list_collection_names", { dbName }),
 	mongoQueryDbRunCommand: (dbName: string, command: Uint8Array) => __TAURI_INVOKE<number[]>("mongo_query_db_run_command", { dbName, command }),
-	mongoQueryCollectionFind: (dbName: string, col: string, para: MongoFindParameter) => __TAURI_INVOKE<number[][]>("mongo_query_collection_find", { dbName, col, para }),
+	mongoQueryCollectionFind: (dbName: string, col: string, para: MongoFindParameter, emit: Channel<number[]>) => __TAURI_INVOKE<null>("mongo_query_collection_find", { dbName, col, para, emit }),
 	mongoQueryCollectionFindOne: (dbName: string, col: string, para: MongoFindParameter) => __TAURI_INVOKE<number[] | null>("mongo_query_collection_find_one", { dbName, col, para }),
 	mongoQueryCollectionFindOneAndDelete: (dbName: string, col: string, query: Uint8Array) => __TAURI_INVOKE<number[] | null>("mongo_query_collection_find_one_and_delete", { dbName, col, query }),
 	mongoQueryCollectionFindOneAndReplace: (dbName: string, col: string, query: Uint8Array, replacement: Uint8Array) => __TAURI_INVOKE<number[] | null>("mongo_query_collection_find_one_and_replace", { dbName, col, query, replacement }),
@@ -119,9 +119,8 @@ export const commands = {
 	mongoQueryCollectionUpdateOne: (dbName: string, col: string, query: Uint8Array, replacement: Uint8Array) => __TAURI_INVOKE<string>("mongo_query_collection_update_one", { dbName, col, query, replacement }),
 	mongoCreateIndex: (dbName: string, tableName: string, indexName: string | null, keys: Uint8Array, unique: boolean) => __TAURI_INVOKE<null>("mongo_create_index", { dbName, tableName, indexName, keys, unique }),
 	createIndex: (dbName: string, tableName: string, req: CreateIndexReq) => __TAURI_INVOKE<string>("create_index", { dbName, tableName, req }),
-	putValueInSql: (dbName: string, typ: string, value: string | null) => __TAURI_INVOKE<string>("put_value_in_sql", { dbName, typ, value }),
 	cassandraDropAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<string>("cassandra_drop_aggregate", { dbName, aggName, parameters }),
-	cassandraListAggregate: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("cassandra_list_aggregate", { dbName }),
+	cassandraListAggregate: (dbName: string) => __TAURI_INVOKE<NameWithParameter[]>("cassandra_list_aggregate", { dbName }),
 	cassandraShowAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<DefAndMetas>("cassandra_show_aggregate", { dbName, aggName, parameters }),
 	listCreatedTypes: (dbName: string) => __TAURI_INVOKE<CreatedTypeDef[]>("list_created_types", { dbName }),
 	showCreateTableSql: (dbName: string, tableName: string) => __TAURI_INVOKE<CreateTableAndIndexSql>("show_create_table_sql", { dbName, tableName }),
@@ -135,7 +134,7 @@ export const commands = {
 	renameSequence: (dbName: string, old: string, newName: string) => __TAURI_INVOKE<string>("rename_sequence", { dbName, old, newName }),
 	commandPanic: () => __TAURI_INVOKE<null>("command_panic"),
 	allFontFamily: () => __TAURI_INVOKE<string[]>("all_font_family"),
-	listSqlCurrentValues: (dbName: string) => __TAURI_INVOKE<string[]>("list_sql_current_values", { dbName }),
+	listSqlPredefineValues: (dbName: string) => __TAURI_INVOKE<string[]>("list_sql_predefine_values", { dbName }),
 	simpleExecuteSql: (dbName: string, sql: string) => __TAURI_INVOKE<number | null>("simple_execute_sql", { dbName, sql }),
 	dropCreatedType: (dbName: string, typeName: string) => __TAURI_INVOKE<string>("drop_created_type", { dbName, typeName }),
 	listEvent: (dbName: string) => __TAURI_INVOKE<SqlEvent[]>("list_event", { dbName }),
@@ -143,7 +142,6 @@ export const commands = {
 	extractTableSelectSelection: (dbName: string, sql: string) => __TAURI_INVOKE<string | null>("extract_table_select_selection", { dbName, sql }),
 	extractTableSelectSort: (dbName: string, sql: string) => __TAURI_INVOKE<string | null>("extract_table_select_sort", { dbName, sql }),
 	getRedisDoc: (line: string) => __TAURI_INVOKE<string>("get_redis_doc", { line }),
-	monacoEditorThemes: () => __TAURI_INVOKE<{ [key in string]: string }>("monaco_editor_themes"),
 	aiTextCompletion: (dbName: string, text: string, line: number, col: number) => __TAURI_INVOKE<CompletionList>("ai_text_completion", { dbName, text, line, col }),
 	cancelTask: (taskId: string) => __TAURI_INVOKE<null>("cancel_task", { taskId }),
 	setLogLevel: (level: string) => __TAURI_INVOKE<void>("set_log_level", { level }),
@@ -155,13 +153,24 @@ export const commands = {
 	openaiInvoke: (req: OpenAIReq) => __TAURI_INVOKE<string>("openai_invoke", { req }),
 	setEnv: (env: { [key in string]: string }) => __TAURI_INVOKE<void>("set_env", { env }),
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
+	sqlEncodeValues: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("sql_encode_values", { dbName, typ, values }),
+	writeXlsx: (path: string, data: XlsxCellData[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
+	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
+	sqlInferFieldsFromFile: (dbName: string, path: string, csvDelimiter: string | null) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path, csvDelimiter }),
+	readExcelFilePreview: (path: string, maxRow: number) => __TAURI_INVOKE<MuiDataGridData>("read_excel_file_preview", { path, maxRow }),
+	tableImportDataFromFileInsertSamples: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<string[]>("table_import_data_from_file_insert_samples", { dbName, tableName, kind }),
+	getUpdateSqlFromResultSet: (dbName: string, sql: string, oldValues: (string | null)[], newValues: (string | null)[]) => __TAURI_INVOKE<string[]>("get_update_sql_from_result_set", { dbName, sql, oldValues, newValues }),
+	executeTxMultiSql: (dbName: string, sql: string[]) => __TAURI_INVOKE<null>("execute_tx_multi_sql", { dbName, sql }),
+	dropForeignKey: (dbName: string, tableName: string, foreignKey: string) => __TAURI_INVOKE<null>("drop_foreign_key", { dbName, tableName, foreignKey }),
+	listForeignKey: (dbName: string, tableName: string) => __TAURI_INVOKE<ForeignKeyDef[]>("list_foreign_key", { dbName, tableName }),
+	sqlEncodeValue: (dbName: string, typ: string, value: string | null) => __TAURI_INVOKE<string>("sql_encode_value", { dbName, typ, value }),
 };
 
 /* Constants */
 export const redisCommands = ["ACL","APPEND","ASKING","AUTH","BGREWRITEAOF","BGSAVE","BITCOUNT","BITFIELD","BITFIELD_RO","BITOP","BITPOS","BLMOVE","BLMPOP","BLPOP","BRPOP","BRPOPLPUSH","BZMPOP","BZPOPMAX","BZPOPMIN","CLIENT","CLUSTER","COMMAND","CONFIG","COPY","DBSIZE","DEBUG","DECR","DECRBY","DEL","DISCARD","DUMP","ECHO","EVAL","EVAL_RO","EVALSHA","EVALSHA_RO","EXEC","EXISTS","EXPIRE","EXPIREAT","EXPIRETIME","FAILOVER","FCALL","FCALL_RO","FLUSHALL","FLUSHDB","FUNCTION","GEOADD","GEODIST","GEOHASH","GEOPOS","GEORADIUS","GEORADIUS_RO","GEORADIUSBYMEMBER","GEORADIUSBYMEMBER_RO","GEOSEARCH","GEOSEARCHSTORE","GET","GETBIT","GETDEL","GETEX","GETRANGE","GETSET","HDEL","HELLO","HEXISTS","HGET","HGETALL","HINCRBY","HINCRBYFLOAT","HKEYS","HLEN","HMGET","HMSET","HRANDFIELD","HSCAN","HSET","HSETNX","HSTRLEN","HVALS","INCR","INCRBY","INCRBYFLOAT","INFO","KEYS","LASTSAVE","LATENCY","LCS","LINDEX","LINSERT","LLEN","LMOVE","LMPOP","LOLWUT","LPOP","LPOS","LPUSH","LPUSHX","LRANGE","LREM","LSET","LTRIM","MEMORY","MGET","MIGRATE","MODULE","MONITOR","MOVE","MSET","MSETNX","MULTI","OBJECT","PERSIST","PEXPIRE","PEXPIREAT","PEXPIRETIME","PFADD","PFCOUNT","PFDEBUG","PFMERGE","PFSELFTEST","PING","PSETEX","PSUBSCRIBE","PSYNC","PTTL","PUBLISH","PUBSUB","PUNSUBSCRIBE","QUIT","RANDOMKEY","READONLY","READWRITE","RENAME","RENAMENX","REPLCONF","REPLICAOF","RESET","RESTORE","ROLE","RPOP","RPOPLPUSH","RPUSH","RPUSHX","SADD","SAVE","SCAN","SCARD","SCRIPT","SDIFF","SDIFFSTORE","SELECT","SET","SETBIT","SETEX","SETNX","SETRANGE","SHUTDOWN","SINTER","SINTERCARD","SINTERSTORE","SISMEMBER","SLAVEOF","SLOWLOG","SMEMBERS","SMISMEMBER","SMOVE","SORT","SORT_RO","SPOP","SPUBLISH","SRANDMEMBER","SREM","SSCAN","SSUBSCRIBE","STRLEN","SUBSCRIBE","SUBSTR","SUNION","SUNIONSTORE","SUNSUBSCRIBE","SWAPDB","SYNC","TIME","TOUCH","TTL","TYPE","UNLINK","UNSUBSCRIBE","UNWATCH","WAIT","WAITAOF","WATCH","XACK","XADD","XAUTOCLAIM","XCLAIM","XDEL","XGROUP","XINFO","XLEN","XPENDING","XRANGE","XREAD","XREADGROUP","XREVRANGE","XSETID","XTRIM","ZADD","ZCARD","ZCOUNT","ZDIFF","ZDIFFSTORE","ZINCRBY","ZINTER","ZINTERCARD","ZINTERSTORE","ZLEXCOUNT","ZMPOP","ZMSCORE","ZPOPMAX","ZPOPMIN","ZRANDMEMBER","ZRANGE","ZRANGEBYLEX","ZRANGEBYSCORE","ZRANGESTORE","ZRANK","ZREM","ZREMRANGEBYLEX","ZREMRANGEBYRANK","ZREMRANGEBYSCORE","ZREVRANGE","ZREVRANGEBYLEX","ZREVRANGEBYSCORE","ZREVRANK","ZSCAN","ZSCORE","ZUNION","ZUNIONSTORE"] as const;
 
 /* Types */
-export type AISteamResp = { resp_type: "content"; msg: string } | { resp_type: "tokenusage"; input_token: number; output_token: number; total_token: number };
+export type AISteamResp = { resp_type: "content"; msg: string } | { resp_type: "tokenusage"; input_token: number | null; output_token: number | null; total_token: number | null };
 
 export type AiOnlineSearch = {
 	enable: boolean,
@@ -169,18 +178,23 @@ export type AiOnlineSearch = {
 	api_key: string | null,
 };
 
+export type CassandraConsistency = number;
+
 export type CassandraDBConfig = {
 	host: string,
-	port: number | null,
+	port: number,
 	username: string | null,
 	password: string | null,
 	db: string | null,
 	read_only: boolean,
-	ssl: CassandraSsl,
-	conn_timeout: ConnTimeOut | null,
+	ssl_enable: boolean,
+	ssl_ca_file: string | null,
+	conn_timeout: SomeTimeOut | null,
+	dialect: CassandraDialect,
+	consistency: CassandraConsistency,
 };
 
-export type CassandraSsl = (SSLFiles);
+export type CassandraDialect = "Cassandra" | "Scylla";
 
 export type ChatHistory = {
 	role: string,
@@ -195,7 +209,7 @@ export type ClickHouseConfig = {
 	db: string | null,
 	read_only: boolean,
 	https: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 };
 
 export type ColumnType = {
@@ -219,21 +233,24 @@ export type CompletionList = {
 	from_dot: boolean,
 };
 
-export type ConnTimeOut = number;
-
 export type CouchBaseBucketType = "couchbase" | "ephemeral";
 
 export type CouchBaseDBConfig = {
-	conn_str: string,
+	host: string,
+	port: number,
 	username: string,
 	password: string,
 	read_only: boolean,
 	bucket: string | null,
 	scope: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
+	ssl_enable: boolean,
+	danger_accept_invalid_hostnames: boolean | null,
+	danger_accept_invalid_certificates: boolean | null,
+	ca_certificates: string[],
 };
 
-export type CreateDatabaseExtra = { extra: "couchbase"; ram_quota_mb: number; flush_enabled: boolean; num_replicas: number; max_expiry: number | null; bucket_type: CouchBaseBucketType };
+export type CreateDatabaseArg = { extra: "couchbase"; ram_quota_mb: number; flush_enabled: boolean; num_replicas: number; max_expiry: number | null; bucket_type: CouchBaseBucketType };
 
 export type CreateIndexColumn = {
 	col: string,
@@ -246,7 +263,7 @@ export type CreateIndexReq = {
 	kind: IndexKind,
 };
 
-export type CreateSchemaExtra = { extra: "cassandra"; replication_strategy: string; replication_factor: number };
+export type CreateSchemaArg = { extra: "cassandra"; replication_strategy: string; replication_factor: number };
 
 // create table and all index sql.
 export type CreateTableAndIndexSql = {
@@ -287,7 +304,7 @@ export type Db2Config = {
 	password: string,
 	db: string,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	schema: string | null,
 } & (OdbcCommon);
 
@@ -311,7 +328,8 @@ export type DuckDBConfig = {
 	read_only: boolean,
 	db: string | null,
 	schema: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
+	max_memory: string | null,
 };
 
 export type ErrorFrontend = {
@@ -320,7 +338,13 @@ export type ErrorFrontend = {
 	cancelled: boolean,
 };
 
-export type ExportKind = { export_kind: "csv"; include_header: boolean; delimiter: string } | { export_kind: "json"; pretty: boolean } | { export_kind: "jsonline" } | { export_kind: "sql"; include_table_schema: boolean } | { export_kind: "xlsx"; include_header: boolean } | { export_kind: "html"; include_header: boolean } | { export_kind: "markdown" };
+export type ExportKind = { export_kind: "csv"; include_header: boolean; delimiter: string } | { export_kind: "json"; pretty: boolean } | { export_kind: "jsonline" } | { export_kind: "sql"; include_table_schema: boolean } | { export_kind: "xlsx"; include_header: boolean } & (ExportKindXlsDatetimeformat) | { export_kind: "html"; include_header: boolean } | { export_kind: "markdown" };
+
+export type ExportKindXlsDatetimeformat = {
+	datatime: string,
+	date: string,
+	time: string,
+};
 
 export type Field = {
 	field: string,
@@ -341,7 +365,17 @@ export type FireBirdConfig = {
 	password: string,
 	db: string,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
+	dialect: string,
+};
+
+export type ForeignKeyDef = {
+	name: string | null,
+	table: string,
+	from: string,
+	to: string,
+	on_update: string,
+	on_delete: string,
 };
 
 export type Index = {
@@ -355,7 +389,7 @@ export type IndexKind = "index" | "unique" | "primary";
 export type LibSqlDBConfig = {
 	replica: boolean,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 } & (LibSqlDBConfigSource);
 
 export type LibSqlDBConfigSource = { source: "local"; path: string } | { source: "remote"; url: string; auth_token: string; path: string | null };
@@ -363,7 +397,6 @@ export type LibSqlDBConfigSource = { source: "local"; path: string } | { source:
 export type ListTable = {
 	name: string,
 	size: number | null,
-	rand: string,
 };
 
 // meta value can used in various place.
@@ -377,10 +410,13 @@ export type MongoDBConfig = {
 	port: number,
 	username: string | null,
 	password: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	db: string | null,
 	read_only: boolean,
-} & (MongoSsl);
+	ssl_enable: boolean,
+	allow_invalid_hostnames: boolean | null,
+	allow_invalid_certificates: boolean | null,
+};
 
 export type MongoFindParameter = {
 	filter: Uint8Array,
@@ -400,44 +436,15 @@ export type MongoShowTablePara = {
 	page_size: number,
 };
 
-export type MongoSsl = {
-	enable_ssl: boolean,
-} & (SSLFiles);
-
 export type MuiDataGridData = {
 	fields: Field[],
-	data: { [key in string]: string }[],
+	data: ({ [key in string]: string | null })[],
 	sql: string | null,
 	total: number,
+	tables?: string[],
 };
 
-export type MySqlSslMode = 
-// Establish an unencrypted connection.
-"disabled" | 
-/**
- *  Establish an encrypted connection if the server supports encrypted connections, falling
- *  back to an unencrypted connection if an encrypted connection cannot be established.
- * 
- *  This is the default if `ssl_mode` is not specified.
- */
-"preferred" | 
-/**
- *  Establish an encrypted connection if the server supports encrypted connections.
- *  The connection attempt fails if an encrypted connection cannot be established.
- */
-"required" | 
-/**
- *  Like `Required`, but additionally verify the server Certificate Authority (CA)
- *  certificate against the configured CA certificates. The connection attempt fails
- *  if no valid matching CA certificates are found.
- */
-"verifyca" | 
-/**
- *  Like `VerifyCa`, but additionally perform host name identity verification by
- *  checking the host name the client uses for connecting to the server against the
- *  identity in the certificate that the server sends to the client.
- */
-"verifyidentity";
+export type MysqlCharset = string;
 
 export type MysqlDBConfig = {
 	host: string,
@@ -446,20 +453,15 @@ export type MysqlDBConfig = {
 	password: string | null,
 	db: string | null,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
-} & (MysqlSsl);
+	conn_timeout: SomeTimeOut | null,
+	charset: MysqlCharset,
+} & (SslFilesWithStrModel);
 
-export type MysqlSsl = {
-	ssl_mode: MySqlSslMode,
-} & (SSLFiles);
-
-// named staff maybe used for view udf etc...
-export type NamedStaff = {
+export type NameWithParameter = {
 	parameters: string | null,
 	cassandra_parameters: string[] | null,
 	name: string,
 	metas: MetaValue[],
-	rand: string,
 };
 
 export type OdbcCommon = {
@@ -489,7 +491,7 @@ export type OracleDBConfig = {
 	host: string,
 	port: number,
 	schema: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	read_only: boolean,
 	db: string,
 };
@@ -502,44 +504,9 @@ export type PGDBConfig = {
 	db: string | null,
 	schema: string | null,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
-} & (PgSsl);
-
-export type PgSsl = {
-	ssl_mode: PgSslMode,
-} & (SSLFiles);
-
-export type PgSslMode = 
-// Only try a non-SSL connection.
-"disable" | 
-// First try a non-SSL connection; if that fails, try an SSL connection.
-"allow" | 
-/**
- *  First try an SSL connection; if that fails, try a non-SSL connection.
- * 
- *  This is the default if no other mode is specified
- */
-"prefer" | 
-/**
- *  Only try an SSL connection. If a root CA file is present, verify the connection
- *  in the same way as if `VerifyCa` was specified.
- */
-"require" | 
-/**
- *  Only try an SSL connection, and verify that the server certificate is issued by a
- *  trusted certificate authority (CA).
- */
-"verifyca" | 
-/**
- *  Only try an SSL connection; verify that the server certificate is issued by a trusted
- *  CA and that the requested server host name matches that in the certificate.
- */
-"verifyfull";
-
-export type ProcedureDetail = {
-	def: string,
-	metas: MetaValue[],
-};
+	conn_timeout: SomeTimeOut | null,
+	options: { [key in string]: string },
+} & (SslFilesWithStrModel);
 
 export type QueryEvent = { kind: "err"; err: string } | { kind: "status"; status: string } | { kind: "data"; data: ((string | null)[])[] } | { kind: "structure"; resp: MuiDataGridData } | { kind: "end" };
 
@@ -551,7 +518,7 @@ export type RedisDBConfig = {
 	db: string | null,
 	read_only: boolean,
 	enable_ssl: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 };
 
 export type RedisListTableRet = {
@@ -581,16 +548,18 @@ export type SequenceDetail = {
 };
 
 export type ShowTableParameter = {
-	where_str?: string | null,
-	order_by?: string | null,
-	page?: number,
-	page_size?: number,
+	filter?: string | null,
+	sort?: string | null,
+	page?: number | null,
+	page_size?: number | null,
 	limit?: number | null,
 	min?: number | null,
 	max?: number | null,
 	allow_filtering?: boolean,
 	tab_size?: number,
 };
+
+export type SomeTimeOut = number;
 
 export type SqlEvent = {
 	name: string,
@@ -609,14 +578,25 @@ export type SqlServerDBConfig = {
 	trust_cert: boolean,
 	schema: string | null,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	cert_ca: string | null,
 };
 
 export type SqliteDBConfig = {
 	path: string,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
+	locking_model: string,
+};
+
+export type SslFilesWithStrModel = {
+	ssl_mode: string,
+} & (SSLFiles);
+
+export type TableImportPara = {
+	path: string,
+	mongo_data?: Uint8Array[] | null,
+	csv_delimiter?: string | null,
 };
 
 export type TriggerDetail = {
@@ -633,4 +613,10 @@ export type TriggerEnable = { kind: "postgres"; enable: string | null } | { kind
 export type TriggerEvent = "Insert" | "Update" | "Delete" | "InsteadOf";
 
 export type TriggerTiming = "Before" | "After" | "InsteadOf" | { String: string };
+
+export type XlsxCellData = {
+	row: number,
+	column: number,
+	content: string,
+};
 

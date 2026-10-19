@@ -1,4 +1,12 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { EscDownEvent, modalHandleClose } from "./Common";
 import {
   dataGridStyle,
@@ -6,10 +14,10 @@ import {
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
   secondConfirm,
+  DbnameContext,
 } from "./helper";
 import { AppDataGridToolBar, ClearableTextField, RefreshButton } from "./CommonComp2";
-import CancelIcon from "@mui/icons-material/Cancel";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { CancelIcon, CheckCircleIcon } from "./icons";
 import {
   Autocomplete,
   Button,
@@ -31,10 +39,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import AddIcon from "@mui/icons-material/Add";
+import { ContentCopyIcon, EditIcon, DeleteForeverIcon, AddIcon } from "./icons";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, CheckedView } from "./CommonComp";
@@ -55,6 +60,7 @@ import {
   commands,
   CreateIndexReq,
   Field,
+  ForeignKeyDef,
   Index,
   SqlNullAble,
   TriggerDetail,
@@ -106,17 +112,14 @@ function ColumnMenu(props: {
   );
 }
 
-function ColumnsStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function ColumnsStructure(props: { table: string }) {
+  const { dbName, kind } = useContext(DbnameContext);
+  const { table } = props;
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [row, setRow] = useState<Field>(null);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.SqlServer,
@@ -132,19 +135,15 @@ function ColumnsStructure(props: {
     DataSourceKind.LibSql,
   ]).has(kind);
 
-  const onColumnResize = useCallback(
-    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
-
   const handleReload = useCallback(() => {
     setLoading(true);
 
     commands
-      .showTableColumns(uuid, table)
+      .showTableColumns(dbName, table)
       .then((data) => {
+        data.forEach((e, index) => {
+          e["id"] = index;
+        });
         setFields(data);
       })
       .catch((e) => {
@@ -157,7 +156,7 @@ function ColumnsStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
 
   const handleDrop = useCallback(
     async (col: string) => {
@@ -171,7 +170,7 @@ function ColumnsStructure(props: {
         return;
       }
       commands
-        .dropTableColumn(uuid, table, col)
+        .dropTableColumn(dbName, table, col)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -188,7 +187,7 @@ function ColumnsStructure(props: {
           });
         });
     },
-    [handleReload, showNotification, table, uuid],
+    [handleReload, showNotification, table, dbName],
   );
   const [showAdd, setShowAdd] = useState(false);
   useEffect(() => {
@@ -258,12 +257,14 @@ function ColumnsStructure(props: {
           if (!field) {
             return;
           }
+          const row = fields.find((e) => e["id"] == id);
+
           const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: (
               <ColumnMenu
                 supportModifyColumn={supportModifyColumn}
-                col={id}
+                col={row.field}
                 content={content}
                 handleDrop={handleDrop}
               />
@@ -274,11 +275,7 @@ function ColumnsStructure(props: {
         style: { cursor: "context-menu" },
       },
     };
-  }, [handleDrop, setUpMenu, supportModifyColumn]);
-
-  const getRowId = useCallback((e: Record<string, any>) => {
-    return e["field"];
-  }, []);
+  }, [fields, handleDrop, setUpMenu, supportModifyColumn]);
 
   const onRowDoubleClick = useCallback((row: { row: Field }) => {
     setRow(row.row);
@@ -298,6 +295,7 @@ function ColumnsStructure(props: {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={table}
             left=<StackRowCenter>
               <RefreshButton loading={loading} onClick={handleReload} />
               {supportModifyColumn && (
@@ -327,15 +325,13 @@ function ColumnsStructure(props: {
         );
       },
     };
-  }, [handleReload, loading, supportModifyColumn]);
+  }, [handleReload, loading, supportModifyColumn, table]);
 
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slots={slots}
-        getRowId={getRowId}
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
         columns={cols}
         rows={fields}
         onRowDoubleClick={onRowDoubleClick}
@@ -355,7 +351,6 @@ function ColumnsStructure(props: {
           <DialogTitle> add table column </DialogTitle>
           <TableAddColumn
             table={table}
-            uuid={uuid}
             handleClose={() => {
               setShowAdd(false);
             }}
@@ -379,7 +374,6 @@ function ColumnsStructure(props: {
             <DialogTitle> modify table column </DialogTitle>
             <ModifyTableColumn
               table={table}
-              uuid={uuid}
               handleClose={() => {
                 setRow(null);
               }}
@@ -396,13 +390,13 @@ function ColumnsStructure(props: {
 }
 
 function RenameIndex(props: {
-  uuid: string;
   table: string;
   reload: () => void;
   handleClose: () => void;
   indexName: string;
 }) {
-  const { uuid, table, reload, handleClose, indexName } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, reload, handleClose, indexName } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewname] = useState(indexName);
   const { showNotification } = useNotification();
@@ -414,7 +408,7 @@ function RenameIndex(props: {
     setLoading(true);
 
     commands
-      .renameIndex(uuid, table, indexName, newName)
+      .renameIndex(dbName, table, indexName, newName)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -493,32 +487,22 @@ function IndexMenu(props: {
   );
 }
 
-function IndexesStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function IndexesStructure(props: { table: string }) {
+  const { dbName, kind } = useContext(DbnameContext);
+  const { table } = props;
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<Index[]>([]);
   const { showNotification } = useNotification();
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-
-  const onColumnResize = useCallback(
-    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
+  const { getColumnWidth } = useColumnWidthStore();
 
   const handleReload = useCallback(() => {
     setLoading(true);
 
     commands
-      .showIndexes(uuid, table)
+      .showIndexes(dbName, table)
       .then((data) => {
         data.forEach((x, index) => {
           x["id"] = index;
@@ -535,7 +519,7 @@ function IndexesStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
 
   const handleDrop = useCallback(
     async (indexName: string) => {
@@ -548,7 +532,7 @@ function IndexesStructure(props: {
         return;
       }
       commands
-        .dropIndex(uuid, table, indexName)
+        .dropIndex(dbName, table, indexName)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -565,7 +549,7 @@ function IndexesStructure(props: {
           });
         });
     },
-    [handleReload, showNotification, table, uuid],
+    [handleReload, showNotification, table, dbName],
   );
   useEffect(() => {
     handleReload();
@@ -614,6 +598,7 @@ function IndexesStructure(props: {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={table}
             left=<Stack direction="row">
               <RefreshButton loading={loading} onClick={handleReload} />
               <IconButton
@@ -628,13 +613,12 @@ function IndexesStructure(props: {
       },
       pagination: AppDataGridPagination,
     };
-  }, [handleReload, loading]);
+  }, [handleReload, loading, table]);
 
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
         columns={cols}
         rows={indexes}
         style={dataGridStyle}
@@ -654,7 +638,6 @@ function IndexesStructure(props: {
           <DialogTitle> mongo create index </DialogTitle>
           <div style={{ height: "40vh" }}>
             <MongoAddIndex
-              uuid={uuid}
               table={table}
               handleClose={() => {
                 setShowAdd(false);
@@ -675,7 +658,6 @@ function IndexesStructure(props: {
           maxWidth="md">
           <DialogTitle> create index </DialogTitle>
           <AddIndex
-            uuid={uuid}
             table={table}
             handleClose={() => {
               setShowAdd(false);
@@ -695,7 +677,6 @@ function IndexesStructure(props: {
           }}>
           <DialogTitle> rename index </DialogTitle>
           <RenameIndex
-            uuid={uuid}
             table={table}
             indexName={renameIndexName}
             handleClose={() => {
@@ -710,12 +691,12 @@ function IndexesStructure(props: {
 }
 
 function MongoAddIndex(props: {
-  uuid: string;
   table: string;
   handleClose: () => void;
   reload: () => void;
 }) {
-  const { uuid, table, handleClose, reload } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reload } = props;
 
   const indexTypes = ["normal", "unique"];
   const [indexType, setIndexType] = useState(indexTypes[0]);
@@ -731,7 +712,7 @@ function MongoAddIndex(props: {
         return;
       }
       await commands.mongoCreateIndex(
-        uuid,
+        dbName,
         table,
         indexName ? indexName : null,
         BSON.serialize(keys),
@@ -779,19 +760,19 @@ function MongoAddIndex(props: {
 }
 
 function AddIndex(props: {
-  uuid: string;
   table: string;
   handleClose: () => void;
   reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, table, handleClose, reload, kind } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reload, kind } = props;
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [req, setReq] = useState<CreateIndexReq>(null);
   useEffect(() => {
     commands
-      .showTableColumns(uuid, table)
+      .showTableColumns(dbName, table)
       .then((data) => {
         setFields(data);
       })
@@ -802,7 +783,7 @@ function AddIndex(props: {
           message: e,
         });
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
   const handleAdd = async () => {
     if (!req.name) {
       showNotification({ severity: "warning", title: "index name can't be none" });
@@ -813,7 +794,7 @@ function AddIndex(props: {
       return;
     }
     try {
-      const sql = await commands.createIndex(uuid, table, req);
+      const sql = await commands.createIndex(dbName, table, req);
       showNotification({
         severity: "success",
         title: "create index ok",
@@ -847,13 +828,13 @@ function AddIndex(props: {
 
 function TableAddColumn(props: {
   table: string;
-  uuid: string;
   handleClose: () => void;
   reload: () => void;
   kind: DataSourceKind;
   fields: Field[];
 }) {
-  const { table, uuid, handleClose, reload, kind, fields } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
   const [nullable, setNullness] = useState<SqlNullAble>("unspecified");
   const [typ, setTyp] = useState("");
@@ -881,7 +862,7 @@ function TableAddColumn(props: {
     setLoading(true);
 
     commands
-      .addTableColumn(uuid, table, name, {
+      .addTableColumn(dbName, table, name, {
         typ: typ,
         nullable: nullable ? nullable : null,
         after: after ? after : null,
@@ -925,7 +906,6 @@ function TableAddColumn(props: {
       />
       <StackRowCenter>
         <TypeSelect
-          uuid={uuid}
           handleChange={(e) => {
             setTyp(e);
           }}
@@ -944,7 +924,6 @@ function TableAddColumn(props: {
 
       {supportDefault && (
         <SqlDefaultValue
-          uuid={uuid}
           defaultValue={defaultValue}
           setDefaultValue={setDefaultValue}
         />
@@ -972,7 +951,6 @@ function TableAddColumn(props: {
 }
 
 function ModifyTableColumn(props: {
-  uuid: string;
   table: string;
   col: string;
   handleClose: () => void;
@@ -981,7 +959,8 @@ function ModifyTableColumn(props: {
   kind: DataSourceKind;
   defaultValue: string;
 }) {
-  const { uuid, table, col, handleClose, reload, typ, kind, defaultValue } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, col, handleClose, reload, typ, kind, defaultValue } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
@@ -1011,7 +990,7 @@ function ModifyTableColumn(props: {
       };
     }
     commands
-      .modifyTableColumn(uuid, table, col, newName, typePara)
+      .modifyTableColumn(dbName, table, col, newName, typePara)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -1067,7 +1046,6 @@ function ModifyTableColumn(props: {
       {modifyType && (
         <StackRowCenter>
           <TypeSelect
-            uuid={uuid}
             handleChange={(e) => {
               setNewTyp(e);
             }}
@@ -1081,7 +1059,6 @@ function ModifyTableColumn(props: {
           {supportModifyDefault && (
             <SqlDefaultValue
               defaultValue={newDv}
-              uuid={uuid}
               setDefaultValue={(v) => {
                 setNewDv(v);
               }}
@@ -1098,7 +1075,7 @@ function ModifyTableColumn(props: {
   );
 }
 
-// databaase kind support null specific
+// database kind support null specific
 function kindSupportNull(kind: DataSourceKind): boolean {
   return kind != DataSourceKind.Cassandra;
 }
@@ -1177,29 +1154,20 @@ function TriggerMenu(props: {
   );
 }
 
-function TriggersStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function TriggersStructure(props: { table: string }) {
+  const { table } = props;
+  const { dbName } = useContext(DbnameContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
   const [row, setRow] = useState<TriggerDetail>(null);
   const { showNotification } = useNotification();
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-  const onColumnResize = useCallback(
-    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
+  const { getColumnWidth } = useColumnWidthStore();
 
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .showTrigger(uuid, table)
+      .showTrigger(dbName, table)
       .then((data) => {
         data.forEach((e, index) => {
           e["id"] = index;
@@ -1216,7 +1184,7 @@ function TriggersStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
   const handleDrop = useCallback(
     async (trigger: string) => {
       const confirm = await secondConfirm({
@@ -1252,7 +1220,7 @@ function TriggersStructure(props: {
     (triggerName: string, enable: boolean) => {
       let title = enable ? "Enable" : "Disable";
       commands
-        .enableTrigger(uuid, table, triggerName, enable)
+        .enableTrigger(dbName, table, triggerName, enable)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -1269,7 +1237,7 @@ function TriggersStructure(props: {
           });
         });
     },
-    [handleReload, showNotification, table, uuid],
+    [handleReload, showNotification, table, dbName],
   );
 
   useEffect(() => {
@@ -1340,6 +1308,7 @@ function TriggersStructure(props: {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={table}
             left=<StackRowCenter>
               <RefreshButton loading={loading} onClick={handleReload} />
             </StackRowCenter>
@@ -1361,13 +1330,12 @@ function TriggersStructure(props: {
         );
       },
     };
-  }, [handleReload, loading, triggers.length]);
+  }, [handleReload, loading, table, triggers.length]);
 
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
         columns={cols}
         rows={triggers}
         onRowDoubleClick={onRowDoubleClick}
@@ -1396,8 +1364,6 @@ function TriggersStructure(props: {
             reloadOP={async () => {
               return row;
             }}
-            uuid={uuid}
-            kind={kind}
           />
         </Dialog>
       )}
@@ -1405,8 +1371,9 @@ function TriggersStructure(props: {
   );
 }
 
-function TableStructure(props: { table: string; uuid: string; kind: DataSourceKind }) {
-  const { table, uuid, kind } = props;
+function TableStructure(props: { table: string }) {
+  const { kind } = useContext(DbnameContext);
+  const { table } = props;
   const [structure, setStructure] = useState("column");
   const structures = ["column"];
 
@@ -1455,6 +1422,24 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
     structures.push("trigger");
   }
 
+  const supportForeignKey = [
+    DataSourceKind.MariaDB,
+    DataSourceKind.Mysql,
+    DataSourceKind.TiDB,
+    DataSourceKind.Sqlite,
+    DataSourceKind.LibSql,
+    DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
+    DataSourceKind.Oracle,
+    DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
+    DataSourceKind.SqlServer,
+  ].includes(kind);
+
+  if (supportForeignKey) {
+    structures.push("foreign_key");
+  }
+
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ justifyContent: "center" }}>
@@ -1473,28 +1458,150 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
           })}
         </ButtonGroup>
       </Stack>
-
-      {structure == "column" && (
-        <ColumnsStructure table={table} kind={kind} uuid={uuid} />
-      )}
-      {structure == "index" && (
-        <IndexesStructure table={table} kind={kind} uuid={uuid} />
-      )}
-      {structure == "trigger" && (
-        <TriggersStructure table={table} kind={kind} uuid={uuid} />
-      )}
-      {structure == "statement" && (
-        <StatementStructure table={table} kind={kind} uuid={uuid} />
-      )}
+      {structure == "column" && <ColumnsStructure table={table} />}
+      {structure == "index" && <IndexesStructure table={table} />}
+      {structure == "trigger" && <TriggersStructure table={table} />}
+      {structure == "statement" && <StatementStructure table={table} />}
+      {structure == "foreign_key" && <ForeignKeyStructure table={table} />}
     </Stack>
   );
 }
-function StatementStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+
+function ForeignKeyStructure(props: { table: string }) {
+  const { table } = props;
+  const { dbName } = useContext(DbnameContext);
+  const [loading, setLoading] = useState(false);
+  const [fs, setFs] = useState<ForeignKeyDef[]>([]);
+  const { showNotification } = useNotification();
+  const { setUpMenu } = useContextMenu();
+
+  const { getColumnWidth } = useColumnWidthStore();
+  const handleReload = useCallback(() => {
+    setLoading(false);
+    commands
+      .listForeignKey(dbName, table)
+      .then((fs) => {
+        fs.forEach((e, index) => {
+          e["id"] = index;
+        });
+        setFs(fs);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list foreign key failed",
+          message: e,
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [dbName, showNotification, table]);
+
+  useEffect(() => {
+    handleReload();
+  }, [handleReload]);
+
+  const columns: GridColDef[] = [
+    { field: "name" },
+    { field: "table" },
+    { field: "from" },
+    { field: "to" },
+    { field: "on_update" },
+    { field: "on_delete" },
+  ];
+
+  columns.forEach((e) => {
+    e.width = getColumnWidth(e.field);
+  });
+
+  const handleDrop = useCallback(
+    (name) => {
+      if (!name) {
+        showNotification({
+          severity: "warning",
+          title: "no name found.don't know how to drop this foreign key",
+        });
+        return;
+      }
+      commands
+        .dropForeignKey(dbName, table, name)
+        .then(() => {
+          showNotification({ severity: "success", title: "drop foreign key success" });
+          handleReload();
+        })
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            message: e,
+            title: "drop foreign key failed",
+          });
+        });
+    },
+    [dbName, handleReload, showNotification, table],
+  );
+
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
+          }
+          const row = fs.find((e) => e["id"] == id);
+          setUpMenu({
+            content: (
+              <MenuItem
+                sx={{ color: "error.main" }}
+                onClick={() => {
+                  handleDrop(row.name);
+                }}>
+                <ListItemIcon>
+                  <DeleteForeverIcon color="error" />
+                </ListItemIcon>
+                <ListItemText> Drop</ListItemText>
+              </MenuItem>
+            ),
+            event: e,
+          });
+        },
+        style: { cursor: "context-menu" },
+      },
+    };
+  }, [fs, handleDrop, setUpMenu]);
+
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
+    return {
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            titleName={table}
+            left=<StackRowCenter>
+              <RefreshButton loading={loading} onClick={handleReload} />
+            </StackRowCenter>
+          />
+        );
+      },
+      pagination: AppDataGridPagination,
+    };
+  }, [handleReload, loading, table]);
+
+  return (
+    <Stack style={{ height: "100%" }}>
+      <DataGrid
+        style={dataGridStyle}
+        columns={columns}
+        slots={slots}
+        slotProps={slotProps}
+        rows={fs}
+      />
+    </Stack>
+  );
+}
+function StatementStructure(props: { table: string }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table } = props;
   const { showNotification } = useNotification();
 
   return (
@@ -1502,7 +1609,7 @@ function StatementStructure(props: {
       <DefAndMetasView
         reloadOP={async () => {
           return commands
-            .showCreateTableSql(uuid, table)
+            .showCreateTableSql(dbName, table)
             .then((data) => {
               return {
                 def: formatCreateTableAndIndexSql(data),
@@ -1521,8 +1628,6 @@ function StatementStructure(props: {
               };
             });
         }}
-        kind={kind}
-        uuid={uuid}
       />
     </Stack>
   );

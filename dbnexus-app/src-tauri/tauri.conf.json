@@ -25,7 +25,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": ["deb", "dmg", "msi", "rpm", "appimage"]
+    "targets": ["deb", "dmg", "msi", "appimage", "rpm"]
   },
   "identifier": "site.dbpal.dev",
   "productName": "dbpal",

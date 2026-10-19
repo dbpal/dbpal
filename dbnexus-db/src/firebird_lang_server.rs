@@ -1,8 +1,10 @@
-use crate::db::SchemaTrait;
+use std::sync::Arc;
+
+use crate::db::{CreateSchemaArg, DBTrait, GetBackendKind, SchemaTrait};
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 use rsfbclient::{Queryable, Row};
@@ -47,11 +49,34 @@ impl LanguageServer for FireBirdDB {
         col: u32,
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+    }
+}
+#[async_trait::async_trait]
+
+impl DBTrait for FireBirdDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        self.backend_kind().not_support_feature("list schema")
+    }
+    async fn open_schema(&self, _name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        self.backend_kind().not_support_feature("open schema")
+    }
+    async fn create_schema(
+        &self,
+        _name: &str,
+        _extra: Option<CreateSchemaArg>,
+    ) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("create schema")
+    }
+    async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("drop  schema")
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -68,7 +93,7 @@ impl AstCompletionHelper for FireBirdDB {
                     .cols
                     .iter()
                     .map(|x| TempTableColumn {
-                        name: x.name.clone(),
+                        name: x.name.clone().to_string(),
                         data_type: None,
                     })
                     .collect();
@@ -132,8 +157,8 @@ impl LangServerCommon for FireBirdDB {
         is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         /*
-                    -- 直接写
-        SELECT ABS(-1)  FROM RDB$DATABASE;   -- 返回 1
+                    -- Write it directly.
+        SELECT ABS(-1)  FROM RDB$DATABASE;   -- Returns 1.
         SELECT SUBSTRING('abc' FROM 2 FOR 2) FROM RDB$DATABASE;
         */
         if let Some(is_call) = is_call {
@@ -220,8 +245,8 @@ impl LangServerCommon for FireBirdDB {
     }
 }
 
-/// 给我firebird的完整的关键字列表rust数组 并且去掉了内置函数
-/// Firebird 4.0 **保留关键字**（不含内置函数）
+/// Provide the complete Firebird keyword list as a Rust array, excluding built-in functions.
+/// Firebird 4.0 **reserved keywords** (excluding built-in functions).
 pub const FIREBIRD_KEYWORDS: &[&str] = &[
     "ACTIVE",
     "ADD",
@@ -520,9 +545,9 @@ pub const FIREBIRD_KEYWORDS: &[&str] = &[
 ];
 
 /*
-    firebird所有的内置函数 ABS 之类的给我一个rust数组 我直接处理
+    Provide all Firebird built-in functions, such as ABS, in a Rust array for direct processing.
 */
-/// Firebird 内置函数（标量）名称表，按字母序
+/// Firebird scalar built-in function names, in alphabetical order.
 pub const FB_BUILTIN_FUNCTIONS: &[&str] = &[
     "ABS",
     "ACOS",

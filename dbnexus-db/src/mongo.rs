@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -15,10 +14,10 @@ use mongodb::{bson, Cursor, IndexModel};
 
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter,
+    parse_bson_doc, BackendKind, CheckConn, CreateSchemaArg, DBTrait, ExportFrame, ExportKind,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind, Index, IndexKind,
+    ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
 };
 
 #[derive(Clone)]
@@ -45,20 +44,17 @@ impl MongoDB {
         }];
         opts.connect_timeout = config.conn_timeout.map(Duration::from);
         if let Some(user) = &config.username {
-            let b = mongodb::options::Credential::builder();
-            let b = b.username(Some(user.to_owned()));
-            let b = b.password(Some(config.password.as_deref().unwrap_or("").to_owned()));
-            let x = b.build();
-            opts.credential = Some(x);
+            let builder = mongodb::options::Credential::builder();
+            let builder = builder.username(Some(user.to_owned()));
+            let builder =
+                builder.password(Some(config.password.as_deref().unwrap_or("").to_owned()));
+            let credential = builder.build();
+            opts.credential = Some(credential);
         }
-        if config.ssl.enable_ssl {
+        if config.ssl_enable {
             let mut tls_option = TlsOptions::default();
-            if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
-                tls_option.ca_file_path = Some(Path::new(ca).to_path_buf());
-            }
-            if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
-                tls_option.cert_key_file_path = Some(Path::new(key).to_path_buf());
-            }
+            tls_option.allow_invalid_certificates = config.allow_invalid_certificates;
+            tls_option.allow_invalid_hostnames = config.allow_invalid_hostnames;
             opts.tls = Some(Tls::Enabled(tls_option));
         }
         let client = mongodb::Client::with_options(opts)?;
@@ -92,7 +88,8 @@ impl ExportQueryResult for MongoDB {
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("export query result")
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
@@ -129,9 +126,8 @@ impl DBTrait for MongoDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         self.created_databases.insert(name.to_owned());
         anyhow::Ok(())
     }
@@ -321,11 +317,12 @@ impl MongoDB {
         collection_name: &str,
         para: MongoShowTablePara,
     ) -> anyhow::Result<QueryResp> {
+        let offset = para.offset();
         let MongoShowTablePara {
             filter,
-            page,
             page_size,
             sort,
+            ..
         } = para;
         let db = self.get_db().await?;
         let count: u64 = db
@@ -335,7 +332,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .skip((page - 1) * page_size)
+            .skip(offset.into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -347,7 +344,7 @@ impl MongoDB {
         }
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
-        anyhow::Ok(QueryResp::new(cols, count as usize, data, None)?)
+        anyhow::Ok(QueryResp::new(cols, count as f64, data, None)?)
     }
 
     pub async fn show_collection_json(
@@ -355,11 +352,13 @@ impl MongoDB {
         collection_name: &str,
         para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let offset = para.offset();
+
         let MongoShowTablePara {
             filter,
-            page,
             page_size,
             sort,
+            ..
         } = para;
         let db = self.get_db().await?;
         let count = db
@@ -369,7 +368,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<bson::Document>(collection_name)
             .find(filter)
-            .skip((page - 1) * page_size)
+            .skip(offset.into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -387,11 +386,13 @@ impl MongoDB {
         collection_name: &str,
         para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let offset = para.offset();
+
         let MongoShowTablePara {
             filter,
-            page,
             page_size,
             sort,
+            ..
         } = para;
         let db = self.get_db().await?;
         let count = db
@@ -401,7 +402,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .skip((page - 1) * page_size)
+            .skip(offset.into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -533,8 +534,30 @@ impl MongoDB {
     }
 }
 
+impl ExtractSqlValeFromJsonValue for MongoDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        _value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        anyhow::bail!("mongo dont't need impl this")
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for MongoDB {
+    async fn table_import_data_from_file(
+        &self,
+        table: &str,
+        para: crate::db::TableImportPara,
+    ) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        for d in para.mongo_data.as_ref().map(|x| &x[..]).unwrap_or(&[]) {
+            let values: bson::Document = bson::from_slice(d)?;
+            db.collection(table).insert_one(values).await?;
+        }
+        anyhow::Ok(())
+    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -573,16 +596,31 @@ impl SchemaTrait for MongoDB {
     async fn export_table_or_view(
         &self,
         name: &str,
-        _para: Option<ShowTableParameter>,
+        para: Option<ShowTableParameter>,
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
+        let mut filter = None;
+        let mut sort = None;
+
+        if let Some(para) = para {
+            if let Some(x) = &para.filter {
+                let x = hex::decode(x)?;
+                filter = Some(parse_bson_doc(&x)?);
+            }
+            if let Some(x) = &para.sort {
+                let x = hex::decode(x)?;
+                sort = Some(parse_bson_doc(&x)?);
+            }
+        }
+
         match kind {
             ExportKind::Json { .. } | ExportKind::JsonLine => {
                 let db = self.get_db().await?;
                 let mut stream = db
                     .collection::<serde_json::Value>(name)
-                    .find(doc! {})
+                    .find(filter.unwrap_or(doc! {}))
+                    .sort(sort.unwrap_or(doc! {}))
                     .await?;
                 while let Some(x) = stream.next().await {
                     let x = x?;
@@ -626,11 +664,7 @@ impl SchemaTrait for MongoDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let views = self
-            .list_collection_name_by_type(|t| match t {
-                CollectionType::View => true,
-
-                _ => false,
-            })
+            .list_collection_name_by_type(|t| matches!(t, CollectionType::View))
             .await?;
 
         anyhow::Ok(views.into_iter().map(ListTable::from).collect())
@@ -638,10 +672,7 @@ impl SchemaTrait for MongoDB {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let tables = self
-            .list_collection_name_by_type(|t| match t {
-                CollectionType::View => false,
-                _ => true,
-            })
+            .list_collection_name_by_type(|t| !matches!(t, CollectionType::View))
             .await?;
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }
@@ -755,13 +786,29 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        _sql: &str,
+        _old_values: &[Option<String>],
+        _new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        self.backend_kind()
+            .not_support_feature("get update sql from result set")
+    }
+
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn query_sql(
         &self,
         _id: &str,
         _sql: &str,
         _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("query sql")
     }
 
     async fn execute_sql(
@@ -769,18 +816,19 @@ impl QuerySql for MongoDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("execute sql")
     }
 
     async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("simple execute sql")
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("open connection")
     }
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("close connection")
     }
 }
 
@@ -811,8 +859,14 @@ pub struct MongoFindParameter {
 pub struct MongoShowTablePara {
     pub sort: Document,
     pub filter: Document,
-    pub page: u64,
-    pub page_size: u64,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+impl MongoShowTablePara {
+    pub(crate) fn offset(&self) -> u32 {
+        (self.page - 1) * self.page_size
+    }
 }
 
 pub fn make_test_object() -> MongoDB {
@@ -824,25 +878,30 @@ pub fn make_test_object() -> MongoDB {
         password: None,
         db: Some("test".to_string()),
         read_only: false,
-
-        ssl: Default::default(),
+        allow_invalid_certificates: None,
+        allow_invalid_hostnames: None,
+        ssl_enable: Default::default(),
     });
-    x.unwrap()
+    x.expect("should make test object ok")
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::make_test_object;
-    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
-    use crate::mongo::MongoShowTablePara;
+    use crate::datasource_config::MongoDBConfig;
+    use crate::db::{CheckConn, DBTrait, SchemaTrait, ServerMetas};
+    use crate::helper::{cert_files_dir, DockerContainerDropper};
+    use crate::mongo::{MongoDB, MongoShowTablePara};
+    use crate::{enable_test_log, TEST_HOST};
     use bson::oid::ObjectId;
     use bson::spec::BinarySubtype;
     use bson::{doc, Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
     use mongodb::bson;
     use mongodb::options::TimeseriesOptions;
+    use std::process::Command;
     use std::str::FromStr;
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime};
     use std::vec;
 
     #[tokio::test]
@@ -1163,7 +1222,7 @@ mod tests {
         let _ = db.drop_view(view_name).await;
 
         let collection_name = "test_mongo";
-        // 定义聚合管道
+        // Define the aggregation pipeline.
         let pipeline: Vec<Document> = vec![];
         let _ = db
             .get_db()
@@ -1253,5 +1312,223 @@ mod tests {
         }
         let table_list = db.list_table().await.unwrap();
         println!("{:?}", table_list);
+    }
+
+    #[tokio::test]
+    async fn test_mongodb_auth() {
+        enable_test_log();
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 1. Create the MongoDB initialization script (create users and databases).
+        let init_script_content = r#"
+// Switch to the admin database and create an administrator user.
+db = db.getSiblingDB('admin');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "root", db: "admin" }
+    ]
+});
+
+// Switch to the testdb database and create a user.
+db = db.getSiblingDB('testdb');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "readWrite", db: "testdb" }
+    ]
+});
+"#;
+
+        let init_script_path = format!("{}/init-mongo.js", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+        let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.js", init_script_path);
+
+        // 2. Start the MongoDB container (without enabling SSL/TLS).
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "mongodb-auth-test"])
+            .args(["-p", format!("{}:27017", port).as_str()])
+            .args(["-v", &init_volume])
+            .arg("mongo")
+            // Enable authentication but not TLS.
+            .args(["--auth"])
+            // Bind to all interfaces.
+            .args(["--bind_ip_all"])
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("MongoDB 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // MongoDB needs time to start and finish initializing.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        {
+            println!("try to connect this db");
+
+            let db = MongoDB::new(MongoDBConfig {
+                host: TEST_HOST.to_string(),
+                port,
+                username: Some("testuser".to_string()),
+                password: Some("testpass".to_string()),
+                conn_timeout: Some(4000.into()),
+                db: Some("testdb".to_string()),
+                read_only: false,
+                ssl_enable: false,
+                allow_invalid_hostnames: None,
+                allow_invalid_certificates: None,
+            })
+            .unwrap();
+            db.check_conn().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+
+    async fn test_ssl() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 1. Create the MongoDB initialization script (create users and databases).
+        let init_script_content = r#"
+// Switch to the admin database and create an administrator user.
+db = db.getSiblingDB('admin');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "root", db: "admin" }
+    ]
+});
+
+// Switch to the testdb database and create a user.
+db = db.getSiblingDB('testdb');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "readWrite", db: "testdb" }
+    ]
+});
+"#;
+
+        let init_script_path = format!("{}/init-mongo.js", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+        let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.js", init_script_path);
+
+        // 2. Certificate file paths (assuming the certificates are already in cert_dir).
+        let ca_cert_path = format!("{}/ca.crt", cert_dir);
+        let server_cert_path = format!("{}/server.crt", cert_dir);
+        let server_key_path = format!("{}/server.key", cert_dir);
+
+        // Check whether the certificate files exist.
+        if !std::path::Path::new(&ca_cert_path).exists() {
+            eprintln!("错误: CA 证书文件不存在: {}", ca_cert_path);
+            return;
+        }
+        if !std::path::Path::new(&server_cert_path).exists() {
+            eprintln!("错误: 服务器证书文件不存在: {}", server_cert_path);
+            return;
+        }
+        if !std::path::Path::new(&server_key_path).exists() {
+            eprintln!("错误: 服务器私钥文件不存在: {}", server_key_path);
+            return;
+        }
+
+        // 3. Combine the certificate and private key into PEM format (required by MongoDB).
+        let mongodb_pem_path = format!("{}/mongodb.pem", cert_dir);
+
+        // If mongodb.pem already exists, choose whether to skip generation or overwrite it.
+        if !std::path::Path::new(&mongodb_pem_path).exists() {
+            /*
+            MongoDB 要求合并文件是因为 MongoDB 的 TLS/SSL 配置只接受单个 PEM 文件，而不是分开的证书和私钥文件。
+
+            为什么需要合并？
+            MongoDB 的设计
+            MongoDB 的 tlsCertificateKeyFile 配置项（对应 Rust 驱动的 cert_key_file_path）期望一个单一的 PEM 文件，同时包含：
+                         */
+            let cert_content =
+                std::fs::read_to_string(&server_cert_path).expect("读取服务器证书失败");
+            let key_content =
+                std::fs::read_to_string(&server_key_path).expect("读取服务器私钥失败");
+            let pem_content = format!("{}{}", cert_content, key_content);
+            std::fs::write(&mongodb_pem_path, pem_content).expect("写入 mongodb.pem 失败");
+            println!("已生成 mongodb.pem 文件");
+        } else {
+            println!("mongodb.pem 已存在，使用现有文件");
+        }
+
+        // 4. Start the MongoDB container (with TLS enabled).
+        // Mount the certificate files as volumes.
+        let cert_volume = format!("{}:/etc/ssl/mongodb.pem", mongodb_pem_path);
+        let ca_volume = format!("{}:/etc/ssl/ca.crt", ca_cert_path);
+
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "mongodb-auth-test"])
+            .args(["-p", format!("{}:27017", port).as_str()])
+            .args(["-v", &init_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &ca_volume])
+            .arg("mongo")
+            // Enable authentication.
+            .args(["--auth"])
+            // Bind to all interfaces.
+            .args(["--bind_ip_all"])
+            // Enable TLS-related settings.
+            .args(["--tlsMode", "requireTLS"])
+            .args(["--tlsCertificateKeyFile", "/etc/ssl/mongodb.pem"])
+            .args(["--tlsCAFile", "/etc/ssl/ca.crt"])
+            .args(["--tlsAllowConnectionsWithoutCertificates"]) // Allow clients to connect without certificates (server authentication only).
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("MongoDB 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _gurad = DockerContainerDropper::from(&container_id);
+        // 5. Wait for MongoDB to finish starting.
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        let config = MongoDBConfig {
+            host: "localhost".to_owned(),
+            port,
+            username: "testuser".to_string().into(),
+            password: "testpass".to_string().into(),
+            conn_timeout: Some(4000.into()),
+            db: Some("testdb".to_string()),
+            read_only: false,
+            ssl_enable: true,
+            allow_invalid_hostnames: Some(true),
+            allow_invalid_certificates: Some(true),
+        };
+
+        {
+            let db = MongoDB::new(config.clone()).unwrap();
+            db.check_conn().await.unwrap();
+            println!("test without cert file success.");
+        }
     }
 }

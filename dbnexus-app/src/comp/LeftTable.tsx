@@ -8,32 +8,22 @@ import {
   useState,
 } from "react";
 import { modalStyle, EscDownEvent, modalHandleClose, uuidv4 } from "./Common.ts";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import ListIcon from "@mui/icons-material/List";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import PlaylistRemoveIcon from "@mui/icons-material/PlaylistRemove";
-import TableViewIcon from "@mui/icons-material/TableView";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import { IoConstructOutline } from "react-icons/io5";
-import { HiOutlineDuplicate } from "react-icons/hi";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
 
 import {
+  AlertTitle,
   Box,
   Button,
   Checkbox,
-  Chip,
   CircularProgress,
   Dialog,
-  DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
+  Slider,
   Stack,
   TextField,
   Tooltip,
@@ -58,52 +48,78 @@ import { BSON } from "bson";
 import {
   DataSourceKind,
   secondConfirm,
-  UuidContext,
+  DbnameContext,
   handleCopyToClipboard,
   RedisTableType,
-  shrinkAble,
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-import { MenuRefresh, ModalHeader } from "./CommonComp";
+import {
+  MenuRefresh,
+  ModalHeader,
+  MyTreeItem,
+  LeftTableNameAndColumns,
+  VirtualListLeft,
+} from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
-import { filesize } from "filesize";
 import {
+  AppCode,
   CancelButton,
   ClearableTextField,
   CopySql,
   ListenElementSize,
   ShowingCount,
-  TableAddButton,
 } from "./CommonComp2";
 import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
 import {
-  useMatcher,
-  useContextMenu,
   useNotification,
   useTabsManage,
   useMatcherFn,
-  useOneShotDialogUI,
+  useRedisKeyFilter,
+  useRedisMaxKeyStore,
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
+import {
+  CouchbaseTableImportFile,
+  MongoTableImportFile,
+  SqlCreateTable,
+  SqlCreateTableImportFile,
+} from "./CreateTable.tsx";
+import { useDebounce } from "use-debounce";
+import {
+  ArrowCircleDownIcon,
+  ContentCopyIcon,
+  CreateIcon,
+  DeleteForeverIcon,
+  EditIcon,
+  HiOutlineDuplicate,
+  IoConstructOutline,
+  ListIcon,
+  PlaylistRemoveIcon,
+  TableViewIcon,
+  UploadIcon,
+} from "./icons.tsx";
 
 function TablesTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [tables, setTables] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-
-  const { maxTree } = useMatcher();
+  const { appendTab } = useTabsManage();
+  const [showDup, setShowDup] = useState("");
+  const [showExport, setShowExport] = useState("");
+  const [renameTable, setRenameTable] = useState("");
+  const [dropTable, setDropTable] = useState("");
   const matchPattern = useMatcherFn();
-  const tablesId = useRef(uuidv4());
   const showItems = useMemo(() => {
-    return tables.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [tables, maxTree, matchPattern]);
+    return tables.filter((e) => matchPattern(e.name));
+  }, [tables, matchPattern]);
+
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .listTable(uuid)
+      .listTable(dbName)
       .then((data) => {
         setTables(data);
       })
@@ -117,12 +133,10 @@ function TablesTree() {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   let tablesText: string;
 
@@ -135,97 +149,147 @@ function TablesTree() {
       tablesText = "tables";
     }
   }
-
   return (
-    <TreeItem
-      itemId={tablesId.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh reload={handleReload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      enable={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+            {kind != DataSourceKind.Redis && (
+              <>
+                {kind != DataSourceKind.Mongo && kind != DataSourceKind.CouchBase && (
+                  <MenuItem
+                    onClick={() => {
+                      const content = <SqlCreateTable />;
+                      appendTab(
+                        new TabContent(
+                          `create table`,
+                          content,
+                          <CreateIcon />,
+                          dbName,
+                          kind,
+                        ),
+                      );
+                    }}>
+                    <ListItemIcon>
+                      <CreateIcon />
+                    </ListItemIcon>
+                    <ListItemText>create table </ListItemText>
+                  </MenuItem>
+                )}
+
+                <MenuItem
+                  onClick={() => {
+                    let content = <SqlCreateTableImportFile />;
+                    if (kind == DataSourceKind.Mongo) {
+                      content = <MongoTableImportFile />;
+                    }
+                    if (kind == DataSourceKind.CouchBase) {
+                      content = <CouchbaseTableImportFile />;
+                    }
+                    appendTab(
+                      new TabContent(
+                        `create table`,
+                        content,
+                        <UploadIcon />,
+                        dbName,
+                        kind,
+                      ),
+                    );
+                  }}>
+                  <ListItemIcon>
+                    <UploadIcon />
+                  </ListItemIcon>
+                  <ListItemText>create table import file</ListItemText>
+                </MenuItem>
+              </>
+            )}
+          </MenuList>
+        );
+      }}
+      label=<>
         <TableViewIcon />
         <span> {tablesText} </span>
         <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
-      </Stack>>
-      {showItems.map((e) => {
-        const id = `${uuid}-table-${e.name}-${e.rand}`;
-        return (
-          <TableTree
-            key={e.name}
-            size={e.size}
-            reloadTables={handleReload}
-            table={e.name}
-            id={id}
-          />
-        );
-      })}
-    </TreeItem>
-  );
-}
+      </>>
+      {showItems.map((table) => (
+        <LeftTableNameAndColumns
+          key={table.name}
+          makeMenu={() => {
+            return (
+              <TableMenu
+                kind={kind}
+                table={table.name}
+                dbName={dbName}
+                dupTable={() => {
+                  setShowDup(table.name);
+                }}
+                exportTable={() => {
+                  setShowExport(table.name);
+                }}
+                dropTable={() => {
+                  setDropTable(table.name);
+                }}
+                renameTable={() => {
+                  setRenameTable(table.name);
+                }}
+              />
+            );
+          }}
+          table={table}
+          isTable
+        />
+      ))}
+      {showDup && (
+        <DupTable
+          table={showDup}
+          handleClose={() => {
+            setShowDup("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
 
-function TableTree(props: {
-  table: string;
-  reloadTables: () => void;
-  size: number | null;
-  id: string;
-}) {
-  const { table, reloadTables, size, id } = props;
-  const { uuid, kind } = useContext(UuidContext);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
-  return (
-    <TreeItem
-      itemId={id}
-      label={
-        <Stack
-          direction="row"
-          sx={{ justifyContent: "space-between" }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <TableMenu
-                  kind={kind}
-                  reload={reloadTables}
-                  table={table}
-                  uuid={uuid}
-                />
-              ),
-              event: e,
-            });
-          }}>
-          <Stack direction="row" sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-            <TableViewIcon />
-            <span style={textEllipsisStyle}>{table}</span>
-          </Stack>{" "}
-          {size && (
-            <span style={{ ...shrinkAble, minWidth: 0 }}>
-              {filesize(size, { round: 0 })}
-            </span>
-          )}
-        </Stack>
-      }
-    />
+      {showExport && (
+        <ExportTableOrView
+          isTable
+          tableName={showExport}
+          handleClose={() => {
+            setShowExport("");
+          }}
+        />
+      )}
+      {renameTable && (
+        <RenameTable
+          table={renameTable}
+          handleClose={() => {
+            setRenameTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+      {dropTable && (
+        <DropTable
+          table={dropTable}
+          handleClose={() => {
+            setDropTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+    </MyTreeItem>
   );
 }
 
 function DropTable(props: {
   table: string;
   reloadTables: () => void;
-  uuid: string;
   handleClose: () => void;
-  kind: DataSourceKind;
 }) {
-  const { table, reloadTables, uuid, handleClose, kind } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+  const { table, reloadTables, handleClose } = props;
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const [cascade, setCascade] = useState(false);
@@ -241,7 +305,7 @@ function DropTable(props: {
     }
     setLoading(true);
     commands
-      .dropTable(uuid, table, cascade)
+      .dropTable(dbName, table, cascade)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -277,8 +341,12 @@ function DropTable(props: {
     }
   };
 
+  if (!table) {
+    return;
+  }
   return (
-    <Stack>
+    <Dialog open onClose={handleClose}>
+      <AlertTitle> drop table </AlertTitle>
       {supportCascade() && (
         <FormControlLabel
           control={
@@ -295,36 +363,34 @@ function DropTable(props: {
           drop
         </Button>
       </Stack>
-    </Stack>
+    </Dialog>
   );
 }
 interface RedisViewTableProps {
-  uuid: string;
   table: string;
   redisType: RedisTableType;
 }
 
 // 1. Rename to start with an Uppercase letter
-function RedisViewTable({ uuid, table, redisType }: RedisViewTableProps) {
+function RedisViewTable({ table, redisType }: RedisViewTableProps) {
   // 2. Using a mapping object is cleaner than a switch statement
   switch (redisType) {
     case RedisTableType.String:
-      return <RedisStringTable uuid={uuid} stringKey={table} />;
+      return <RedisStringTable stringKey={table} />;
     case RedisTableType.List:
-      return <RedisListTable uuid={uuid} listKey={table} />;
+      return <RedisListTable listKey={table} />;
     case RedisTableType.Set:
-      return <RedisSetTable uuid={uuid} setKey={table} />;
+      return <RedisSetTable setKey={table} />;
     case RedisTableType.Zset:
-      return <RedisZsetTable uuid={uuid} zsetKey={table} />;
+      return <RedisZsetTable zsetKey={table} />;
     case RedisTableType.Hash:
-      return <RedisHashTable uuid={uuid} hashKey={table} />;
+      return <RedisHashTable hashKey={table} />;
     default:
       return null; // Fallback for safety
   }
 }
 
 function makeViewTable(
-  uuid,
   table: string,
   kind: DataSourceKind,
   redisTableType: RedisTableType,
@@ -344,43 +410,41 @@ function makeViewTable(
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
-      tableList = <SqlTableView isTable tableName={table} uuid={uuid} kind={kind} />;
+      tableList = <SqlTableView isTable tableName={table} />;
       break;
     case DataSourceKind.Redis:
-      tableList = (
-        <RedisViewTable uuid={uuid} table={table} redisType={redisTableType} />
-      );
+      tableList = <RedisViewTable table={table} redisType={redisTableType} />;
       break;
     case DataSourceKind.Mongo:
-      tableList = <MongoTable uuid={uuid} table={table} isTable />;
+      tableList = <MongoTable table={table} isTable />;
       break;
     case DataSourceKind.CouchBase:
-      tableList = <CouchBaseTable uuid={uuid} table={table} />;
+      tableList = <CouchBaseTable table={table} />;
   }
   return tableList;
 }
 
 function AddTableView(props: {
-  uuid: string;
   table: string;
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
 }) {
-  const { uuid, table, kind, redisTableType } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, kind, redisTableType } = props;
 
   switch (kind) {
     case DataSourceKind.Redis:
       switch (redisTableType) {
         case RedisTableType.String:
-          return <RedisStringTable uuid={uuid} stringKey={table} />;
+          return <RedisStringTable stringKey={table} />;
         case RedisTableType.List:
-          return <RedisAddList uuid={uuid} listKey={table} />;
+          return <RedisAddList listKey={table} />;
         case RedisTableType.Set:
-          return <RedisAddSet uuid={uuid} setKey={table} />;
+          return <RedisAddSet setKey={table} />;
         case RedisTableType.Zset:
-          return <RedisAddZset uuid={uuid} zsetKey={table} />;
+          return <RedisAddZset zsetKey={table} />;
         case RedisTableType.Hash:
-          return <RedisAddHash uuid={uuid} hashKey={table} />;
+          return <RedisAddHash hashKey={table} />;
       }
       break;
 
@@ -388,30 +452,35 @@ function AddTableView(props: {
       return (
         <MongoTableAdd
           addOP={async (data) => {
-            return commands.mongoInsert(uuid, table, BSON.serialize(data));
+            return commands.mongoInsert(dbName, table, BSON.serialize(data));
           }}
         />
       );
     case DataSourceKind.CouchBase:
-      return <CouchBaseInsert uuid={uuid} table={table} />;
+      return <CouchBaseInsert table={table} />;
   }
 
-  return <SqlAddTableView uuid={uuid} table={table} />;
+  return <SqlAddTableView table={table} />;
 }
 
 function AddTableModal(props: {
-  uuid: string;
   tableName: string;
   kind: DataSourceKind;
   redisType?: RedisTableType;
 }) {
-  const { tableName, redisType, uuid, kind } = props;
+  const { tableName, redisType, kind } = props;
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
 
   return (
     <>
-      <TableAddButton handleAdd={() => setShowAdd(true)} />
+      <IconButton
+        onClick={() => {
+          setShowAdd(true);
+        }}
+        color="primary">
+        <AddIcon />
+      </IconButton>
 
       <ListenElementSize
         dom={addModalBox}
@@ -438,12 +507,7 @@ function AddTableModal(props: {
                 setShowAdd(false);
               }}
             />
-            <AddTableView
-              uuid={uuid}
-              table={tableName}
-              redisTableType={redisType}
-              kind={kind}
-            />
+            <AddTableView table={tableName} redisTableType={redisType} kind={kind} />
           </Box>
         </Dialog>
       )}
@@ -451,13 +515,15 @@ function AddTableModal(props: {
   );
 }
 
-function SqlAddTableView(props: { uuid: string; table: string }) {
-  const { uuid, table } = props;
+function SqlAddTableView(props: { table: string }) {
+  const { table } = props;
+  const { dbName } = useContext(DbnameContext);
   const [fields, setFields] = useState<Field[]>([]);
+  const [sql, setSql] = useState("");
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .showTableColumns(uuid, table)
+      .showTableColumns(dbName, table)
       .then((data) => {
         setFields(data);
       })
@@ -468,30 +534,80 @@ function SqlAddTableView(props: { uuid: string; table: string }) {
           message: e,
         });
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
+
+  const handleGenSql = (values) => {
+    commands
+      .tableInsertSql(dbName, table, values)
+      .then((sql) => {
+        setSql(sql);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "generate sql failed",
+          message: e,
+        });
+      });
+  };
+
   return (
-    <SqlTableViewData
-      isAdd
-      buttonName="add"
-      handleData={async (values) => {
-        await commands.tableInsert(uuid, table, values);
-      }}
-      fields={fields}
-    />
+    <Stack>
+      {sql && <AppCode codeBlock={sql} language="sql" />}
+      <SqlTableViewData
+        isAdd
+        buttonName="add"
+        handleData={async (values) => {
+          await commands.tableInsert(dbName, table, values);
+        }}
+        fields={fields}
+        extraButtons={[
+          {
+            name: "gen sql",
+            handleValue: (x) => {
+              handleGenSql(x);
+            },
+          },
+        ]}
+      />
+    </Stack>
   );
 }
 
+export const openNewTableStructure = (appendTab, dbName, kind, table) => {
+  appendTab(
+    new TabContent(
+      `${table}`,
+      <TableStructure table={table} />,
+      <IoConstructOutline />,
+      dbName,
+      kind,
+    ),
+  );
+};
+
 function TableMenu(props: {
   table: string;
-  uuid: string;
-  reload;
+  dbName: string;
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
+  dupTable: () => void;
+  exportTable: () => void;
+  dropTable: () => void;
+  renameTable: () => void;
 }) {
-  const { table, uuid, reload, kind, redisTableType } = props;
+  const {
+    table,
+    dbName,
+    kind,
+    redisTableType,
+    dupTable,
+    exportTable,
+    dropTable,
+    renameTable,
+  } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
-  const { setUi } = useOneShotDialogUI();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -504,7 +620,7 @@ function TableMenu(props: {
       return;
     }
     commands
-      .truncateTable(uuid, table)
+      .truncateTable(dbName, table)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -522,32 +638,23 @@ function TableMenu(props: {
   };
 
   const handleViewData = () => {
-    const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    appendTab(new TabContent(table, tableList, <TableViewIcon />));
+    const tableList: ReactNode = makeViewTable(table, kind, redisTableType);
+    appendTab(new TabContent(table, tableList, <TableViewIcon />, dbName, kind));
   };
   const handleAddData = async () => {
     appendTab(
       new TabContent(
         `${table}*`,
-        <AddTableView
-          uuid={uuid}
-          kind={kind}
-          table={table}
-          redisTableType={redisTableType}
-        />,
+        <AddTableView kind={kind} table={table} redisTableType={redisTableType} />,
         <TableViewIcon />,
+        dbName,
+        kind,
       ),
     );
   };
 
   const handleStructure = () => {
-    appendTab(
-      new TabContent(
-        `${table}`,
-        <TableStructure kind={kind} table={table} uuid={uuid} />,
-        <IoConstructOutline />,
-      ),
-    );
+    openNewTableStructure(appendTab, dbName, kind, table);
   };
 
   return (
@@ -593,17 +700,7 @@ function TableMenu(props: {
 
       <MenuItem
         onClick={() => {
-          setUi(
-            <DupTable
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setUi(null);
-              }}
-              reloadTables={reload}
-            />,
-            "Duplicate table",
-          );
+          dupTable();
         }}>
         <ListItemIcon>
           <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
@@ -612,10 +709,7 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setUi(
-            <ExportTableOrView uuid={uuid} name={table} kind={kind} isTable />,
-            `export table ${table}`,
-          );
+          exportTable();
         }}>
         <ListItemIcon>
           <ArrowCircleDownIcon />
@@ -624,17 +718,7 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setUi(
-            <RenameTable
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setUi(null);
-              }}
-              reloadTables={reload}
-            />,
-            `rename table ${table}`,
-          );
+          renameTable();
         }}>
         <ListItemIcon>
           <EditIcon />
@@ -655,18 +739,7 @@ function TableMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setUi(
-            <DropTable
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setUi(null);
-              }}
-              reloadTables={reload}
-              kind={kind}
-            />,
-            `drop table ${table}`,
-          );
+          dropTable();
         }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
@@ -677,13 +750,9 @@ function TableMenu(props: {
   );
 }
 
-function DupTable(props: {
-  table: string;
-  handleClose;
-  uuid: string;
-  reloadTables: () => void;
-}) {
-  const { table, handleClose, uuid, reloadTables } = props;
+function DupTable(props: { table?: string; handleClose; reloadTables: () => void }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
   const { showNotification } = useNotification();
@@ -695,7 +764,7 @@ function DupTable(props: {
     }
     setLoading(true);
     commands
-      .duplicateTable(uuid, table, taskId.current, name)
+      .duplicateTable(dbName, table, taskId.current, name)
       .then(() => {
         showNotification({ severity: "success", title: "duplicate OK" });
         reloadTables();
@@ -708,9 +777,12 @@ function DupTable(props: {
         setLoading(false);
       });
   };
-
+  if (!table) {
+    return;
+  }
   return (
-    <Stack>
+    <Dialog open onClose={handleClose}>
+      <AlertTitle>duplicate table </AlertTitle>
       <TextField
         value={name}
         label="duplicate name"
@@ -731,17 +803,13 @@ function DupTable(props: {
           />
         )}
       </Stack>
-    </Stack>
+    </Dialog>
   );
 }
 
-function RenameTable(props: {
-  table: string;
-  handleClose;
-  uuid: string;
-  reloadTables: () => void;
-}) {
-  const { table, handleClose, uuid, reloadTables } = props;
+function RenameTable(props: { table: string; handleClose; reloadTables: () => void }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
   const { showNotification } = useNotification();
@@ -760,7 +828,7 @@ function RenameTable(props: {
     }
     setLoading(true);
     commands
-      .renameTable(uuid, table, newName)
+      .renameTable(dbName, table, newName)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -779,7 +847,8 @@ function RenameTable(props: {
   };
 
   return (
-    <Stack>
+    <Dialog open onClose={handleClose}>
+      <AlertTitle>rename table </AlertTitle>
       <TextField
         value={newName}
         label="New Name"
@@ -792,7 +861,7 @@ function RenameTable(props: {
           rename
         </Button>
       </Stack>
-    </Stack>
+    </Dialog>
   );
 }
 
@@ -801,98 +870,115 @@ function RedisOneTableKind(props: {
   typ: RedisTableType;
   kind: DataSourceKind;
   handleReload;
-  uuid;
 }) {
-  const { tables, typ, kind, handleReload, uuid } = props;
-  const tablesID = useRef(uuidv4());
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
+  const { dbName } = useContext(DbnameContext);
+  const { tables, typ, kind, handleReload } = props;
+  const [showDup, setShowDup] = useState("");
+  const [showExport, setShowExport] = useState("");
+  const [renameTable, setRenameTable] = useState("");
+  const [dropTable, setDropTable] = useState("");
   return (
-    <TreeItem
-      itemId={tablesID.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh reload={handleReload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      enable={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <span>{typ}</span>
-      </Stack>>
-      {tables.map((table) => (
-        <TreeItem
-          key={table.name}
-          itemId={uuid + "-key-" + name + "-" + table.name + table.rand}
-          label=<Stack
-            style={{
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-            direction="row"
-            onContextMenu={(e) => {
-              setUpMenu({
-                content: (
-                  <TableMenu
-                    kind={kind}
-                    reload={handleReload}
-                    table={table.name}
-                    uuid={uuid}
-                    redisTableType={typ}
-                  />
-                ),
-                event: e,
-              });
-            }}>
-            <Stack style={{ flexShrink: 1 }} direction="row">
+      </>>
+      <VirtualListLeft
+        data={tables}
+        makeMenu={(table) => {
+          return (
+            <TableMenu
+              kind={kind}
+              table={table.name}
+              dbName={dbName}
+              redisTableType={typ}
+              dupTable={() => {
+                setShowDup(table.name);
+              }}
+              exportTable={() => {
+                setShowExport(table.name);
+              }}
+              dropTable={() => {
+                setDropTable(table.name);
+              }}
+              renameTable={() => {
+                setRenameTable(table.name);
+              }}
+            />
+          );
+        }}
+        show={(table) => {
+          return (
+            <>
               <span style={textEllipsisStyle}> {table.name} </span>
-              &nbsp;
-            </Stack>
+              <span style={textEllipsisStyle}> {table.size} </span>
+            </>
+          );
+        }}
+      />
 
-            {table.size && (
-              <Tooltip
-                title={(function () {
-                  switch (typ) {
-                    case RedisTableType.String:
-                      return "";
-                    case RedisTableType.List:
-                      return `a list of ${table.size}`;
-                    case RedisTableType.Set:
-                      return `set with ${table.size} elements`;
-                    case RedisTableType.Zset:
-                      return `zset with ${table.size} elements`;
-                    case RedisTableType.Hash:
-                      return `hash with ${table.size} elements`;
-                  }
-                })()}>
-                <span style={textEllipsisStyle}> {table.size} </span>
-              </Tooltip>
-            )}
-          </Stack>
+      {showDup && (
+        <DupTable
+          table={showDup}
+          handleClose={() => {
+            setShowDup("");
+          }}
+          reloadTables={handleReload}
         />
-      ))}
-    </TreeItem>
+      )}
+      {showExport && (
+        <ExportTableOrView
+          isTable
+          tableName={showExport}
+          handleClose={() => {
+            setShowExport("");
+          }}
+        />
+      )}
+
+      {renameTable && (
+        <RenameTable
+          table={renameTable}
+          handleClose={() => {
+            setRenameTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+      {dropTable && (
+        <DropTable
+          table={dropTable}
+          handleClose={() => {
+            setDropTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+    </MyTreeItem>
   );
 }
 
 function RedisTables() {
-  const { uuid, kind } = useContext(UuidContext);
-  const [filter, setFilter] = useState("");
+  const { dbName, kind } = useContext(DbnameContext);
+  const { filters, setFilter, removeFilter } = useRedisKeyFilter();
+  const filter = filters[dbName] || "";
   const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
-  const max = 50;
-
-  const [showEditFiler, setShowEditFiler] = useState(false);
-
+  const { maxRow, setMaxRow } = useRedisMaxKeyStore();
+  const [filterDelay] = useDebounce(filter, 1000);
+  const [maxRowDelay] = useDebounce(maxRow, 1000);
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .redisListKey(uuid, filter ? filter : null, max)
+      .redisListKey(dbName, filterDelay ? filterDelay : null, maxRowDelay)
       .then((e) => {
         setTables(e);
       })
@@ -906,61 +992,59 @@ function RedisTables() {
       .finally(() => {
         setLoading(false);
       });
-  }, [filter, showNotification, uuid]);
+  }, [dbName, filterDelay, maxRowDelay, showNotification]);
+
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  useEffect(() => {
-    handleReload();
-  }, [filter, handleReload]);
 
-  const filterTreeID = useRef(uuidv4());
+  useEffect(() => {
+    return () => {
+      console.log("destroy this.");
+    };
+  }, []);
   return (
     <>
-      <TreeItem
-        itemId={filterTreeID.current}
-        label=<Stack
-          direction="row"
-          style={{ cursor: "pointer" }}
-          onClick={() => {
-            setShowEditFiler(true);
-          }}>
-          {tables && tables.has_more ? (
-            <Tooltip title={`result exceed ${max},some result are omitted`}>
-              <Chip
-                color="error"
-                icon={<FilterAltIcon />}
-                label={`${filter}`}
-                variant="outlined"
-              />
-            </Tooltip>
-          ) : (
-            <Chip icon={<FilterAltIcon />} label={`${filter}`} />
-          )}
-          {loading && <CircularProgress />}
+      <Stack
+        style={{
+          paddingLeft: "0.5rem",
+        }}>
+        <ClearableTextField
+          value={filter}
+          onChange={(e) => {
+            setFilter(dbName, e.target.value);
+          }}
+          onClear={() => {
+            removeFilter(dbName);
+          }}
+          fullWidth
+          label="key filter"
+        />
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <Tooltip
+            title={(function () {
+              const d = "limit the max key can return.";
+              if (!tables) {
+                return d;
+              }
+              return tables.has_more ? "some key not return because of this limit" : d;
+            })()}>
+            <Slider
+              value={maxRow}
+              onChange={(_, value) => {
+                setMaxRow(value);
+              }}
+              style={{ flex: 1 }}
+              step={1000}
+              min={10000}
+              max={100_0000}
+              color={tables && tables.has_more ? "warning" : "success"}
+            />
+          </Tooltip>
         </Stack>
-      />
+        {loading && <CircularProgress />}
+      </Stack>
 
-      {showEditFiler && (
-        <Dialog
-          open={true}
-          onClose={() => {
-            setShowEditFiler(false);
-          }}>
-          <DialogTitle>edit key filter</DialogTitle>
-          <ClearableTextField
-            value={filter}
-            onChange={(e) => {
-              setFilter(e.target.value);
-            }}
-            style={{ width: "17rem" }}
-            onClear={() => {
-              setFilter("");
-            }}
-            label="filter"
-          />
-        </Dialog>
-      )}
       {tables && (
         <>
           <RedisOneTableKind
@@ -968,35 +1052,30 @@ function RedisTables() {
             typ={RedisTableType.String}
             tables={tables.string_tables}
             handleReload={handleReload}
-            uuid={uuid}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.List}
             tables={tables.list_tables}
             handleReload={handleReload}
-            uuid={uuid}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Set}
             tables={tables.set_tables}
             handleReload={handleReload}
-            uuid={uuid}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Zset}
             tables={tables.zset_tables}
             handleReload={handleReload}
-            uuid={uuid}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Hash}
             tables={tables.hash_tables}
             handleReload={handleReload}
-            uuid={uuid}
           />
         </>
       )}

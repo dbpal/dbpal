@@ -17,44 +17,68 @@ import {
   InputLabel,
   Modal,
   Box,
+  InputAdornment,
+  Collapse,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
-
-import RefreshIcon from "@mui/icons-material/Refresh";
 import {
+  AiOutlineDisconnect,
+  InfoIcon,
+  AttachFileIcon,
+  RefreshIcon,
+  FaCopy,
+  KeyIcon,
+  ArrowCircleDownRoundedIcon,
+} from "./icons";
+import {
+  CSSProperties,
   Dispatch,
   ReactNode,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-
-import { FaFolderOpen } from "react-icons/fa";
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import AddIcon from "@mui/icons-material/Add";
-import { BsDatabaseAdd } from "react-icons/bs";
-import LinkOffIcon from "@mui/icons-material/LinkOff";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import {
+  ClearIcon,
+  DeleteForeverIcon,
+  FaFolderOpen,
+  CheckIcon,
+  CloseIcon,
+  AddIcon,
+  BsDatabaseAdd,
+  LinkOffIcon,
+  ContentCopyIcon,
+  ArrowUpwardIcon,
+  ArrowDownwardIcon,
+  KeyboardArrowDownIcon,
+  KeyboardArrowRightIcon,
+} from "./icons";
+import {
+  arrayToMarkdownTable,
   dataGridStyle,
   DataSourceKind,
   errToString,
+  escapeTSV,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
   pageSizeOptions,
+  parseCellType,
   prettyMs,
   resizeHandlerSize,
   secondConfirm,
+  AppColumnMenuCtx,
   textEllipsisStyle,
+  DbnameContext,
+  calVirtualRollHeight,
+  TreeIdent,
 } from "./helper";
 
-import { TbDatabasePlus } from "react-icons/tb";
-import LinkIcon from "@mui/icons-material/Link";
+import { TbDatabasePlus, LinkIcon } from "./icons";
 import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./Common";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
@@ -62,6 +86,8 @@ import {
   AppDataGridToolBar,
   ClearableTextField,
   ListenElementSize,
+  RefreshButton,
+  StackRowCenter,
 } from "./CommonComp2";
 import {
   passwordKey,
@@ -73,11 +99,21 @@ import {
   useContextMenu,
   useElementSizeStore,
   useFavoriteStore,
+  useFontSize,
   useNotification,
   useQueryLogStore,
   useViewInModalMatchStrStore,
 } from "./store";
-import { commands, Field, MetaValue, NamedStaff } from "./bindings";
+import {
+  commands,
+  Field,
+  ListTable,
+  MetaValue,
+  NameWithParameter,
+  ShowTableParameter,
+} from "./bindings";
+
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   DataGrid,
   GridColDef,
@@ -87,7 +123,11 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiContext,
 } from "./datagridExport";
+import { AutoSizer, CellMeasurer, CellMeasurerCache, List } from "react-virtualized";
+import { filesize } from "filesize";
+import { ExportTableOrView } from "./Export";
 
 /**
  * Logger level selection control.
@@ -176,12 +216,12 @@ function MenuCreateDatabase(props: { handleCreate: () => void; kind: DataSourceK
 /**
  * Menu item for refreshing current data.
  */
-function MenuRefresh(props: { reload: () => void }) {
-  const { reload } = props;
+function MenuRefresh(props: { refresh: () => void }) {
+  const { refresh } = props;
   return (
     <MenuItem
       onClick={() => {
-        reload();
+        refresh();
       }}>
       <ListItemIcon>
         <RefreshIcon />
@@ -225,15 +265,15 @@ function MenuCloseConn(props: { name: string }) {
 /**
  * Displays ping statistics for a connection UUID.
  */
-function ConnPingTime(props: { uuid: string }) {
-  const { uuid } = props;
+function ConnPingTime() {
+  const { dbName } = useContext(DbnameContext);
   const [pingTime, setStatus] = useState<number | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     const reloadStatus = () => {
       commands
-        .checkConn(uuid)
+        .checkConn(dbName)
         .then((data) => {
           setStatus(data);
           setErr("");
@@ -249,13 +289,15 @@ function ConnPingTime(props: { uuid: string }) {
     return () => {
       clearInterval(interval);
     };
-  }, [uuid]);
+  }, [dbName]);
 
   return (
     <>
       {typeof pingTime == "number" && (
         <Tooltip title="ping time">
-          <Typography color="green"> {prettyMs(pingTime)} </Typography>
+          <Typography color={pingTime < 4000 ? "success" : "warning"}>
+            {prettyMs(pingTime)}
+          </Typography>
         </Tooltip>
       )}
       {err && (
@@ -393,7 +435,8 @@ function MenuDeleteConfig(props: { name: string }) {
 
   const { removeConnection } = useConnectionStore();
   const { deleteByConnectionName: delFav } = useFavoriteStore();
-
+  const { removeConnected } = useConnected();
+  const { removeLoading } = useConnLoading();
   const { deleteByName: delQueryLog } = useQueryLogStore();
   const handleDelete = async () => {
     const confirm = await secondConfirm({
@@ -407,7 +450,9 @@ function MenuDeleteConfig(props: { name: string }) {
       await commands.closeConn(name);
       await delFav(name);
       await delQueryLog(name);
-      await removeConnection(name);
+      removeConnection(name);
+      removeConnected(name);
+      removeLoading(name);
     } catch (e) {
       showNotification({
         severity: "error",
@@ -477,14 +522,17 @@ function MetaValueViewMenu(props: {
 /**
  * Table view for metadata values.
  */
-function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
-  const { values, showToolbar } = props;
+function MetaValueView(props: { values: MetaValue[]; reload?: () => void }) {
+  const { values, reload } = props;
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
-  const columns: GridColDef[] = [
-    { field: "name", width: getColumnWidth("name"), flex: 1 },
-    { field: "value", width: getColumnWidth("value"), flex: 1 },
-  ];
+  const columns = useMemo(() => {
+    const columns: GridColDef[] = [
+      { field: "name", width: getColumnWidth("name") },
+      { field: "value", flex: 1 },
+    ];
+    return columns;
+  }, [getColumnWidth]);
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e, index) => {
@@ -525,13 +573,28 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
-      toolbar: AppDataGridToolBar,
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            titleName="meta values"
+            left={
+              reload && (
+                <RefreshButton
+                  onClick={() => {
+                    reload();
+                  }}
+                />
+              )
+            }
+          />
+        );
+      },
       pagination: AppDataGridPagination,
     };
-  }, []);
+  }, [reload]);
+
   return (
     <DataGrid
-      showToolbar={showToolbar}
       slots={slots}
       style={dataGridStyle}
       sortModel={sortModel}
@@ -548,14 +611,17 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
  */
 function ResetColumnWidth() {
   const { showNotification } = useNotification();
-  const reset = useColumnWidthStore((s) => s.resetWidths);
+  const { resetWidths, columnWidths } = useColumnWidthStore();
   const handleReset = async () => {
-    reset();
+    resetWidths();
     showNotification({ severity: "success", title: "reset column width successfully" });
   };
   return (
     <Tooltip title="reset column width">
-      <Button onClick={handleReset} variant="outlined">
+      <Button
+        onClick={handleReset}
+        variant="outlined"
+        disabled={Object.keys(columnWidths).length == 0}>
         <RefreshIcon />
         width
       </Button>
@@ -588,7 +654,6 @@ function ModalHeader(props: {
       style={{
         justifyContent: "space-between",
         alignItems: "center",
-        // borderBottom: "3px solid",
         marginBottom: "0.4rem",
         position: "sticky",
         top: 0,
@@ -624,7 +689,7 @@ function HighlightText({
 
   if (!matchStr || !text) return normal(text);
 
-  // 使用正则拆分字符串，'ig' 表示忽略大小写且全局匹配
+  // Split the string with a regex; 'ig' means case-insensitive and global matching.
   const parts = text.split(new RegExp(`(${matchStr})`, "gi"));
 
   return (
@@ -767,7 +832,7 @@ function ViewRowInModal(props: {
 /**
  * Display UDF name and parameters in metadata lists.
  */
-function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) {
+function UdfNameAndParameters(props: { udf: NameWithParameter; kind: DataSourceKind }) {
   const { udf, kind } = props;
   let parameter = "";
   switch (kind) {
@@ -782,7 +847,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 
   return (
     <>
-      <span style={textEllipsisStyle}>{udf.name}</span>
+      <span style={{ ...textEllipsisStyle }}>{udf.name}</span>
       {parameter && (
         <Typography
           color="info"
@@ -790,6 +855,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
             ...textEllipsisStyle,
             fontStyle: "italic",
             fontSize: "0.8rem",
+            flexShrink: 6,
           }}>
           ({parameter})
         </Typography>
@@ -798,20 +864,153 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
   );
 }
 
-/**
- * Menu item that copies a grid field name.
- */
-function CopyMenuItem(props: GridColumnMenuItemProps) {
-  const { colDef } = props;
+function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
+  const { colDef, onClick } = props;
   const { showNotification } = useNotification();
+  const { dbName, kind } = useContext(DbnameContext);
+  const api = useGridApiContext();
+  let { selectColumns } = useContext(AppColumnMenuCtx);
+  const getSelectFields = (): string[] => {
+    if (selectColumns.length) {
+      if (selectColumns.includes(colDef.field)) {
+        return selectColumns;
+      } else {
+        return [...selectColumns, colDef.field];
+      }
+    } else {
+      return [colDef.field];
+    }
+  };
+
   return (
-    <MenuItem
-      onClick={() => {
-        handleCopyToClipboard(colDef.field, showNotification);
-      }}>
-      <ListItemIcon> </ListItemIcon>
-      <ListItemText> Copy Field </ListItemText>
-    </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={(event) => {
+          handleCopyToClipboard(
+            api.current
+              .getSortedRowIds()
+              .map((id) =>
+                getSelectFields()
+                  .map((f) => api.current.getCellValue(id, f) + "")
+                  .join("\t"),
+              )
+              .join("\n"),
+            showNotification,
+          );
+
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={(event) => {
+          const fs = getSelectFields();
+          handleCopyToClipboard(
+            api.current
+              .getSortedRowIds()
+              .map((id) =>
+                fs.map((f) => escapeTSV(api.current.getCellValue(id, f))).join("\t"),
+              )
+              .join("\n"),
+            showNotification,
+          );
+
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy as TSV for Excel </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={(event) => {
+          let r = [];
+          let fs = getSelectFields();
+          r.push(fs);
+
+          api.current.getSortedRowIds().forEach((id) => {
+            const obj = [];
+
+            for (const f of fs) {
+              let value = api.current.getCellValue(id, f);
+              obj.push(value ? value : "");
+            }
+            r.push(obj);
+          });
+          handleCopyToClipboard(arrayToMarkdownTable(r), showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy as MarkDown </ListItemText>
+      </MenuItem>
+
+      {kind != DataSourceKind.Mongo &&
+        kind != DataSourceKind.Redis &&
+        kind != DataSourceKind.CouchBase && (
+          <MenuItem
+            onClick={async (event) => {
+              try {
+                let values = api.current
+                  .getSortedRowIds()
+                  .map((id) => api.current.getCellValue(id, colDef.field));
+                values = await commands.sqlEncodeValues(
+                  dbName,
+                  colDef["data_type"],
+                  values,
+                );
+                handleCopyToClipboard(
+                  `(\n${values.join(",\n")}\n)\n`,
+                  showNotification,
+                );
+                if (onClick) onClick(event);
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "format value in sql failed",
+                  message: e,
+                });
+              }
+            }}>
+            <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+            <ListItemText> Copy For in Statament </ListItemText>
+          </MenuItem>
+        )}
+
+      <MenuItem
+        onClick={(event) => {
+          let r = [];
+          let fs = getSelectFields();
+          api.current.getSortedRowIds().forEach((id) => {
+            let o = {};
+            for (const f of fs) {
+              o[f] = parseCellType(api.current.getCellValue(id, f));
+            }
+            r.push(o);
+          });
+          handleCopyToClipboard(JSON.stringify(r), showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy as JSON </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={(event) => {
+          handleCopyToClipboard(colDef.field, showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy Column Name </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={(event) => {
+          handleCopyToClipboard(colDef["data_type"], showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy Column Type </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -824,11 +1023,11 @@ function AppColumnMenu(props: GridColumnMenuProps) {
       {...props}
       slots={{
         // Add new item
-        closeColumnMenuCopyField: CopyMenuItem,
+        extraMenu: DataGridExtraMenuList,
       }}
       slotProps={{
-        closeColumnMenuCopyField: {
-          displayOrder: 15,
+        extraMenu: {
+          displayOrder: 1,
         },
       }}
     />
@@ -845,6 +1044,7 @@ function SelectColumns(props: {
   includeAll: boolean;
 }) {
   const { fields, includes, setIncludes, includeAll } = props;
+
   return (
     <Stack direction="row" style={{ alignItems: "flex-end" }}>
       {includeAll && fields.length > includes.length && (
@@ -911,6 +1111,7 @@ function ResizeParentHeight(props: {
   useEffect(() => {
     const size = elements[saveHeightName];
     if (size && size.height) {
+      // eslint-disable-next-line react-hooks/immutability
       box.style.height = size.height + "px";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -949,7 +1150,440 @@ function ResizeParentHeight(props: {
   );
 }
 
+/**
+ * Path selector input with a file chooser button.
+ */
+function SelectPath(props: {
+  path: string;
+  setPath: Dispatch<SetStateAction<string>>;
+  label: string;
+  required: boolean;
+  style?: CSSProperties;
+}) {
+  const { path, setPath, label, required, style } = props;
+  return (
+    <TextField
+      value={path}
+      onChange={(event) => {
+        setPath(event.target.value);
+      }}
+      style={{ flex: 1, ...style }}
+      label={label}
+      required={required}
+      slotProps={{
+        input: {
+          endAdornment: (
+            <>
+              {path && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setPath("");
+                    }}
+                    edge="end">
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              )}
+              <IconButton
+                onClick={() => {
+                  open({ multiple: false }).then((openOk) => {
+                    if (openOk) {
+                      setPath(openOk);
+                    }
+                  });
+                }}
+                color="primary">
+                <AttachFileIcon />
+              </IconButton>
+            </>
+          ),
+        },
+      }}
+    />
+  );
+}
+
+function LongNotice({ children }) {
+  return (
+    <Tooltip
+      slotProps={{
+        tooltip: {
+          style: { maxWidth: "40vw" },
+        },
+      }}
+      title=<Stack style={{ width: "38vw" }}>{children}</Stack>>
+      <InfoIcon color="info" />
+    </Tooltip>
+  );
+}
+
+function VirtualListLeft<T>(props: {
+  data: T[];
+  makeMenu?: (_: T) => ReactNode;
+  show: (_: T) => ReactNode;
+}) {
+  const { data, makeMenu, show } = props;
+  const fontSize = useFontSize();
+  const height = calVirtualRollHeight(data.length, fontSize);
+  const { setUpMenu } = useContextMenu();
+  if (data.length == 0) {
+    return;
+  }
+  return (
+    <div
+      style={{
+        height: height.height,
+        maxWidth: "100%",
+        paddingRight: "1.2rem",
+      }}>
+      <AutoSizer>
+        {({ width }) => (
+          <List
+            width={width}
+            height={height.height} // List height (visible area).
+            rowCount={data.length} // Total number of rows.
+            rowHeight={height.rowHeight} // Height of each row.
+            rowRenderer={({ index, style }) => {
+              const d = data[index];
+              return (
+                <div
+                  key={index}
+                  style={{
+                    ...style,
+                    cursor: makeMenu ? "context-menu" : undefined,
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  onContextMenu={
+                    makeMenu
+                      ? (e) => {
+                          setUpMenu({
+                            content: makeMenu(d),
+                            event: e,
+                          });
+                        }
+                      : undefined
+                  }>
+                  {show(d)}
+                </div>
+              );
+            }} // Render function.
+          />
+        )}
+      </AutoSizer>
+    </div>
+  );
+}
+// separate this can load on need
+function LeftTableNameAndColumns(props: {
+  table: ListTable;
+  makeMenu: () => ReactNode;
+  isTable: boolean;
+}) {
+  const { table, makeMenu, isTable } = props;
+  return (
+    <MyTreeItem
+      makeMenu={makeMenu}
+      enable={true}
+      label=<Stack
+        direction="row"
+        style={{ justifyContent: "space-between", width: "100%" }}>
+        <span style={textEllipsisStyle}>{table.name}</span>
+        {table.size && (
+          <span style={{ ...textEllipsisStyle }}>
+            {filesize(table.size, { round: 0 })}
+          </span>
+        )}
+      </Stack>>
+      <LeftTableColumn isTable={isTable} table={table} />
+    </MyTreeItem>
+  );
+}
+
+function LeftTableColumn(props: { table: ListTable; isTable: boolean }) {
+  const { table, isTable } = props;
+  const { dbName } = useContext(DbnameContext);
+  const [fs, setFs] = useState<Field[]>([]);
+  const { showNotification } = useNotification();
+
+  const handleReload = useCallback(() => {
+    (isTable
+      ? commands.showTableColumns(dbName, table.name)
+      : commands.showViewColumns(dbName, table.name)
+    )
+      .then((fs) => {
+        setFs(fs);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list table columns failed",
+          message: e,
+        });
+      });
+  }, [dbName, isTable, showNotification, table.name]);
+
+  useEffect(() => {
+    handleReload();
+  }, [handleReload]);
+
+  return (
+    <VirtualListLeft
+      data={fs}
+      makeMenu={(field) => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(field.field, showNotification);
+              }}>
+              <ListItemIcon>
+                <FaCopy />
+              </ListItemIcon>
+              <ListItemText> copy </ListItemText>
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(field.data_type, showNotification);
+              }}>
+              <ListItemIcon>{/* <FaCopy /> */}</ListItemIcon>
+              <ListItemText> copy data type</ListItemText>
+            </MenuItem>
+          </MenuList>
+        );
+      }}
+      show={(f) => {
+        return (
+          <>
+            <StackRowCenter>
+              <Typography style={textEllipsisStyle}> {f.field} </Typography>
+              {f.is_primary && <KeyIcon />}
+            </StackRowCenter>
+            <StackRowCenter>
+              <Typography style={textEllipsisStyle} color="info">
+                {f.data_type}
+              </Typography>
+            </StackRowCenter>
+          </>
+        );
+      }}
+    />
+  );
+}
+
+function VirtualVarListLeft<T>(props: {
+  data: T[];
+  show: (_: T, measure: () => void) => ReactNode;
+  height: number | string;
+}) {
+  const { data, show, height } = props;
+  const cache = useRef(
+    new CellMeasurerCache({
+      defaultHeight: 50,
+      fixedWidth: true, // Ensures height is the only variable dimension
+    }),
+  );
+  const listRef = useRef<List>(null);
+  return (
+    <div
+      style={{
+        overflow: "auto",
+        height,
+        maxWidth: "100%",
+        paddingRight: "1.2rem",
+      }}>
+      <AutoSizer>
+        {({ width, height }) => (
+          <List
+            ref={listRef}
+            width={width}
+            height={height} // List height (visible area).
+            rowCount={data.length} // Total number of rows.
+            rowHeight={cache.current.rowHeight} // Height of each row.
+            rowRenderer={({ index, style, parent, key }) => {
+              const d = data[index];
+              return (
+                <CellMeasurer
+                  cache={cache.current}
+                  columnIndex={0}
+                  key={key}
+                  parent={parent}
+                  rowIndex={index}>
+                  <div style={style}>
+                    {show(d, () => {
+                      setTimeout(() => {
+                        cache.current.clear(index, 0);
+                        listRef.current?.recomputeRowHeights(index);
+                      }, 100);
+                    })}
+                  </div>
+                </CellMeasurer>
+              );
+            }} // Render function.
+          />
+        )}
+      </AutoSizer>
+    </div>
+  );
+}
+
+function MyTreeItem(props: {
+  label: ReactNode;
+  children: ReactNode;
+  makeMenu?: () => ReactNode;
+  enable: boolean;
+}) {
+  const { label, children, makeMenu, enable } = props;
+  const ident = useContext(TreeIdent);
+  const [collasped, setCollasped] = useState(true);
+  const { setUpMenu } = useContextMenu();
+  let identNes = ident + 1;
+  const fontSize = useFontSize();
+  const paddingLeft = (ident: number) => {
+    return ident * fontSize * 0.4 + "px";
+  };
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!collasped && !expanded) {
+      setExpanded(true);
+    }
+  }, [collasped, expanded]);
+  const iconSize = fontSize * 1.4;
+  let iconStyle: CSSProperties = { fontSize: iconSize };
+
+  return (
+    <Stack
+      style={{
+        paddingLeft: paddingLeft(ident),
+        maxWidth: "100%",
+      }}>
+      <Stack
+        onClick={() => {
+          if (!enable) {
+            return;
+          }
+          setCollasped(!collasped);
+        }}
+        style={{
+          alignItems: "center",
+          cursor: makeMenu ? "context-menu" : undefined,
+        }}
+        direction="row"
+        onContextMenu={
+          makeMenu
+            ? (e) => {
+                e.preventDefault();
+                setUpMenu({ content: makeMenu(), event: e });
+              }
+            : undefined
+        }>
+        {!enable && <AiOutlineDisconnect style={iconStyle} />}
+        {enable && (
+          <IconButton disabled={!enable}>
+            {collasped ? (
+              <KeyboardArrowRightIcon style={iconStyle} />
+            ) : (
+              <KeyboardArrowDownIcon style={iconStyle} />
+            )}
+          </IconButton>
+        )}
+        {label}
+      </Stack>
+      <TreeIdent value={identNes}>
+        <Collapse in={!collasped}>
+          <div
+            style={{
+              display: collasped ? "none" : "block",
+              position: "relative",
+              paddingLeft: paddingLeft(identNes),
+            }}>
+            {expanded && children}
+            {!collasped && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: iconSize / 2 + 3 + "px", // Center position of the arrow.
+                  top: 0,
+                  bottom: 0,
+                  borderLeft: "1px dashed gray",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+          </div>
+        </Collapse>
+      </TreeIdent>
+    </Stack>
+  );
+}
+function ExportTableOnTheFilterSort(props: {
+  tableName: string;
+  para: ShowTableParameter;
+  isTable: boolean;
+  extraUI: ReactNode;
+}) {
+  const { tableName, isTable, para, extraUI } = props;
+  const [showExport, setShowExport] = useState(false);
+  const [onlyCurrentPage, setOnlyCurrentPage] = useState(false);
+  return (
+    <>
+      <IconButton
+        color="info"
+        onClick={() => {
+          setShowExport(true);
+        }}>
+        <ArrowCircleDownRoundedIcon />
+      </IconButton>
+      {showExport && (
+        <ExportTableOrView
+          tableName={tableName}
+          handleClose={() => {
+            setShowExport(false);
+          }}
+          extraUI=<Stack>
+            {para.page && para.page_size && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={onlyCurrentPage}
+                    onChange={(event) => setOnlyCurrentPage(event.target.checked)}
+                  />
+                }
+                label="only export current page."
+              />
+            )}
+            {extraUI}
+          </Stack>
+          isTable={isTable}
+          para={onlyCurrentPage ? para : { ...para, page: null, page_size: null }}
+        />
+      )}
+    </>
+  );
+}
+
+function SqlExportTableOnFilterSortNotice() {
+  return (
+    <>
+      <Typography>
+        export table to file base on current setting,filter and sort
+      </Typography>
+    </>
+  );
+}
+
 export {
+  SqlExportTableOnFilterSortNotice,
+  ExportTableOnTheFilterSort,
+  MyTreeItem,
+  VirtualListLeft,
+  LongNotice,
+  SelectPath,
   LogLevelSelection,
   MetaValueView,
   MenuNewQuery,
@@ -972,4 +1606,6 @@ export {
   OpenFileWithDefaultApp,
   ResizeParentHeight,
   HighlightText,
+  VirtualVarListLeft,
+  LeftTableNameAndColumns,
 };

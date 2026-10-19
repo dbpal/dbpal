@@ -1,5 +1,9 @@
 
+[env]
+OPENSSL_STATIC = "1"
 
+[target.'cfg(windows)']
+rustflags = ["-C", "target-feature=+crt-static"]
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
@@ -21,6 +25,8 @@ debug = 1
 [profile.release.package.dbnexus_db]
 debug = 1
 
+[profile.release.package.dbnexus_db2]
+debug = 1
 
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-arg=/STACK:8000000"]

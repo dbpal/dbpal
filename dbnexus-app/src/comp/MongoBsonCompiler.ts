@@ -231,7 +231,7 @@ class MongoBsonBinaryAllSubType {
   static Generic = "generic";
   static Function = "function";
   static ByteArray = "byte_array";
-  static Uuid = "uuid";
+  static Uuid = "dbName";
   static Md5 = "md5";
   static Encrypted = "encrypted";
   static Column = "column";
@@ -323,7 +323,7 @@ class MongoBsonBinaryAllSubType {
 function parseRegExp(str) {
   const m = str.match(/^\/(.*)\/([gimsuvy]*)$/);
   if (!m) throw new Error("Invalid regexp string");
-  return new RegExp(m[1], m[2]); // m[1] 模式, m[2] 标志
+  return new RegExp(m[1], m[2]); // m[1] is the pattern; m[2] is the flags.
 }
 
 class MongoBsonValue {
@@ -816,8 +816,7 @@ function quoteString(quote: string): string {
     const s = d + quote + d;
     try {
       return [s, (tokenize(s) as Token[]).length == 1];
-    } catch (e) {
-      console.log("quote string error", e);
+    } catch {
       return [s, false];
     }
   };
@@ -877,7 +876,7 @@ function toMongoBson(a: any): MongoBsonValue {
           value: a.toString(),
         });
       }
-      // Timestamp 必须在Long前面 可能timestamp继承到Long
+      // Timestamp must come before Long because timestamp may inherit from Long.
       if (a instanceof Timestamp) {
         return new MongoBsonValue(MongoBsonValueKind.Timestamp, a);
       }

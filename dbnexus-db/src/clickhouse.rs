@@ -1,15 +1,19 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
+    export_query_as_xlsx_send_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
+    CreateSchemaArg, CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime,
+    ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
+    GetTestExportTableKinds, ListTable, MetaValue, NameWithParameter, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    XlsxEdit,
+    XlsxEdit, XlsxEditContent,
 };
 
-use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
-use crate::language_server::LexerCompletionTrait;
+use crate::helper::{
+    get_array_tuple_element_type, ty_is_date, ty_is_datetime, ty_is_decimal, ty_is_float,
+    ty_is_int, ty_is_time, ty_remove_nullable,
+};
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
 use reqwest::Response;
@@ -37,8 +41,8 @@ impl ClickHouseDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let x = self.show_create_table_sql(table_name).await?;
-            sender.send(x.create_table.to_string().into()).await?;
+            let sql = self.show_create_table_sql(table_name).await?;
+            sender.send(sql.create_table.to_string().into()).await?;
         }
         let sql = self.gen_show_sql(table_name, None, para.as_ref());
         let mut stream = self.query_row(&sql).await?;
@@ -57,8 +61,8 @@ impl ClickHouseDB {
                         });
                         m
                     };
-                    let sql = self.insert_sql(table_name, &fs, &values)?;
-                    let sql = format!("{};\n", sql);
+                    let mut sql = self.insert_sql(table_name, &fs, &values)?;
+                    sql.push_str(";\n");
                     sender.send(sql.into()).await?;
                 }
                 FieldsOrData::ReadingColumns => {}
@@ -117,9 +121,78 @@ impl ClickHouseDB {
         for name in m.iter() {
             ret.remove(name);
         }
+
         let mut ret = ret.into_iter().collect::<Vec<_>>();
         ret.sort();
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for ClickHouseDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        let ty = ty_remove_nullable(&ty);
+        fn encode_nested(
+            value: &serde_json::Value,
+            ty: &DataType,
+            is_nested: bool,
+        ) -> anyhow::Result<Option<String>> {
+            let r = match value {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => {
+                    if is_nested {
+                        Some(quote_sql_str(x))
+                    } else {
+                        Some(x.clone())
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    let mut results: Vec<String> = Vec::with_capacity(values.len());
+                    for (index, value) in values.iter().enumerate() {
+                        let ty = get_array_tuple_element_type(ty, index)?;
+                        let r = encode_nested(value, ty, true)?.unwrap_or("null".to_string());
+                        results.push(r);
+                    }
+                    let results = results.join(",");
+                    Some(if matches!(ty, DataType::Array(..)) {
+                        format!("[{}]", results)
+                    } else {
+                        format!("({})", results)
+                    })
+                }
+                serde_json::Value::Object(values) => {
+                    let (kty, vty) = match ty {
+                        DataType::Map(kty, vty, ..) => (kty.as_ref(), vty.as_ref()),
+                        _ => {
+                            anyhow::bail!("should be map type but:{:?}", ty);
+                        }
+                    };
+                    let mut results = Vec::with_capacity(values.len());
+                    let is_int_etc = { ty_is_decimal(kty) || ty_is_int(kty) || ty_is_float(kty) };
+                    for (k, v) in values.iter() {
+                        results.push(format!(
+                            "{}:{}",
+                            if is_int_etc {
+                                k.to_owned()
+                            } else {
+                                quote_sql_str(k)
+                            },
+                            encode_nested(v, vty, true)?.unwrap_or("null".to_string())
+                        ));
+                    }
+                    Some(format!("{{{}}}", results.join(",")))
+                }
+            };
+            anyhow::Ok(r)
+        }
+
+        encode_nested(value, &ty, false)
     }
 }
 
@@ -128,8 +201,8 @@ impl SchemaTrait for ClickHouseDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.db_str()).await
@@ -140,6 +213,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
+        // In ClickHouse, DROP MATERIALIZED VIEW essentially calls the core DROP TABLE logic internally.
         self.drop_table(name, false).await
     }
 
@@ -200,11 +274,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE TABLE `{dup}` AS `{table}`"#);
         log::info!("sql:{}", sql);
-        log::info!("sql:{}", sql);
-
         self.simple_execute_sql(&sql).await?;
-        // select data and insert.
-
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
 
         let jh1 = {
@@ -295,8 +365,8 @@ impl SchemaTrait for ClickHouseDB {
             default_value: String,
             #[allow(unused)]
             is_partition_key: bool,
-            // “不是排序键” ≠ 不能排序，只是会走额外排序算子，更慢、更耗资源；
-            // 把最常用的排序/过滤列放进排序键，就是为了省掉这一步。
+            // "Not a sort key" does not mean it cannot be sorted; it means an extra, slower, more resource-intensive sorting operator is used.
+            // Put the most frequently used sort/filter columns in the sort key to avoid this step.
             #[allow(unused)]
             is_sorting_key: u8,
         }
@@ -310,7 +380,7 @@ impl SchemaTrait for ClickHouseDB {
                 ..
             } = r;
             let is_primary = primary_keys.contains(&column_name);
-            let ty = parse_type(&column_type)?;
+            let ty = crate::language_server::LangServerCommon::parse_type(self, &column_type)?;
             let nullable = matches!(ty, DataType::Nullable(_));
             ret.push(Field {
                 field: column_name,
@@ -336,7 +406,7 @@ impl SchemaTrait for ClickHouseDB {
     ) -> anyhow::Result<()> {
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), table_name, para.where_str.as_deref())
+            .query_count(self.config.db_str(), table_name, para.filter.as_deref())
             .await?;
         emit.send("trying to query columns.".into())?;
         let fs = self.show_table_columns(table_name).await?;
@@ -345,7 +415,7 @@ impl SchemaTrait for ClickHouseDB {
         emit.send(
             QueryResp {
                 fields: fs,
-                total,
+                total: total as f64,
                 ..Default::default()
             }
             .into(),
@@ -373,7 +443,7 @@ impl SchemaTrait for ClickHouseDB {
     ) -> anyhow::Result<()> {
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), view_name, para.where_str.as_deref())
+            .query_count(self.config.db_str(), view_name, para.filter.as_deref())
             .await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
@@ -386,7 +456,7 @@ impl SchemaTrait for ClickHouseDB {
                     emit.send(
                         QueryResp {
                             fields: fs,
-                            total,
+                            total: total as f64,
                             ..Default::default()
                         }
                         .into(),
@@ -437,7 +507,7 @@ impl SchemaTrait for ClickHouseDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"ALTER TABLE `{}` MODIFY COLUMN `{}` {}"#,
-                table, new_name, &typ.typ
+                table, new_name, typ.typ
             );
             log::info!("sql:{}", sql);
             self.simple_execute_sql(&sql).await?;
@@ -445,11 +515,7 @@ impl SchemaTrait for ClickHouseDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&typ.typ, dv.as_str())?
-                    }
+                    self.encode_value_try_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -470,11 +536,7 @@ impl SchemaTrait for ClickHouseDB {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
                 .as_str(),
             );
@@ -483,14 +545,14 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = "SELECT name  from system.functions where origin = 'SQLUserDefined'";
 
         let rows: Vec<String> = self.client.query(sql).fetch_all().await?;
-        anyhow::Ok(rows.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(rows.into_iter().map(NameWithParameter::from).collect())
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{}'"#,
             name.name,
@@ -503,7 +565,7 @@ impl SchemaTrait for ClickHouseDB {
         })
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{}`", name.name);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -529,11 +591,8 @@ impl ClickHouseDB {
 
 fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: &str) -> String {
     use sqlparser::ast::{DataType, ObjectName};
-
     let default_str = value.to_string();
-
-    let single_quote_str = format!("'{}'", escape_sql_str(value));
-
+    let single_quote_str = quote_sql_str(value);
     fn custom_need_quote(x: &ObjectName) -> bool {
         let x = x.to_string().to_lowercase();
         x == "ipv4" || x == "ipv6"
@@ -595,7 +654,22 @@ impl ClickHouseDB {
         while let Some(data) = stream.next().await {
             let data = data?;
             sender.send(data.into()).await?;
-            sender.send("\n".into()).await?;
+        }
+        anyhow::Ok(())
+    }
+
+    async fn export_query_result_as_json_line(
+        &self,
+        sql: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let mut stream = self
+            .query_as_response(sql, "JSONEachRow", None)
+            .await?
+            .bytes_stream();
+        while let Some(data) = stream.next().await {
+            let data = data?;
+            sender.send(data.into()).await?;
         }
         anyhow::Ok(())
     }
@@ -667,22 +741,6 @@ impl ClickHouseDB {
         }
         anyhow::Ok(())
     }
-
-    async fn export_query_result_as_json_line(
-        &self,
-        sql: &str,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let mut stream = self
-            .query_as_response(sql, "JSONEachRow", None)
-            .await?
-            .bytes_stream();
-        while let Some(data) = stream.next().await {
-            let data = data?;
-            sender.send(data.into()).await?;
-        }
-        anyhow::Ok(())
-    }
 }
 
 impl ClickHouseDB {
@@ -692,47 +750,58 @@ impl ClickHouseDB {
         include_header: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let mut stream = self.query_row(sql).await?;
-        let mut row_number = 0;
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            match row {
+        let mut read_columns = self.query_row(sql).await?;
+
+        let mut columns = vec![];
+
+        while let Some(x) = read_columns.next().await {
+            let x = x?;
+            match x {
                 FieldsOrData::Fields(fields) => {
-                    if include_header {
-                        for (index, c) in fields.iter().enumerate() {
-                            sender
-                                .send(
-                                    XlsxEdit {
-                                        row: row_number,
-                                        column: index as rust_xlsxwriter::ColNum,
-                                        content: c.field.clone(),
-                                    }
-                                    .into(),
-                                )
-                                .await?;
-                        }
-                        row_number += 1;
-                    }
+                    columns = fields;
                 }
-                FieldsOrData::Data(data) => {
-                    for (col, d) in data.into_iter().enumerate() {
-                        if let Some(d) = d {
-                            sender
-                                .send(
-                                    XlsxEdit {
-                                        row: row_number,
-                                        column: col as rust_xlsxwriter::ColNum,
-                                        content: d,
-                                    }
-                                    .into(),
-                                )
-                                .await?;
-                        }
-                    }
-                    row_number += 1;
+                FieldsOrData::Data(..) => {
+                    break;
                 }
                 FieldsOrData::ReadingColumns => {}
             }
+        }
+        drop(read_columns);
+
+        let mut row_num = 0;
+
+        if include_header {
+            for (index, f) in columns.iter().enumerate() {
+                sender
+                    .send(
+                        XlsxEdit {
+                            row: row_num,
+                            column: index as u16,
+                            content: f.field.clone().into(),
+                        }
+                        .into(),
+                    )
+                    .await?;
+            }
+
+            row_num += 1;
+        }
+        let mut tys = Vec::with_capacity(columns.len());
+        for c in columns.iter() {
+            let ty = crate::language_server::LangServerCommon::parse_type(self, &c.data_type)?;
+            tys.push(ty);
+        }
+
+        let cols_names = columns.iter().map(|x| &x.field).collect::<Vec<_>>();
+
+        let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
+        while let Some(line) = stream.next().await {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            let r = encode_json_result_as_xlsx(&tys, &cols_names, &line)?;
+            export_query_as_xlsx_send_data(&mut row_num, r, sender.clone()).await?;
         }
         anyhow::Ok(())
     }
@@ -764,7 +833,7 @@ impl ExportQueryResult for ClickHouseDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
+            ExportKind::Xlsx { include_header, .. } => {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
@@ -793,6 +862,20 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.not_allow_switch_db(sql)?;
         self.client
@@ -833,6 +916,9 @@ impl QuerySql for ClickHouseDB {
                 FieldsOrData::Fields(fields) => emit.send(
                     QueryResp {
                         fields,
+                        sql: Some(sql.to_owned()),
+                        tables: crate::language_server::LangServerCommon::extract_tables(self, sql)
+                            .unwrap_or_default(),
                         ..Default::default()
                     }
                     .into(),
@@ -902,12 +988,12 @@ impl ClickHouseDB {
         }
 
         let http_client = {
-            let mut b = reqwest::Client::builder();
+            let mut builder = reqwest::Client::builder();
             if let Some(x) = config.conn_timeout {
-                b = b.connect_timeout(x.into());
+                builder = builder.connect_timeout(x.into());
             }
-            b = b.pool_max_idle_per_host(10);
-            b.build()?
+            builder = builder.pool_max_idle_per_host(10);
+            builder.build()?
         };
         anyhow::Ok(Self {
             config,
@@ -924,7 +1010,11 @@ impl DBTrait for ClickHouseDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let databases: Vec<String> = self.client.query("show databases").fetch_all().await?;
+        let databases: Vec<String> = self
+            .client
+            .query("SELECT name FROM system.databases WHERE name != 'INFORMATION_SCHEMA';")
+            .fetch_all()
+            .await?;
         anyhow::Ok(databases)
     }
 
@@ -938,9 +1028,9 @@ impl DBTrait for ClickHouseDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
-        let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
+        let sql = format!("CREATE DATABASE IF NOT EXISTS `{name}`;");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
@@ -962,7 +1052,7 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
         serde_json::Value::Number(number) => number.to_string(),
         serde_json::Value::String(x) => {
             if need_quote(typ) {
-                format!("'{}'", escape_sql_str(x))
+                quote_sql_str(x)
             } else {
                 x.clone()
             }
@@ -1013,7 +1103,7 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
                 xs.push(format!(
                     "{}:{}",
                     if need_quote(kty) {
-                        format!("'{}'", escape_sql_str(k))
+                        quote_sql_str(k)
                     } else {
                         k.clone()
                     },
@@ -1043,6 +1133,47 @@ fn encode_json_result(tys: &[DataType], line: &str) -> anyhow::Result<Vec<Option
     anyhow::Ok(data)
 }
 
+impl EncodeXlsxDatetime for ClickHouseDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        anyhow::Ok(ty_is_datetime(&ty))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        anyhow::Ok(ty_is_date(&ty))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        anyhow::Ok(ty_is_time(&ty))
+    }
+}
+fn encode_json_result_as_xlsx(
+    tys: &[DataType],
+    cols: &[&String],
+    line: &str,
+) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut data = Vec::with_capacity(tys.len());
+    let values: serde_json::Map<String, serde_json::Value> = serde_json::from_str(line)?;
+    for (name, ty) in cols.iter().zip(tys.iter()) {
+        let value = values.get(*name);
+        let v = match value {
+            Some(value) => match value {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string().into()),
+                serde_json::Value::Number(number) => Some(number.to_string().into()),
+                serde_json::Value::String(x) => Some(x.clone().into()),
+                serde_json::Value::Array(_) => Some(encode_nested(value, ty)?.into()),
+                serde_json::Value::Object(_) => Some(encode_nested(value, ty)?.into()),
+            },
+            None => None,
+        };
+        data.push(v);
+    }
+    anyhow::Ok(data)
+}
+
 #[derive(Clone, Debug)]
 pub enum FieldsOrData {
     Fields(Vec<Field>),
@@ -1060,7 +1191,7 @@ impl ClickHouseDB {
             .await?;
         let mut count = 0;
         let mut cols: Vec<String> = vec![];
-        let mut ts: Vec<_> = vec![];
+        let mut tys: Vec<_> = vec![];
         let r = stream.map(move |x| match x {
             Err(err) => Err(anyhow::Error::from(err)),
             Ok(line) => {
@@ -1073,8 +1204,9 @@ impl ClickHouseDB {
                     count += 1;
                     let ts_str: Vec<String> = serde_json::from_str(&line)?;
                     for x in ts_str.iter() {
-                        let t = parse_type(x)?;
-                        ts.push(t);
+                        let ty = crate::language_server::LangServerCommon::parse_type(self, x)?;
+                        let ty = ty_remove_nullable(&ty);
+                        tys.push(ty);
                     }
                     return anyhow::Ok(FieldsOrData::Fields(
                         ts_str
@@ -1085,7 +1217,7 @@ impl ClickHouseDB {
                     ));
                 }
                 // now we have data
-                let r = encode_json_result(&ts, &line)?;
+                let r = encode_json_result(&tys, &line)?;
                 anyhow::Ok(FieldsOrData::Data(r))
             }
         });
@@ -1141,22 +1273,14 @@ impl ClickHouseDB {
     }
 }
 
-fn parse_type(typ: &str) -> anyhow::Result<DataType> {
-    let d = sqlparser::dialect::ClickHouseDialect {};
-    let mut p = sqlparser::parser::Parser::new(&d);
-    p = p.try_with_sql(typ)?;
-    let ret = p.parse_data_type()?;
-    anyhow::Ok(ret)
-}
-
-/// ClickHouse 里可直接写在 SQL 语句中的零参常量字面量
+/// Zero-argument constant literals that can be written directly in ClickHouse SQL statements.
 pub const CH_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07
     "CURRENT_DATE",      //  2025-08-25
 ];
 
 impl SqlBuilder for ClickHouseDB {
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         CH_CURRENT_LITERALS
     }
     fn update_sql(
@@ -1180,7 +1304,7 @@ impl SqlBuilder for ClickHouseDB {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         {
             let last = values.len() - 1;
@@ -1195,7 +1319,7 @@ impl SqlBuilder for ClickHouseDB {
                         format!(
                             "{} = {}",
                             self.quote(k),
-                            self.put_value_in_sql(&f.data_type, value)?
+                            self.encode_value(&f.data_type, value)?
                         )
                         .as_str(),
                     ),
@@ -1213,8 +1337,11 @@ impl SqlBuilder for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
-        anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        anyhow::Ok(put_value_in_sql(
+            &crate::language_server::LangServerCommon::parse_type(self, typ)?,
+            value,
+        ))
     }
 
     fn get_schema(&self) -> Option<&str> {
@@ -1232,12 +1359,11 @@ impl SqlBuilder for ClickHouseDB {
             "SELECT {} from `{schema}`.`{table_name}`",
             self.backend_kind().format_fields(fields)
         );
+
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = para;
             if let Some(where_str) = where_str {
@@ -1246,8 +1372,10 @@ impl SqlBuilder for ClickHouseDB {
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
-            let offset = (page - 1) * page_size;
-            sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
+            let offset = para.offset();
+            if let Some(offset) = offset {
+                sql.push_str(format!(" LIMIT {} , {}", offset.offset, offset.page_size).as_str());
+            }
         }
         sql
     }
@@ -1277,8 +1405,8 @@ pub(crate) fn test_lock() -> &'static Mutex<()> {
 impl GetTestExportTableKinds for ClickHouseDB {}
 #[cfg(test)]
 mod tests {
+    use super::make_test_object;
     use super::*;
-    use super::{make_test_object, parse_type};
     use crate::db::{
         ColumnType, CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, QuerySql,
         SchemaTrait, ServerMetas, SqlNullAble,
@@ -1365,7 +1493,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
     #[tokio::test]
@@ -1376,7 +1504,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let name = "test_udf_add";
 
-        let _ = db.drop_udf(&NamedStaff::from(name.to_string())).await;
+        let _ = db.drop_udf(&NameWithParameter::from(name.to_string())).await;
 
         db.execute_sql(
             query_id,
@@ -1756,7 +1884,6 @@ mod tests {
     #[tokio::test]
     async fn test_types1() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
@@ -1782,15 +1909,15 @@ mod tests {
             .unwrap();
 
         assert!(_resp.is_ok(), "{:?}", _resp);
-        {
-            let mut values = HashMap::new();
-            values.insert("value_uint8".to_string(), Some(1.to_string()));
-            values.insert("value_uint16".to_string(), Some(2.to_string()));
-            values.insert("value_uint32".to_string(), Some(3.to_string()));
-            values.insert("value_uint64".to_string(), Some(4.to_string()));
-            values.insert("value_uint128".to_string(), Some(5.to_string()));
-            db.table_insert(table_name, values).await.unwrap();
-        }
+
+        let mut values = HashMap::new();
+        values.insert("value_uint8".to_string(), Some(1.to_string()));
+        values.insert("value_uint16".to_string(), Some(2.to_string()));
+        values.insert("value_uint32".to_string(), Some(3.to_string()));
+        values.insert("value_uint64".to_string(), Some(4.to_string()));
+        values.insert("value_uint128".to_string(), Some(5.to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -1801,12 +1928,14 @@ mod tests {
         }
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
@@ -1831,15 +1960,17 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        {
-            let mut values = HashMap::new();
-            values.insert("value_int8".to_string(), Some(1.to_string()));
-            values.insert("value_int16".to_string(), Some(2.to_string()));
-            values.insert("value_int32".to_string(), Some(3.to_string()));
-            values.insert("value_int64".to_string(), Some(4.to_string()));
-            values.insert("value_int128".to_string(), Some(5.to_string()));
-            db.table_insert(table_name, values).await.unwrap();
-        }
+        let mut values = HashMap::new();
+        values.insert("value_int8".to_string(), Some(1.to_string()));
+        values.insert("value_int16".to_string(), Some(2.to_string()));
+        values.insert("value_int32".to_string(), Some(3.to_string()));
+        values.insert(
+            "value_int64".to_string(),
+            Some("9007199254740993".to_string()),
+        );
+        values.insert("value_int128".to_string(), Some(5.to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -1849,12 +1980,14 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
     async fn test_types3() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
+
         let db = make_test_object();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
@@ -1881,17 +2014,19 @@ mod tests {
             .await
             .unwrap() .unwrap() ;
 
-        {
-            let mut values = HashMap::new();
-            values.insert("id".to_string(), Some(100.to_string()));
-            values.insert("float32_field".to_string(), Some(1.to_string()));
-            values.insert("float64_field".to_string(), Some(2.to_string()));
-            values.insert("decimal32_field".to_string(), Some(3.to_string()));
-            values.insert("decimal64_field".to_string(), Some(4.to_string()));
-            values.insert("decimal128_field".to_string(), Some(5.to_string()));
-            values.insert("boolean_field".to_string(), Some(true.to_string()));
-            db.table_insert(table_name, values).await.unwrap();
-        }
+        let mut values = HashMap::new();
+        values.insert("id".to_string(), Some(100.to_string()));
+        values.insert("float32_field".to_string(), Some(1.to_string()));
+        values.insert("float64_field".to_string(), Some(2.to_string()));
+        values.insert("decimal32_field".to_string(), Some(3.to_string()));
+        values.insert("decimal64_field".to_string(), Some(4.to_string()));
+        values.insert(
+            "decimal128_field".to_string(),
+            Some("1234567890123456.8".to_string()),
+        );
+        values.insert("boolean_field".to_string(), Some(1.to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -1901,12 +2036,13 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
     async fn test_types4() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
@@ -1918,7 +2054,7 @@ mod tests {
             CREATE TABLE test_types4
             (
                 string_field String,            -- 动态长度的字符串
-                fixed_string_field FixedString(16), -- 固定长度的字符串，这里长度为 16 字节
+                fixed_string_field FixedString(5), -- 固定长度的字符串，这里长度为 5 字节
                 uuid_field UUID,                -- UUID 类型
                 ipv6_field IPv6,                -- IPv6 地址
                 ipv4_field IPv4,                -- IPv4 地址
@@ -1932,29 +2068,25 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        {
-            let mut values = HashMap::new();
+        let mut values = HashMap::new();
 
-            values.insert(
-                "string_field".to_string(),
-                Some("Hello, ClickHouse!".to_string()),
-            );
-            values.insert(
-                "fixed_string_field".to_string(),
-                Some("FixedString".to_string()),
-            );
-            values.insert(
-                "uuid_field".to_string(),
-                Some("6f9619ff-8b86-d011-b42d-00c04fc964ff".to_string()),
-            );
-            values.insert(
-                "ipv6_field".to_string(),
-                Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".to_string()),
-            );
-            values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
-            values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
-            db.table_insert(table_name, values).await.unwrap();
-        }
+        values.insert(
+            "string_field".to_string(),
+            Some("Hello, ClickHouse!".to_string()),
+        );
+        values.insert("fixed_string_field".to_string(), Some("abcde".to_string()));
+        values.insert(
+            "uuid_field".to_string(),
+            Some("6f9619ff-8b86-d011-b42d-00c04fc964ff".to_string()),
+        );
+        values.insert(
+            "ipv6_field".to_string(),
+            Some("2001:db8:85a3::8a2e:370:7334".to_string()),
+        );
+        values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
+        values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(
@@ -1967,10 +2099,14 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
     async fn test_types5() {
+        enable_test_log();
+
         let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_types5";
@@ -1997,32 +2133,31 @@ mod tests {
             .await
             .unwrap() .unwrap() ;
 
-        {
-            let mut values = HashMap::new();
+        let mut values = HashMap::new();
 
-            values.insert("date32_field".to_string(), Some("2025-03-06".to_string()));
-            values.insert(
-                "datetime_field".to_string(),
-                Some("2025-03-06 12:34:56".to_string()),
-            );
-            values.insert(
-                "datetime64_field".to_string(),
-                Some("2025-03-06 12:34:56.789".to_string()),
-            );
-            values.insert(
-                "tuple_field".to_string(),
-                Some("(123, 'example', 456.789)".to_string()),
-            );
-            values.insert(
-                "array_field".to_string(),
-                Some("['item1', 'item2', 'item3']".to_string()),
-            );
-            values.insert(
-                "map_field".to_string(),
-                Some("map('key1', 10, 'key2', 20)".to_string()),
-            );
-            db.table_insert(table_name, values).await.unwrap();
-        }
+        values.insert("date32_field".to_string(), Some("2025-03-06".to_string()));
+        values.insert(
+            "datetime_field".to_string(),
+            Some("2025-03-06 12:34:56".to_string()),
+        );
+        values.insert(
+            "datetime64_field".to_string(),
+            Some("2025-03-06 12:34:56.789".to_string()),
+        );
+        values.insert(
+            "tuple_field".to_string(),
+            Some("(123,'example',456.789)".to_string()),
+        );
+        values.insert(
+            "array_field".to_string(),
+            Some("['item1','item2','item3']".to_string()),
+        );
+        values.insert(
+            "map_field".to_string(),
+            Some("{'key1':10,'key2':20}".to_string()),
+        );
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(
@@ -2035,6 +2170,13 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        /*
+               This is the default behavior of the ClickHouse CSV / CSVWithNames format. The official ClickHouse CSV format specification states that tuples in CSV format are serialized as separate columns, so their nested structure is lost (Tuples in CSV format are serialized as separate columns). For example, a Tuple column named user containing (id, name) is expanded directly into two columns, "user.id" and "user.name", in a CSVWithNames header.
+        */
+        db.test_table_export_and_import_json(table_name).await;
+        db.test_table_export_and_import_jsonline(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2081,7 +2223,7 @@ mod tests {
             );
             println!("values:{:?}", values);
 
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2095,6 +2237,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2112,9 +2255,9 @@ mod tests {
                 r#"
             CREATE TABLE test_types6
             (
-                low_cardinality_field LowCardinality(String),  -- 使用 LowCardinality 优化存储和查询性能[^4^]
-                nullable_field Nullable(String),               -- 可以存储 NULL 值的字段[^2^]
-                -- json_field JSON                                -- JSON 类型字段，用于存储 JSON 数据[^3^]
+                low_cardinality_field LowCardinality(String),  -- Use LowCardinality to optimize storage and query performance[^4^]
+                nullable_field Nullable(String),               -- Field that can store NULL values[^2^]
+                -- json_field JSON                                -- JSON field for storing JSON data[^3^]
             )
             ENGINE = MergeTree()
             ORDER BY low_cardinality_field;
@@ -2135,7 +2278,7 @@ mod tests {
                 Some("hello world".to_string()),
             );
 
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2150,33 +2293,56 @@ mod tests {
         }
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
-    #[test]
-    fn test_parse_type() {
-        let x = parse_type("Nullable(String) ").unwrap();
+    #[tokio::test]
+    async fn test_parse_type() {
+        use crate::language_server::LangServerCommon;
+
+        let _guard = test_lock().lock().await;
+        let db = make_test_object();
+
+        let x = db.parse_type("Nullable(String) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("FixedString(10) ").unwrap();
+        let x = db.parse_type("FixedString(10) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv4").unwrap();
+        let x = db.parse_type("IPv4").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv6").unwrap();
+        let x = db.parse_type("IPv6").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date").unwrap();
+        let x = db.parse_type("Date").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date32").unwrap();
+        let x = db.parse_type("Date32").unwrap();
         println!("{:?}", x);
-        let x = parse_type("DateTime").unwrap();
+        let x = db.parse_type("DateTime").unwrap();
         println!("{:?}", x);
-        let x = parse_type("DateTime64(1) ").unwrap();
+        let x = db.parse_type("DateTime64(1) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Tuple(Int32, String)").unwrap();
+        let x = db.parse_type("Tuple(Int32, String)").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Map(String, Int32)").unwrap();
+        let x = db.parse_type("Map(String, Int32)").unwrap();
         println!("{:?}", x);
-        let x = parse_type("LowCardinality(String)").unwrap();
+        let x = db.parse_type("LowCardinality(String)").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Array(Tuple(Int32, String))").unwrap();
+        let x = db.parse_type("Array(Tuple(Int32, String))").unwrap();
         println!("{:?}", x);
+    }
+
+    #[tokio::test]
+    async fn test_ssl() {
+        let db = ClickHouseDB::new(ClickHouseConfig {
+            conn_timeout: Some(5000.into()),
+            host: "127.0.0.1".to_string(),
+            port: 8123,
+            read_only: false,
+            db: Some("default".to_string()),
+            username: "default".to_string(),
+            password: Some("root".to_string()),
+            https: true,
+        })
+        .unwrap();
+        let _err = db.check_conn().await;
+        assert!(_err.is_err())
     }
 }

@@ -1,6 +1,7 @@
 import {
   Checkbox,
   Chip,
+  Dialog,
   Divider,
   FormControlLabel,
   IconButton,
@@ -9,23 +10,25 @@ import {
   Typography,
 } from "@mui/material";
 import { filesize } from "filesize";
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { ArrowCircleDownIcon } from "./icons";
 import { Channel } from "@tauri-apps/api/core";
 import { OpenFileWithDefaultApp } from "./CommonComp";
-import {
-  DataSourceKind,
-  generateDefaultFilename,
-  getSupportExportKind,
-} from "./helper";
+import { DbnameContext, generateDefaultFilename, getSupportExportKind } from "./helper";
 
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
 import { useExportConfigStore, useNotification } from "./store";
 import { commands, ExportKind, ShowTableParameter } from "./bindings";
 import { uuidv4 } from "./Common";
-function IncludeHeader({ includeHeader, setIncludeHeader }) {
+
+type IncludeHeaderProps = {
+  includeHeader: boolean;
+  setIncludeHeader: (value: boolean) => void;
+};
+
+function IncludeHeader({ includeHeader, setIncludeHeader }: IncludeHeaderProps) {
   return (
     <FormControlLabel
       control={
@@ -43,7 +46,7 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
   );
 }
 
-function ExportView(props: {
+type ExportViewProps = {
   name: string;
   exportOP: (
     kind: ExportKind,
@@ -52,7 +55,9 @@ function ExportView(props: {
     c: Channel<number>,
   ) => Promise<void>;
   supportKind: string[];
-}) {
+};
+
+function ExportView(props: ExportViewProps) {
   const { exportOP, supportKind, name } = props;
 
   const {
@@ -66,13 +71,15 @@ function ExportView(props: {
     setIncludeTableSchema,
     exportKind,
     setExportKind,
+    xlsxDateTimeFormat,
+    setXlsxDatetimeFormat,
   } = useExportConfigStore();
 
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
-  const taskId = useRef(uuidv4());
-  const exportedSize = useRef(null);
+  const taskId = useRef<string>(uuidv4());
+  const exportedSize = useRef<HTMLElement | null>(null);
   const makeConfig = (): ExportKind | null => {
     switch (exportKind) {
       case "csv":
@@ -88,6 +95,8 @@ function ExportView(props: {
           include_header: includeHeader,
           delimiter: delimiter,
         };
+      case "tsv":
+        return { export_kind: "csv", include_header: includeHeader, delimiter: "\t" };
       case "sql":
         return { export_kind: "sql", include_table_schema: includeTableSchema };
       case "json":
@@ -95,7 +104,11 @@ function ExportView(props: {
       case "jsonline":
         return { export_kind: "jsonline" };
       case "xlsx":
-        return { export_kind: "xlsx", include_header: includeHeader };
+        return {
+          export_kind: "xlsx",
+          include_header: includeHeader,
+          ...xlsxDateTimeFormat,
+        };
       case "html":
         return { export_kind: "html", include_header: includeHeader };
       case "markdown":
@@ -119,9 +132,13 @@ function ExportView(props: {
     if (!file) {
       return;
     }
-    exportedSize.current.innerText = "";
+    if (exportedSize.current) {
+      exportedSize.current.innerText = "";
+    }
     const c = new Channel<number>((x) => {
-      exportedSize.current.innerText = `exported ${filesize(x)}`;
+      if (exportedSize.current) {
+        exportedSize.current.innerText = `exported ${filesize(x)}`;
+      }
     });
     try {
       setLoading(true);
@@ -152,30 +169,63 @@ function ExportView(props: {
           />
         ))}
       </Stack>
-      {exportKind == "csv" && (
+      {["csv", "tsv"].includes(exportKind) && (
         <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
           />
-          <Stack direction="row">
-            <TextField
-              value={delimiter}
-              onChange={(e) => {
-                setDelimiter(e.target.value);
-              }}
-              label="delimiter"
-              error={delimiter.length > 1}
-              helperText="only accept one character"
-            />
-          </Stack>
+          {exportKind == "csv" && (
+            <Stack direction="row">
+              <TextField
+                value={delimiter}
+                onChange={(e) => {
+                  setDelimiter(e.target.value);
+                }}
+                label="delimiter"
+                error={delimiter.length > 1}
+                helperText="only accept one character"
+              />
+            </Stack>
+          )}
         </Stack>
       )}
+
       {exportKind == "xlsx" && (
         <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
+          />
+          <TextField
+            value={xlsxDateTimeFormat.datatime}
+            onChange={(e) => {
+              setXlsxDatetimeFormat({
+                ...xlsxDateTimeFormat,
+                datatime: e.target.value,
+              });
+            }}
+            label="date time"
+          />
+          <TextField
+            value={xlsxDateTimeFormat.time}
+            onChange={(e) => {
+              setXlsxDatetimeFormat({
+                ...xlsxDateTimeFormat,
+                time: e.target.value,
+              });
+            }}
+            label="time"
+          />
+          <TextField
+            value={xlsxDateTimeFormat.date}
+            onChange={(e) => {
+              setXlsxDatetimeFormat({
+                ...xlsxDateTimeFormat,
+                date: e.target.value,
+              });
+            }}
+            label="date"
           />
         </Stack>
       )}
@@ -239,7 +289,9 @@ function ExportView(props: {
           <CancelButton
             handleCancel={() => {
               cancelTask(taskId.current);
-              exportedSize.current.innerText = "";
+              if (exportedSize.current) {
+                exportedSize.current.innerText = "";
+              }
             }}
           />
         )}
@@ -251,30 +303,36 @@ function ExportView(props: {
 }
 
 function ExportTableOrView(props: {
-  uuid: string;
-  name: string;
+  tableName: string;
   isTable: boolean;
   para?: ShowTableParameter;
-  kind: DataSourceKind;
+  handleClose: () => void;
+  extraUI?: ReactNode;
 }) {
-  const { uuid, name, kind, isTable, para } = props;
-
+  const { dbName, kind } = useContext(DbnameContext);
+  const { tableName, isTable, para, handleClose, extraUI } = props;
+  if (!tableName) {
+    return;
+  }
   return (
-    <ExportView
-      exportOP={async (kind, filepath, taskId, sizeEmitter) => {
-        return await commands.exportTableOrView(
-          uuid,
-          taskId,
-          sizeEmitter,
-          name,
-          para,
-          filepath,
-          kind,
-        );
-      }}
-      supportKind={getSupportExportKind(kind, isTable)}
-      name={name}
-    />
+    <Dialog open onClose={handleClose}>
+      {extraUI}
+      <ExportView
+        exportOP={async (kind, filepath, taskId, sizeEmitter) => {
+          return await commands.exportTableOrView(
+            dbName,
+            taskId,
+            sizeEmitter,
+            tableName,
+            para,
+            filepath,
+            kind,
+          );
+        }}
+        supportKind={getSupportExportKind(kind, isTable)}
+        name={tableName}
+      />
+    </Dialog>
   );
 }
 

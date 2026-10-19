@@ -1,36 +1,51 @@
 import {
   Alert,
   Button,
+  Dialog,
   Divider,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
   Stack,
-  Tab,
-  Tabs,
   Tooltip,
   Typography,
 } from "@mui/material";
+import { DeleteForeverIcon } from "./icons";
 import {
-  handleCopyToClipboard,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   QueryRespData,
+  AppColumnMenuCtx,
+  columnHeaderStyle,
+  clickDataGridColumn,
+  allGridHeaderTitle,
+  gridColumnHeaderSelectClassName,
+  DbnameContext,
+  DataSourceKind,
+  handleCopyToClipboard,
 } from "./helper.ts";
-
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { EditIcon } from "./icons";
+import React, {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { keyNotInTable } from "./Common";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { ArrowUpwardIcon, ArrowDownwardIcon, PlayArrowIcon } from "./icons";
 import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.tsx";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import { VisibilityIcon } from "./icons";
 import {
+  AppCode,
   AppDataGridPagination,
-  AppDataGridToolBar,
-  StackRowCenter,
+  CopyAsXXX,
+  ExportQueryResultToFile,
+  SqlTableViewData,
 } from "./CommonComp2.tsx";
 import {
   useColumnWidthStore,
@@ -38,36 +53,164 @@ import {
   useNotification,
   usePageSize,
 } from "./store.tsx";
-import { Field, MuiDataGridData } from "./bindings.ts";
+import { commands, Field, MuiDataGridData } from "./bindings.ts";
 import {
   DataGrid,
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiRef,
 } from "./datagridExport.ts";
+import { CustomToolbar } from "./CustomToolBar.tsx";
+function EditResultSetData(props: {
+  dbName: string;
+  sql: string;
+  oldValues: object;
+  fields: Field[];
+}) {
+  const { dbName, sql, oldValues, fields } = props;
+  const { showNotification } = useNotification();
+  const [err, setErr] = useState("");
+  const [up, setUp] = useState<string[]>(null);
+  let makeArray = useCallback(
+    (x: object) => {
+      return fields.map((f) => x[f.field]);
+    },
+    [fields],
+  );
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await commands.getUpdateSqlFromResultSet(
+          dbName,
+          sql,
+          makeArray(oldValues),
+          makeArray(oldValues),
+        );
+      } catch (e) {
+        const msg = `sql: ${sql} not be able to modify data from result set.because of `;
+        if (e.reason) {
+          setErr(e.reason);
+        } else {
+          showNotification({
+            severity: "error",
+            title: msg,
+            message: e,
+          });
+        }
+      }
+    })();
+  }, [dbName, makeArray, oldValues, showNotification, sql]);
+
+  return (
+    <Stack spacing={1}>
+      {err && (
+        <Alert severity="error" color="error">
+          <mark> {sql} </mark>
+          {err}
+        </Alert>
+      )}
+      {up && (
+        <AppCode
+          codeBlock={up.join(";\n")}
+          extra={() => {
+            return (
+              <Tooltip title="try execute sql in tx model(if supported).">
+                <IconButton
+                  color="primary"
+                  onClick={async () => {
+                    try {
+                      await commands.executeTxMultiSql(dbName, up);
+                      showNotification({
+                        severity: "success",
+                        title: "execute sql success",
+                      });
+                    } catch (e) {
+                      showNotification({
+                        severity: "error",
+                        message: e,
+                        title: "execute sql failed ",
+                      });
+                    }
+                  }}>
+                  <PlayArrowIcon />
+                </IconButton>
+              </Tooltip>
+            );
+          }}
+          language="sql"
+        />
+      )}
+
+      <SqlTableViewData
+        initValues={oldValues}
+        fields={fields}
+        isAdd={false}
+        buttonName={"gen modify sql"}
+        handleData={async (newvalues) => {
+          let isEqual = true;
+          const old_Values = makeArray(oldValues);
+          const new_Values = makeArray(newvalues);
+          for (let index = 0; index < old_Values.length; index++) {
+            if (!oldValues[index] && !new_Values[index]) {
+              continue;
+            }
+            if (old_Values[index] != new_Values[index]) {
+              isEqual = false;
+              break;
+            }
+          }
+          if (isEqual) {
+            throw new Error("nothing changed.");
+          }
+          let ret = await commands.getUpdateSqlFromResultSet(
+            dbName,
+            sql,
+            old_Values,
+            new_Values,
+          );
+          setUp(ret);
+        }}
+      />
+    </Stack>
+  );
+}
 
 function RespContextMenu(props: {
   content: string;
   field: string;
+  fields: Field[];
   setSort: (model: GridSortModel) => void;
   viewInModal: () => void;
+  dbName: string;
+  kind: DataSourceKind;
+  fieldType: string;
+  editRowData: () => void;
+  getRow: () => object;
 }): React.ReactElement {
-  const { content, field, setSort, viewInModal } = props;
-  const { showNotification } = useNotification();
+  const {
+    content,
+    field,
+    setSort,
+    viewInModal,
+    dbName,
+    fieldType,
+    kind,
+    editRowData,
+    getRow,
+  } = props;
+  const supportModify = ![DataSourceKind.Redis].includes(kind);
+
   return (
     <MenuList>
-      {content && (
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}>
-          <ListItemIcon>
-            <ContentCopyIcon />
-          </ListItemIcon>
-          <ListItemText> Copy </ListItemText>
-        </MenuItem>
-      )}
-
+      <CopyAsXXX
+        content={content}
+        field={field}
+        dbName={dbName}
+        getRow={getRow}
+        fieldType={fieldType}
+      />
       <MenuItem onClick={viewInModal}>
         <ListItemIcon>
           <VisibilityIcon style={{ fontSize: "1.4rem" }} />
@@ -93,14 +236,31 @@ function RespContextMenu(props: {
         </ListItemIcon>
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
+      {supportModify && (
+        <MenuItem
+          onClick={() => {
+            editRowData();
+          }}>
+          <ListItemIcon>
+            <EditIcon />
+          </ListItemIcon>
+          <ListItemText> try edit </ListItemText>
+        </MenuItem>
+      )}
     </MenuList>
   );
 }
 
-function queryRespFix(
-  data: MuiDataGridData,
-  getColumnWidth: (field: string) => number | undefined,
-): void {
+function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
+  const { data } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+  const { getColumnWidth } = useColumnWidthStore();
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+  const apiRef = useGridApiRef();
+  const [page, setPage] = useState(0);
+  const { setPageSize, sql: pageSize } = usePageSize();
+  const [viewInModal, setViewInModal] = useState<object>(null);
+
   data.data.forEach((e, index) => {
     e[keyNotInTable] = index + "";
   });
@@ -112,34 +272,24 @@ function queryRespFix(
     field["renderHeader"] = (e) => {
       const def = e.colDef as Field;
       return (
-        <Tooltip title={`${def.field} ${def.data_type}`}>
-          <span> {def.field}</span>
-        </Tooltip>
+        <Stack
+          style={{ ...columnHeaderStyle }}
+          onClick={(event) => {
+            event.stopPropagation();
+            clickDataGridColumn(apiRef, event, field.field, setSelectColumns);
+          }}>
+          <Tooltip title={`${def.field} ${def.data_type}`}>
+            <span> {def.field}</span>
+          </Tooltip>
+        </Stack>
       );
     };
   });
-}
-
-function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
-  const { data } = props;
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
-  queryRespFix(data, getColumnWidth);
-  const [page, setPage] = useState(0);
-  const { setPageSize, sql: pageSize } = usePageSize();
-  const [viewInModal, setViewInModal] = useState<object>(null);
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      if (!data) {
-        return;
-      }
-      setColumnWidth(colDef.field, width);
-    },
-    [data, setColumnWidth],
-  );
+  const [editorRow, setEditorRow] = useState<object>();
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     if (!data) {
       return undefined;
     }
@@ -161,9 +311,19 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
                 viewInModal={() => {
                   setViewInModal(row);
                 }}
+                getRow={() => {
+                  return row;
+                }}
+                fields={data.fields}
+                fieldType={data.fields.find((e) => e.field == field).data_type}
+                dbName={dbName}
+                kind={kind}
                 content={content}
                 field={field}
                 setSort={setSortModel}
+                editRowData={() => {
+                  setEditorRow(row);
+                }}
               />
             ),
             event: e,
@@ -171,8 +331,8 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
-  }, [data, setUpMenu]);
+    };
+  }, [data, setUpMenu, dbName, kind]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
@@ -192,8 +352,9 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
               overflow: "auto",
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
-              <AppDataGridToolBar disableBorder />
+              <CustomToolbar />
               <ResetColumnWidth />
+              <ExportQueryResultToFile />
               <Typography color="info">rows: {data.data.length} </Typography>
             </Stack>
             <AppDataGridPagination showPageSelect />
@@ -203,6 +364,37 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
     } as Partial<GridSlotsComponent>;
   }, [data.data.length]);
 
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+
+  const onCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const onPaginationModelChange = useCallback(
+    (e) => {
+      setPage(e.page);
+      setPageSize("sql", e.pageSize);
+    },
+    [setPageSize],
+  );
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: data.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [data.fields, selectedColumns],
+  );
+  const paginationModel = useMemo(() => ({ page, pageSize }), [page, pageSize]);
   return (
     <div
       style={{
@@ -223,25 +415,25 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
               sql: {data.sql}
             </Typography>
           )}
-
-          <DataGrid
-            getRowId={getRowId}
-            slots={slots}
-            sortModel={sortModel}
-            onSortModelChange={onSortModelChange}
-            slotProps={slotProps}
-            style={dataGridStyle}
-            columns={data.fields}
-            rows={data.data}
-            showToolbar={false}
-            filterMode="client" // 使用客户端过滤
-            onColumnResize={onColumnResize}
-            paginationModel={{ page, pageSize }}
-            onPaginationModelChange={(e) => {
-              setPage(e.page);
-              setPageSize("sql", e.pageSize);
-            }}
-          />
+          <AppColumnMenuCtx value={columnMenuValue}>
+            <DataGrid
+              getCellClassName={getCellClassName}
+              onCellClick={onCellClick}
+              apiRef={apiRef}
+              getRowId={getRowId}
+              slots={slots}
+              sortModel={sortModel}
+              onSortModelChange={onSortModelChange}
+              slotProps={slotProps}
+              style={dataGridStyle}
+              columns={data.fields}
+              rows={data.data}
+              showToolbar={false}
+              filterMode="client" // Use client-side filtering.
+              paginationModel={paginationModel}
+              onPaginationModelChange={onPaginationModelChange}
+            />
+          </AppColumnMenuCtx>
         </Stack>
       )}
 
@@ -252,75 +444,91 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
           setViewInModal(null);
         }}
       />
+      {editorRow && (
+        <Dialog
+          open={!!editorRow}
+          onClose={() => {
+            setEditorRow(null);
+          }}>
+          <EditResultSetData
+            fields={data.fields}
+            sql={data.sql}
+            dbName={dbName}
+            oldValues={editorRow}
+          />
+        </Dialog>
+      )}
     </div>
   );
 }
+
+const QueryResp = React.memo(QueryResp_);
 
 function getRowId(row: Record<string, any>): string {
   return row[keyNotInTable];
 }
 
-function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
-  const { data } = props;
+function MultiQueryResp(props: {
+  data: QueryRespData[];
+  setData: Dispatch<SetStateAction<QueryRespData[]>>;
+}): React.ReactElement {
+  const { data, setData } = props;
   const [value, setValue] = React.useState(0);
-
+  const { showNotification } = useNotification();
   useEffect(() => {
     if (data.length > 0) {
       setValue(data.length - 1);
     }
   }, [data]);
 
-  const { showNotification } = useNotification();
   if (data.length == 0) {
     return <></>;
   }
-  if (data.length == 1) {
-    return data[0].Err ? (
-      <StackRowCenter>
-        <Button
-          onClick={() => {
-            handleCopyToClipboard(data[0].Err, showNotification);
-          }}>
-          copy
-        </Button>
-        <Alert severity="error">{data[0].Err}</Alert>
-      </StackRowCenter>
-    ) : (
-      <QueryResp data={data[0].Ok} />
-    );
-  }
-  const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
-    setValue(newValue);
-  };
+
   return (
     <Stack
       style={{
         height: "100%",
       }}
       direction="row">
-      <Tabs
-        orientation="vertical"
-        value={value}
-        onChange={handleChange}
-        variant="scrollable"
-        scrollButtons="auto">
-        {data.map((_, index) => (
-          <Tab
-            label={(function () {
-              return `Result ${index + 1}`;
-            })()}
+      <Stack style={{}} divider=<Divider />>
+        {data.map((x, index) => (
+          <TableNames
             key={index}
+            name={(function () {
+              if (x.Ok && x.Ok.tables.length > 0) {
+                return x.Ok.tables;
+              }
+              return [`Result${index + 1}`];
+            })()}
+            selected={index == value}
+            onClick={() => {
+              setValue(index);
+            }}
           />
         ))}
-        st
-      </Tabs>
-
+        <IconButton
+          color="warning"
+          onClick={() => {
+            setData([]);
+          }}>
+          <DeleteForeverIcon />
+        </IconButton>
+      </Stack>
       <div style={{ height: "100%", width: "100px", flex: 1 }}>
         {data.map((e, index) => {
           return (
             <div hidden={value != index} key={index} style={{ height: "100%" }}>
               {e.Err ? (
-                <Alert severity="error">{e.Err}</Alert>
+                <Stack direction="row" style={{ alignItems: "center" }}>
+                  <Button
+                    onClick={() => {
+                      handleCopyToClipboard(e.Err, showNotification);
+                    }}>
+                    copy
+                  </Button>
+                  <Alert severity="error">{e.Err}</Alert>
+                </Stack>
               ) : (
                 <QueryResp data={e.Ok} />
               )}
@@ -328,6 +536,26 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
           );
         })}
       </div>
+    </Stack>
+  );
+}
+
+function TableNames(props: { name: string[]; selected: boolean; onClick: () => void }) {
+  const { name, selected, onClick } = props;
+
+  return (
+    <Stack
+      onClick={onClick}
+      style={{
+        backgroundColor: selected ? "#0864b4" : undefined,
+        color: selected ? "white" : undefined,
+        cursor: "pointer",
+        padding: "2px",
+      }}
+      spacing={0}>
+      {name.map((e, index) => (
+        <Typography key={index}> {e} </Typography>
+      ))}
     </Stack>
   );
 }

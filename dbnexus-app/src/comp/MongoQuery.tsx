@@ -7,13 +7,14 @@ import {
   Checkbox,
 } from "@mui/material";
 
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import { PlayArrowIcon } from "./icons";
 import { editor } from "monaco-editor";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { MongoDBQuery } from "./MongoQueryBackend";
 import * as monaco from "monaco-editor";
 
 import {
+  createMongoModel,
   DataSourceKind,
   isMacOs,
   jumpToEditorText,
@@ -21,6 +22,7 @@ import {
   prettyMs,
   QueryIDEditorChatCtx,
   saveQueryKey,
+  DbnameContext,
 } from "./helper";
 import { NameAndQueryId } from "./Common";
 import {
@@ -42,7 +44,7 @@ function removeSourceMapComment(code: string) {
   const lastIndex = code.lastIndexOf(target);
 
   if (lastIndex !== -1) {
-    // 截取到注释开始之前的位置，并 trimDown 掉尾部多余换行
+    // Take the substring up to the comment and trim any extra trailing newlines.
     return code.slice(0, lastIndex).trimEnd();
   }
   return code;
@@ -50,7 +52,7 @@ function removeSourceMapComment(code: string) {
 
 monaco.typescript.typescriptDefaults.setCompilerOptions({
   sourceMap: true,
-  // 注意：ScriptTarget 和 ModuleKind 也在 typescript 下
+  // Note: ScriptTarget and ModuleKind are also available under typescript.
   target: monaco.typescript.ScriptTarget.ESNext,
   module: monaco.typescript.ModuleKind.ESNext,
   noEmit: false,
@@ -65,7 +67,7 @@ async function transformTS(
     const uri = model.uri;
     const uriStr = uri.toString();
 
-    // 1. 获取 TS Worker
+    // 1. Get the TypeScript worker.
     const workerGetter = await monaco.typescript.getTypeScriptWorker();
     const worker = await workerGetter(uri);
     if (!ignoreErr) {
@@ -108,16 +110,16 @@ async function transformTS(
       }
     }
 
-    // 2. 调用编译方法 (getEmitOutput 包含 js 和 map)
+    // 2. Call the compile method (getEmitOutput includes JS and source map output).
     const emitOutput = await worker.getEmitOutput(uri.toString());
 
-    // 3. 提取结果
-    // outputFiles 通常包含两个文件：一个 .js，一个 .js.map
+    // 3. Extract the results.
+    // outputFiles usually contains two files: one .js and one .js.map.
     let jsCode = emitOutput.outputFiles.find((f) => f.name.endsWith(".js"))?.text;
     const sourceMap = emitOutput.outputFiles.find((f) =>
       f.name.endsWith(".js.map"),
     )?.text;
-    // 建议替代 dropLastLine 的方案
+    // Suggested alternative to dropLastLine.
     jsCode = removeSourceMapComment(jsCode);
     return (
       jsCode +
@@ -162,24 +164,15 @@ function ExecuteButton(props: {
   );
 }
 
-let modelCounter = 0;
-
-function createNewModel(code = "") {
-  modelCounter++;
-  const uri = monaco.Uri.parse(`file:///model_${modelCounter}.ts`);
-
-  return monaco.editor.createModel(code, "typescript", uri);
-}
-
 const ignoreErrKey = "mongo-query-ignore-error";
 
-function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
-  const { uuid, value, favoriteName } = props;
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+function MongoQuery(props: { favoriteName?: string; value?: string }) {
+  const { value, favoriteName } = props;
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [mongoHandle, setMongoHandle] = useState<{ db; FS; BSON; HTTP }>({
-    db: new MongoDBQuery(uuid),
+    db: new MongoDBQuery(dbName),
     BSON: null,
     FS: null,
     HTTP: null,
@@ -189,29 +182,23 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
 
   const { save: saveQueryLog } = useQueryLogStore();
 
-  const setEditorContext = useContext(QueryIDEditorChatCtx);
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    setEditorContext.setEditor(editor);
-  }, [editor, setEditor, setEditorContext]);
+  const { editor, setEditor } = useContext(QueryIDEditorChatCtx);
 
   const onMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
-      const model = createNewModel(`//@ts-ignore
+      const model = createMongoModel(`//@ts-ignore
 const { db, FS, HTTP, BSON } = mongoHandle;
 `);
       ed.setModel(model);
       ed.getModel()._dbpal_query_id = new NameAndQueryId(
-        uuid,
+        dbName,
         DataSourceKind.Mongo,
         "",
       ); // mongo no need query id
       ed.focus();
     },
-    [uuid],
+    [dbName, setEditor],
   );
 
   useEffect(() => {
@@ -251,7 +238,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             getText={async () => {
               let now = new Date();
               if (getSwitch(saveQueryKey)) {
-                saveQueryLog(uuid, editor.getValue(), true);
+                saveQueryLog(dbName, editor.getValue(), true);
               }
               const code = await transformTS(
                 editor,
@@ -269,12 +256,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             handleEexecute={handleExecute}
           />
 
-          <SaveFavoriteSqlView
-            kind={DataSourceKind.Mongo}
-            editor={editor}
-            uuid={uuid}
-            favoriteName={favoriteName}
-          />
+          <SaveFavoriteSqlView editor={editor} favoriteName={favoriteName} />
           <LoadStoreFile
             getQuery={() => {
               return editor.getValue();
@@ -303,7 +285,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             setMarkdownModel={setMarkdownModel}
             markdownModel={markdownModel}
           />
-          <ShowQueryLog uuid={uuid} kind={DataSourceKind.Mongo} />
+          <ShowQueryLog />
           <Tooltip
             title=<Stack sx={{ width: "40vw" }}>
               <Typography color="info ">
@@ -338,7 +320,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
               }}
               handleEexecute={() => {
                 if (getSwitch(saveQueryKey)) {
-                  saveQueryLog(uuid, code, true);
+                  saveQueryLog(dbName, code, true);
                 }
                 return handleExecute(code);
               }}

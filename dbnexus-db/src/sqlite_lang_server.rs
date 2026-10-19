@@ -5,8 +5,8 @@ use tokio::sync::Mutex;
 
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -34,17 +34,15 @@ impl LangServerCommon for SqliteDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = "SELECT name  FROM pragma_module_list";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
+
+        let rows = self.query_rows(sql).await?;
+
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
-            ret.push(name);
+            lock.push(name);
         }
-        *lock = ret.clone();
-        anyhow::Ok(ret)
+
+        anyhow::Ok(lock.clone())
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         static PRAGMA_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
@@ -55,16 +53,14 @@ impl LangServerCommon for SqliteDB {
         let sql = "PRAGMA pragma_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::new();
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
-            ret.push(CompletionItem {
+            lock.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Pragma,
                 desc: None,
             });
         }
-        *lock = ret.clone();
         return anyhow::Ok(lock.clone());
     }
 
@@ -108,20 +104,18 @@ impl LangServerCommon for SqliteDB {
         "#;
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = vec![];
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             if !name_start_ascii_alphabetic(&name) {
                 // I have seen -> comming out
                 continue;
             }
-            ret.push(CompletionItem {
+            lock.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Function,
                 desc: None,
             });
         }
-        *lock = ret.clone();
         return anyhow::Ok(lock.clone());
     }
 
@@ -208,7 +202,7 @@ impl LanguageServer for SqliteDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -489,14 +483,14 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 测试用到的表格 和建表语句
-            -- 创建 departments 表
+            -- Tables and table creation statements used in the test.
+            -- Create the departments table.
             CREATE TABLE departments (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL
             );
 
-            -- 创建 employees 表
+            -- Create the employees table.
             CREATE TABLE employees (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,

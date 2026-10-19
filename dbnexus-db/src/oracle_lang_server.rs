@@ -2,8 +2,8 @@ use tokio::sync::Mutex;
 
 use crate::db::{name_start_ascii_alphabetic, DBTrait};
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::oracle::OracleDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -30,7 +30,6 @@ impl GetKeyWords for OracleDB {
                 FROM V$RESERVED_WORDS
         "#;
         let result = self.query(sql).await?;
-        let mut ret = Vec::new();
         for r in result {
             let name: Option<String> = r.get(0)?;
             if let Some(name) = name {
@@ -41,10 +40,9 @@ impl GetKeyWords for OracleDB {
                 if !name_start_ascii_alphabetic(&name) {
                     continue;
                 }
-                ret.push(name);
+                lock.push(name);
             }
         }
-        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 }
@@ -110,12 +108,12 @@ impl LangServerCommon for OracleDB {
         anyhow::Ok(ret)
     }
     /*
-    -- 最简单的调用
+    -- The simplest call
     SELECT scott.函数名(参数) AS 别名 FROM dual;
 
-    -- 例子
+    -- Example
     SELECT scott.f_get_emp_name(7839) AS ename FROM dual;
-    调用函数的例子和调用一个表一样 所以is_call不需要单独处理
+    Calling a function is handled like querying a table, so is_call does not need separate handling.
     */
     async fn list_column(
         &self,
@@ -244,7 +242,7 @@ impl LanguageServer for OracleDB {
         col: u32,
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

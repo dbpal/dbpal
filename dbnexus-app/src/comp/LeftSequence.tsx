@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Dialog,
   FormControlLabel,
   ListItemIcon,
   ListItemText,
@@ -8,41 +9,31 @@ import {
   MenuList,
   Stack,
 } from "@mui/material";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import InfoIcon from "@mui/icons-material/Info";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { DeleteForeverIcon, InfoIcon } from "./icons";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
   secondConfirm,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 
-import { MenuRefresh } from "./CommonComp.tsx";
-import { GrSteps } from "react-icons/gr";
+import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp.tsx";
+import { GrSteps } from "./icons";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
-import {
-  useMatcher,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-  useOneShotDialogUI,
-} from "./store.tsx";
+import { useNotification, useTabsManage, useMatcherFn } from "./store.tsx";
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
-import { uuidv4 } from "./Common.ts";
 function SequenceTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
+  const [showDropSeq, setShowDropSeq] = useState<SequenceDetail | null>(null);
   const reload = useCallback(() => {
     commands
-      .listSequence(uuid)
+      .listSequence(dbName)
       .then((ts) => {
         setSeq(ts);
       })
@@ -53,68 +44,67 @@ function SequenceTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
-    return seq.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [seq, maxTree, matchPattern]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
+    return seq.filter((e) => matchPattern(e.name));
+  }, [seq, matchPattern]);
   useEffect(() => {
     reload();
   }, [reload]);
-  const idForTree = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={idForTree.current}
+    <MyTreeItem
+      enable={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
       label={
-        <Stack
-          direction="row"
-          sx={{ alignItems: "center" }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <MenuList>
-                  <MenuRefresh reload={reload} />
-                </MenuList>
-              ),
-              event: e,
-            });
-          }}>
+        <>
           <GrSteps />
           <span> sequences </span>
           <ShowingCount showing={showItems.length} total={seq.length} />
-        </Stack>
+        </>
       }>
-      {showItems.map((seq, index) => {
-        if (index >= maxTree) {
-          return;
-        }
-        const id = `${uuid}-sequence-${seq.name}`;
-        return (
-          <TreeItem
-            key={seq.name}
-            itemId={id}
-            style={{ alignItems: "center" }}
-            label={
-              <Stack
-                direction="row"
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <SequenceMenu reload={reload} uuid={uuid} kind={kind} seq={seq} />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}>
-                <GrSteps />
-                <span style={textEllipsisStyle}>{seq.name}</span>
-              </Stack>
-            }
+      <VirtualListLeft
+        data={showItems}
+        makeMenu={(seq) => {
+          return (
+            <SequenceMenu
+              reload={reload}
+              dbName={dbName}
+              kind={kind}
+              seq={seq}
+              dropSeq={() => {
+                setShowDropSeq(seq);
+              }}
+            />
+          );
+        }}
+        show={(seq) => {
+          return (
+            <>
+              <span style={textEllipsisStyle}>{seq.name}</span>
+            </>
+          );
+        }}
+      />
+
+      {showDropSeq && (
+        <Dialog open={!!showDropSeq}>
+          <DropSeq
+            seq={showDropSeq}
+            handleClose={() => {
+              setShowDropSeq(null);
+            }}
+            reload={reload}
           />
-        );
-      })}
-    </TreeItem>
+        </Dialog>
+      )}
+    </MyTreeItem>
   );
 }
 
@@ -133,14 +123,14 @@ function details2DefMetas(d: SequenceDetail): DefAndMetas {
 }
 
 function SequenceMenu(props: {
-  uuid: string;
+  dbName: string;
   seq: SequenceDetail;
   reload: () => void;
   kind: DataSourceKind;
+  dropSeq: () => void;
 }) {
-  const { uuid, seq, reload, kind } = props;
+  const { dbName, seq, kind, dropSeq } = props;
   const { appendTab } = useTabsManage();
-  const { setUi } = useOneShotDialogUI();
 
   const handleOpenDetails = () => {
     appendTab(
@@ -150,10 +140,10 @@ function SequenceMenu(props: {
           reloadOP={() => {
             return Promise.resolve(details2DefMetas(seq));
           }}
-          kind={kind}
-          uuid={uuid}
         />,
         <GrSteps />,
+        dbName,
+        kind,
       ),
     );
   };
@@ -173,18 +163,7 @@ function SequenceMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setUi(
-            <DropSeq
-              kind={kind}
-              seq={seq}
-              handleClose={() => {
-                setUi(null);
-              }}
-              reload={reload}
-              uuid={uuid}
-            />,
-            `drop sequence ${seq.name}`,
-          );
+          dropSeq();
         }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
@@ -196,14 +175,12 @@ function SequenceMenu(props: {
 }
 
 function DropSeq(props: {
-  kind: DataSourceKind;
   seq: SequenceDetail;
   reload: () => void;
   handleClose: () => void;
-  uuid;
 }) {
-  const { kind, seq, reload, handleClose, uuid } = props;
-
+  const { seq, reload, handleClose } = props;
+  const { dbName, kind } = useContext(DbnameContext);
   const [cascade, setCascade] = useState(false);
   const supportCascade = [DataSourceKind.Postgres, DataSourceKind.Cockroach].includes(
     kind,
@@ -220,7 +197,7 @@ function DropSeq(props: {
       return;
     }
     commands
-      .dropSequence(uuid, seq.name, cascade)
+      .dropSequence(dbName, seq.name, cascade)
       .then((sql) => {
         showNotification({
           severity: "success",

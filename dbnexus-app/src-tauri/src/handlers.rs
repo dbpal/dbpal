@@ -1,15 +1,17 @@
 use crate::app::{
-    self, name_to_parts, parse_bson_doc, CancelTokenMsg, DBConnectionConfig, DBPal,
-    DatabaseBackend, ErrorFrontend, JsUint8Array, MongoShowTablePara, TaskManager,
+    self, name_to_parts, CancelTokenMsg, DBConnectionConfig, DBPal, DatabaseBackend, ErrorFrontend,
+    MongoShowTablePara, TaskManager, XlsxCellData,
 };
+use calamine::Reader;
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 
 use dbnexus_db::db::{
-    escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
-    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
+    parse_bson_doc, quote_sql_str, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
+    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field,
+    ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NameWithParameter, OptionMustBeSomeErr,
+    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara,
+    TimeElapsed, TriggerDetail,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -25,6 +27,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::Duration;
+use tauri::async_runtime::spawn_blocking;
 use tauri::ipc::Channel;
 use tauri::State;
 use tokio_util::sync::CancellationToken;
@@ -50,10 +53,10 @@ pub fn set_log_level(level: String) {
 pub fn set_env(env: HashMap<String, String>) {
     for (key, value) in env {
         if value.is_empty() {
-            // 如果值为空，则从当前进程中移除该环境变量
+            // If the value is empty, remove the environment variable from the current process.
             env::remove_var(&key);
         } else {
-            // 否则正常设置
+            // Otherwise, set it normally.
             env::set_var(&key, &value);
         }
     }
@@ -65,9 +68,9 @@ pub async fn cancel_task(
     task_id: String,
     state: State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
-    // 通知取消
+    // Signal cancellation.
     if let Some(token) = state.tokens.get(&task_id) {
-        token.cancel(); // 触发取消
+        token.cancel(); // Trigger cancellation.
     } else {
         return Err(ErrorFrontend::from(format!(
             "task id not found '{}'",
@@ -151,6 +154,18 @@ pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
 
 #[specta::specta]
 #[tauri::command]
+
+pub async fn read_excel_file_preview(
+    path: String,
+    max_row: u32,
+) -> Result<MuiDataGridData, ErrorFrontend> {
+    MuiDataGridData::preview_excel(&path, max_row)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
     let source = font_kit::source::SystemSource::new();
     let fonts = source.all_families().map_err(ErrorFrontend::from)?;
@@ -159,10 +174,36 @@ pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
 
 #[specta::specta]
 #[tauri::command]
-pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> {
+pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ErrorFrontend> {
     log::info!("page init call clear all open connection.");
     app.backend.lock().await.clear();
     Ok(())
+}
+
+#[specta::specta]
+#[tauri::command]
+
+pub async fn sql_infer_fields_from_file(
+    db_name: String,
+    app: tauri::State<'_, DBPal>,
+    path: String,
+    csv_delimiter: Option<char>,
+) -> Result<Vec<Field>, ErrorFrontend> {
+    let backend = app
+        .get_backend(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let kind = match backend {
+        DatabaseBackend::Catalog(catalog_trait) => catalog_trait.backend_kind(),
+        DatabaseBackend::DataBase(dbtrait) => dbtrait.backend_kind(),
+        DatabaseBackend::Schema(schema_trait) => schema_trait.backend_kind(),
+    };
+    let fs = kind
+        .infer_fields(&path, csv_delimiter)
+        .await
+        .map_err(ErrorFrontend::from)?;
+    Ok(fs)
 }
 
 #[specta::specta]
@@ -235,7 +276,7 @@ pub async fn drop_schema(
 pub async fn create_database(
     db_name: String,
     database: String,
-    extra: Option<CreateDatabaseExtra>,
+    extra: Option<CreateDatabaseArg>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -263,7 +304,7 @@ pub async fn create_database(
 pub async fn create_schema(
     db_name: String,
     schema: String,
-    extra: Option<CreateSchemaExtra>,
+    extra: Option<CreateSchemaArg>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -315,7 +356,10 @@ pub async fn establish_conn(
 
 #[specta::specta]
 #[tauri::command]
-pub async fn close_conn(db_name: String, app: tauri::State<'_, DBPal>) -> Result<(), ()> {
+pub async fn close_conn(
+    db_name: String,
+    app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     app.close_conn_has_prefix(db_name.as_str()).await;
     Ok(())
@@ -338,7 +382,7 @@ pub async fn list_table(
 pub async fn redis_list_key(
     db_name: String,
     filter: Option<String>,
-    max: usize,
+    max: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<RedisListTableRet, ErrorFrontend> {
     random_sleep().await;
@@ -348,7 +392,7 @@ pub async fn redis_list_key(
         .await
         .map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x.redis_list_key(filter.as_deref(), max).await,
+        Some(x) => x.redis_list_key(filter.as_deref(), max as usize).await,
         None => return Err(ErrorFrontend::from(format!("'{}' not a redis", db_name))),
     }
     .map_err(ErrorFrontend::from)
@@ -519,13 +563,15 @@ pub async fn table_insert(
     table_name: String,
     values: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_insert(&table_name, values)
+    let r = db
+        .table_insert(&table_name, &values)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(ErrorFrontend::from)?;
+    Ok(r.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -539,7 +585,7 @@ pub async fn table_insert_sql(
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_insert_sql(&table_name, values)
+    db.table_insert_sql(&table_name, &values)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -551,13 +597,16 @@ pub async fn table_update(
     values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_update(&table_name, values, wheres)
+    let r = db
+        .table_update(&table_name, &values, &wheres)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(ErrorFrontend::from)?;
+
+    Ok(r.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -572,7 +621,7 @@ pub async fn table_update_sql(
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_update_sql(&table_name, values, wheres)
+    db.table_update_sql(&table_name, &values, &wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -675,7 +724,7 @@ pub async fn list_data_types(
 
 #[specta::specta]
 #[tauri::command]
-pub async fn list_sql_current_values(
+pub async fn list_sql_predefine_values(
     db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<&'static [&'static str], ErrorFrontend> {
@@ -685,7 +734,7 @@ pub async fn list_sql_current_values(
         .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let ret = schema.list_sql_current_values();
+    let ret = schema.list_sql_predefine_values();
     Ok(ret)
 }
 
@@ -700,7 +749,7 @@ pub async fn table_delete_sql(
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_delete_sql(&table_name, wheres)
+    db.table_delete_sql(&table_name, &wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -712,13 +761,15 @@ pub async fn table_delete(
     table_name: String,
     wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_delete(&table_name, wheres)
+    let r = db
+        .table_delete(&table_name, &wheres)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(ErrorFrontend::from)?;
+    Ok(r.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -818,6 +869,37 @@ pub async fn drop_table(
 
 #[specta::specta]
 #[tauri::command]
+pub async fn drop_foreign_key(
+    db_name: String,
+    table_name: String,
+    foreign_key: String,
+    app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&db_name).await?;
+    db.drop_foreign_key(&table_name, &foreign_key)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn list_foreign_key(
+    db_name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
+) -> Result<Vec<ForeignKeyDef>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&db_name).await?;
+    db.list_foreign_key(&table_name)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn show_view_columns(
     db_name: String,
     view_name: String,
@@ -896,7 +978,7 @@ pub async fn export_query_result_to_file(
     query_id: String,
     kind: ExportKind,
     file: String,
-    size_emitter: Channel<usize>,
+    size_emitter: Channel<f64>,
     task_manager: tauri::State<'_, TaskManager>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
@@ -912,8 +994,8 @@ pub async fn export_query_result_to_file(
         .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let size_emitter = Arc::new(move |size| {
-        if let Err(err) = size_emitter.send(size) {
+    let size_emitter = Arc::new(move |size: usize| {
+        if let Err(err) = size_emitter.send(size as f64) {
             log::error!("Error sending size to frontend: {}", err);
         }
     });
@@ -967,7 +1049,7 @@ pub async fn is_dangerous_sql(
 struct QueryEventChannelEmit {
     channel: Channel<QueryEvent>,
     cancel_msg: CancelTokenMsg,
-    limit: Option<usize>,
+    limit: Option<u32>,
     emitted_size: AtomicUsize,
     cache: Arc<Mutex<Vec<Vec<Option<String>>>>>,
     time_elapsed: Arc<Mutex<TimeElapsed>>,
@@ -980,7 +1062,7 @@ impl QueryEventChannelEmit {
 }
 
 impl QueryEventChannelEmit {
-    fn new(channel: Channel<QueryEvent>, cancel_msg: CancelTokenMsg, limit: Option<usize>) -> Self {
+    fn new(channel: Channel<QueryEvent>, cancel_msg: CancelTokenMsg, limit: Option<u32>) -> Self {
         Self {
             channel,
             cancel_msg,
@@ -990,8 +1072,8 @@ impl QueryEventChannelEmit {
             time_elapsed: Arc::new(Mutex::new(TimeElapsed::new(Duration::from_secs(1)))),
         }
     }
-    fn get_limit(&self) -> usize {
-        self.limit.unwrap_or(usize::MAX)
+    fn get_limit(&self) -> u32 {
+        self.limit.unwrap_or(u32::MAX)
     }
 }
 
@@ -1023,7 +1105,7 @@ impl QueryEventEmit for QueryEventChannelEmit {
         let total = self
             .emitted_size
             .fetch_add(event.data_len(), Ordering::Relaxed);
-        if total > self.get_limit() {
+        if total > (self.get_limit() as usize) {
             let err_msg = format!(
                 "Query result is too large({}), limit:{}",
                 total,
@@ -1070,10 +1152,49 @@ impl QueryEventEmit for QueryEventChannelEmit {
 
 #[specta::specta]
 #[tauri::command]
+pub async fn get_update_sql_from_result_set(
+    db_name: String,
+    app: tauri::State<'_, DBPal>,
+    sql: String,
+    old_values: Vec<Option<String>>,
+    new_values: Vec<Option<String>>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    let db = app
+        .get_backend(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    db.as_query_sql()
+        .get_update_sql_from_result_set(&sql, &old_values, &new_values)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn execute_tx_multi_sql(
+    db_name: String,
+    sql: Vec<String>,
+    app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_backend(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    db.as_query_sql()
+        .execute_tx_multi_sql(&sql)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn query_sql(
     db_name: String,
     query_id: &str,
-    max_row: usize,
+    max_row: u32,
     sql: String,
     app: tauri::State<'_, DBPal>,
     emit: Channel<QueryEvent>,
@@ -1122,7 +1243,7 @@ pub async fn simple_execute_sql(
     db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -1136,7 +1257,7 @@ pub async fn simple_execute_sql(
         .simple_execute_sql(&sql)
         .await
         .map_err(ErrorFrontend::from)?;
-    Ok(result)
+    Ok(result.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -1220,7 +1341,7 @@ pub async fn export_table_or_view(
     db_name: String,
     task_id: String,
     task_manager: tauri::State<'_, TaskManager>,
-    size_emitter: Channel<usize>,
+    size_emitter: Channel<f64>,
     table_or_view: String,
     para: Option<ShowTableParameter>,
     filepath: String,
@@ -1244,7 +1365,7 @@ pub async fn export_table_or_view(
             &filepath2,
             kind,
             Arc::new(move |size| {
-                if let Err(err) = size_emitter.send(size) {
+                if let Err(err) = size_emitter.send(size as f64) {
                     log::error!("Error sending size: {}", err);
                 }
             }),
@@ -1275,7 +1396,7 @@ pub async fn check_conn(
     db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<
-    u128, // human readable time
+    f64, // human readable time
     ErrorFrontend,
 > {
     random_sleep().await;
@@ -1286,7 +1407,7 @@ pub async fn check_conn(
         db.check_conn()
             .await
             .map_err(ErrorFrontend::from)
-            .map(|d| d.as_millis())
+            .map(|d| d.as_millis() as f64)
     })
     .await
     .map_err(|_| {
@@ -1302,17 +1423,17 @@ pub async fn check_conn(
 pub async fn test_connection(
     config: DBConnectionConfig,
 ) -> Result<
-    u64, // milliseconds
+    u32, // milliseconds
     ErrorFrontend,
 > {
     random_error()?;
-    let timeout = 5;
-    tokio::time::timeout(Duration::from_secs(5), async {
+    let timeout = 10;
+    tokio::time::timeout(Duration::from_secs(timeout), async {
         let db = config.open().await.map_err(|e| e.to_string())?;
         db.check_conn()
             .await
             .map_err(ErrorFrontend::from)
-            .map(|d| d.as_millis() as u64)
+            .map(|d| d.as_millis() as u32)
     })
     .await
     .map_err(|_| ErrorFrontend::from(format!("test connection not finished in {}s", timeout)))?
@@ -1451,8 +1572,8 @@ pub async fn auto_completion(
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     let use_lexer = true;
-    // 避免多个线程同时访问
-    // 主要是后端实现更简单了比如可以把 completion——id缓存起来
+    // Prevent multiple threads from accessing this simultaneously.
+    // This mainly simplifies the backend implementation; for example, the completion ID can be cached.
     let lock = auto_completion_mutex(name_to_parts(&db_name)[0]);
     let _guard = lock.lock().await;
 
@@ -1835,7 +1956,7 @@ pub async fn mongo_delete_ids(
     table_name: String,
     ids: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<u64, ErrorFrontend> {
+) -> Result<f64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let ids: Vec<bson::Bson> = serde_json::from_str(&ids)?;
@@ -1848,7 +1969,7 @@ pub async fn mongo_delete_ids(
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)
-    .map(|x| x.deleted_count)
+    .map(|x| x.deleted_count as f64)
 }
 
 #[specta::specta]
@@ -1988,20 +2109,26 @@ pub async fn mongo_query_db_run_command(
 pub async fn mongo_query_collection_count_docs(
     db_name: String,
     col: String,
+    filter: Option<JsUint8Array>,
     app: tauri::State<'_, DBPal>,
-) -> Result<u64, ErrorFrontend> {
+) -> Result<f64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    let filter = if let Some(filter) = filter {
+        Some(parse_bson_doc(&filter)?)
+    } else {
+        None
+    };
     let db = app
         .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x.query_collection_count_docs(&col).await,
+        Some(x) => x.query_collection_count_docs(&col, filter).await,
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
-    Ok(ret)
+    Ok(ret as f64)
 }
 
 #[specta::specta]
@@ -2214,24 +2341,29 @@ pub async fn mongo_query_collection_find(
     db_name: String,
     col: String,
     para: app::MongoFindParameter,
+    emit: Channel<Vec<u8>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
         .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let docs = match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x.query_collection_find(&col, para.try_into()?).await,
+
+    let f = Arc::new(move |x| -> anyhow::Result<()> {
+        let d = encode_bson_doc(&x).map_err(|e| anyhow::Error::msg(e.to_string()))?;
+        emit.send(d)?;
+        anyhow::Ok(())
+    });
+
+    match db.as_any().downcast_ref::<MongoDB>() {
+        Some(x) => x.query_collection_find(&col, para.try_into()?, f).await,
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
-    let mut ret = Vec::with_capacity(docs.len());
-    for d in docs.iter() {
-        ret.push(encode_bson_doc(d)?);
-    }
-    Ok(ret)
+
+    Ok(())
 }
 
 #[specta::specta]
@@ -2576,7 +2708,7 @@ pub async fn redis_list_remove(
     db_name: String,
     key: String,
     value: String,
-    count: isize,
+    count: f64,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2587,7 +2719,7 @@ pub async fn redis_list_remove(
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
         Some(x) => {
-            x.list_remove(key.as_str(), count, value.as_slice())
+            x.list_remove(key.as_str(), count as isize, value.as_slice())
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
@@ -2602,7 +2734,7 @@ pub async fn redis_list_set(
     db_name: String,
     key: String,
     value: String,
-    index: isize,
+    index: f64,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2613,7 +2745,7 @@ pub async fn redis_list_set(
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
         Some(x) => {
-            x.list_set(key.as_str(), index, value.as_slice())
+            x.list_set(key.as_str(), index as isize, value.as_slice())
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
@@ -2862,7 +2994,7 @@ pub async fn redis_zset_add(
 pub async fn list_procedure(
     db_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<NameWithParameter>, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -2875,10 +3007,10 @@ pub async fn list_procedure(
 #[tauri::command]
 pub async fn show_procedure(
     db_name: String,
-    procedure: NamedStaff,
+    procedure: NameWithParameter,
 
     app: tauri::State<'_, DBPal>,
-) -> Result<ProcedureDetail, ErrorFrontend> {
+) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -2893,7 +3025,7 @@ pub async fn show_procedure(
 #[tauri::command]
 pub async fn drop_procedure(
     db_name: String,
-    procedure: NamedStaff,
+    procedure: NameWithParameter,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
@@ -2911,7 +3043,7 @@ pub async fn drop_procedure(
 pub async fn list_udf(
     db_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<NameWithParameter>, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -2974,7 +3106,7 @@ pub async fn rename_sequence(
 #[tauri::command]
 pub async fn show_udf(
     db_name: String,
-    udf: NamedStaff,
+    udf: NameWithParameter,
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
@@ -2988,7 +3120,7 @@ pub async fn show_udf(
 #[tauri::command]
 pub async fn drop_udf(
     db_name: String,
-    udf: NamedStaff,
+    udf: NameWithParameter,
 
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
@@ -3026,7 +3158,25 @@ pub async fn redis_string_set(
 
 #[specta::specta]
 #[tauri::command]
-pub async fn put_value_in_sql(
+
+pub async fn write_xlsx(path: String, data: Vec<XlsxCellData>) -> Result<(), ErrorFrontend> {
+    spawn_blocking(move || {
+        let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+        // Add a worksheet to the workbook.
+        let worksheet = workbook.add_worksheet_with_constant_memory();
+
+        for d in data {
+            worksheet.write_string(d.row, d.column, d.content)?;
+        }
+        workbook.save(path)?;
+        Ok(())
+    })
+    .await?
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn sql_encode_value(
     db_name: String,
     typ: String,
     value: Option<String>,
@@ -3050,13 +3200,40 @@ pub async fn put_value_in_sql(
             return Ok(if value.starts_with("0x") {
                 value
             } else {
-                format!("'{}'", escape_sql_str(&value))
+                quote_sql_str(&value)
             });
         }
     }
     schema
-        .put_value_in_sql(&typ, &value)
+        .encode_value(&typ, &value)
         .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn sql_encode_values(
+    db_name: String,
+    typ: String,
+    values: Vec<Option<String>>,
+    app: tauri::State<'_, DBPal>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    let schema = app
+        .get_schema(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let mut ret = vec![];
+
+    for value in values {
+        let r = match value {
+            Some(value) => schema
+                .encode_value(&typ, &value)
+                .map_err(ErrorFrontend::from)?,
+            None => "null".to_string(),
+        };
+        ret.push(r);
+    }
+    Ok(ret)
 }
 
 #[specta::specta]
@@ -3064,7 +3241,7 @@ pub async fn put_value_in_sql(
 pub async fn cassandra_list_aggregate(
     db_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<NameWithParameter>, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -3159,9 +3336,43 @@ pub async fn command_panic() -> Result<(), ErrorFrontend> {
     panic!("this is a panic for testing.")
 }
 
+#[specta::specta]
+#[tauri::command]
+pub async fn table_import_from_file(
+    db_name: String,
+    table_name: String,
+    kind: TableImportPara,
+    dbpal: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = dbpal.get_schema(&db_name).await?;
+    schema
+        .table_import_data_from_file(&table_name, kind)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn table_import_data_from_file_insert_samples(
+    db_name: String,
+    table_name: String,
+    kind: TableImportPara,
+    dbpal: tauri::State<'_, DBPal>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = dbpal.get_schema(&db_name).await?;
+    schema
+        .table_import_data_from_file_insert_samples(&table_name, kind, 10)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
 #[derive(serde::Serialize, specta::Type)]
 pub struct DocsAndCount {
-    count: u64,
+    count: u32,
     /// list of docs in bson format.
     /// use this library to parse.
     /// https://github.com/mongodb/js-bson
@@ -3178,7 +3389,7 @@ impl TryFrom<dbnexus_db::mongo::DocsAndCount> for DocsAndCount {
             vec.push(bs);
         }
         Ok(Self {
-            count: value.count,
+            count: value.count as u32,
             docs: vec,
         })
     }
@@ -3233,9 +3444,59 @@ fn random_error() -> Result<(), ErrorFrontend> {
 #[derive(Clone, Debug, serde::Serialize, specta::Type)]
 pub struct MuiDataGridData {
     fields: Vec<Field>,
-    data: Vec<HashMap<String, String>>,
+    data: Vec<HashMap<String, Option<String>>>,
     sql: Option<String>,
-    total: usize,
+    total: f64,
+    #[serde(default)]
+    tables: Vec<String>,
+}
+
+impl MuiDataGridData {
+    pub async fn preview_excel(path: &str, max_row: u32) -> anyhow::Result<Self> {
+        let max_row = max_row as usize;
+        let path = path.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+                calamine::open_workbook(path)?;
+            if wb.sheet_names().is_empty() {
+                anyhow::bail!("this excel file don't contains any sheet")
+            }
+            let sheet_name = &wb.sheet_names()[0];
+
+            let range = wb.worksheet_range(sheet_name)?;
+
+            let mut headers = vec![];
+            let mut data = vec![];
+
+            for (row_idx, row) in range.rows().enumerate() {
+                if row_idx == 0 {
+                    headers = row
+                        .iter()
+                        .map(|x| Field::from_name_type(x.to_string(), ""))
+                        .collect();
+                    continue;
+                }
+
+                let mut values = HashMap::new();
+
+                for (h, v) in headers.iter().zip(row.iter().map(|x| x.to_string())) {
+                    values.insert(h.field.clone(), Some(v));
+                }
+                data.push(values);
+                if data.len() >= max_row {
+                    break;
+                }
+            }
+            anyhow::Ok(Self {
+                fields: headers,
+                data,
+                sql: None,
+                total: 0f64,
+                tables: Default::default(),
+            })
+        })
+        .await?
+    }
 }
 
 impl From<QueryResp> for MuiDataGridData {
@@ -3245,6 +3506,7 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             total,
             sql,
+            tables,
         } = value;
         #[derive(Default)]
         struct NameIndex {
@@ -3284,9 +3546,7 @@ impl From<QueryResp> for MuiDataGridData {
             .map(|x| {
                 let mut values = HashMap::new();
                 fields_renamed.iter().zip(x).for_each(|(f, value)| {
-                    if let Some(value) = value {
-                        values.insert(f.field.clone(), value);
-                    }
+                    values.insert(f.field.clone(), value);
                 });
                 values
             })
@@ -3297,6 +3557,7 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             sql,
             total,
+            tables,
         }
     }
 }

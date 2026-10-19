@@ -1,5 +1,10 @@
 // import { Notifications } from "./Notification";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 import { useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
@@ -26,14 +31,13 @@ import { EscDownEvent, modalHandleClose } from "./Common.ts";
 import { appLogDir, join } from "@tauri-apps/api/path";
 import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { DeleteForeverIcon } from "./icons";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
 import {
   useConfirmMsg,
   useContextMenu,
   useNotification,
-  useOneShotDialogUI,
   useTabsManage,
 } from "./store.tsx";
 import { SnackbarProvider } from "notistack";
@@ -219,47 +223,38 @@ function App() {
       setCurrentTab(currentTab - 1);
     }
   }, [currentTab, setCurrentTab, tabs]);
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "main-panel-group",
+  });
 
   return (
     <AppSnackbarProvider>
       <SettingProvider>
-        {/* source map test  */}
-
-        {/* <button
-          onClick={() => {
-            const a = undefined;
-            a.map();
-          }}>
-          panic
-        </button> */}
         <AppMenu />
-        <DialogExtraUI />
         <ShowPanic />
         <ShowShortCut />
         <PanelGroup
-          direction="horizontal"
+          orientation="horizontal"
           style={{
             height: "100vh",
             width: "100vw",
             padding: "4px",
           }}
-          autoSaveId="main">
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}>
           <Panel
             style={{
               overflow: "auto",
               height: "100%",
               padding: "4px",
             }}
-            minSize={10}
-            maxSize={85}
+            minSize={"10%"}
+            maxSize={"85%"}
             collapsible
-            collapsedSize={0}>
+            collapsedSize={"0%"}>
             <Left />
           </Panel>
-          <PanelResizeHandle
-            style={{ width: resizeHandlerSize }}
-            className="resize-handle"
-          />
+          <Separator style={{ width: resizeHandlerSize }} className="resize-handle" />
           <Panel
             style={{
               overflow: "auto",
@@ -271,23 +266,6 @@ function App() {
         </PanelGroup>
       </SettingProvider>
     </AppSnackbarProvider>
-  );
-}
-
-function DialogExtraUI() {
-  const diagUi = useOneShotDialogUI();
-  return (
-    diagUi.ui && (
-      <Dialog
-        slotProps={{ paper: { style: { width: "fit-content" } } }}
-        open={true}
-        onClose={() => {
-          diagUi.setUi(null);
-        }}>
-        {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
-        {diagUi.ui}
-      </Dialog>
-    )
   );
 }
 
@@ -334,7 +312,6 @@ function SeprateWindow({ children }) {
         <SettingProvider>
           <ShowShortCut />
           <AppMenu />
-          <DialogExtraUI />
           <div style={{ width: "100vw", height: "100vh", padding: "4px" }}>
             {children}
           </div>
@@ -345,40 +322,40 @@ function SeprateWindow({ children }) {
 }
 
 function AppMenu() {
-  // 假设你的 store 返回的对象里包含 event 和 content
-  const menu = useContextMenu((state) => state.state);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu); // 假设你有关闭方法
+  // Assume the object returned by your store contains event and content.
+  const data = useContextMenu((state) => state.state);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu); // Assume you have a close method.
 
   const closeMenu = useCallback(() => {
     setUpMenu(null);
   }, [setUpMenu]);
-  // 如果没有菜单数据，直接不渲染
-  if (!menu || !menu.event) return null;
-  menu.event.preventDefault();
+  // Do not render anything if there is no menu data.
+  if (!data || !data.event) return null;
+  data.event.preventDefault();
 
   return (
     <Menu
-      // 1. 基础开关逻辑
-      open={Boolean(menu)}
-      onClose={closeMenu} // 点击外部或按 Esc 会自动触发
-      // 2. 核心定位配置：让 MUI 接管原本 calMenuStyle 的工作
+      // 1. Basic open/close logic.
+      open={Boolean(data)}
+      onClose={closeMenu} // Automatically triggered by clicking outside or pressing Esc.
+      // 2. Core positioning configuration: let MUI handle what calMenuStyle did before.
       anchorReference="anchorPosition"
       anchorPosition={{
-        top: menu.event.clientY,
-        left: menu.event.clientX,
+        top: data.event.clientY,
+        left: data.event.clientX,
       }}
       onClick={() => {
         closeMenu();
       }}
-      // 4. 优化体验
+      // 4. Improve the user experience.
       slotProps={{
         backdrop: {
-          // 如果你不想要背景遮罩感，可以把背景设为透明
+          // Set the background to transparent if you do not want the backdrop effect.
           style: { backgroundColor: "transparent" },
         },
       }}>
-      {/* menu.content 里面应该是具体的 <MenuItem> 组件 */}
-      {menu.content}
+      {/* menu.content should contain the actual <MenuItem> components. */}
+      {data.content}
     </Menu>
   );
 }

@@ -14,7 +14,7 @@ tauri-typegen = "*"
 
 [dependencies]
 tauri-plugin-fs = { version = "2.4" }
-rig-core = { version = "0.36", features = ["pdf", "epub"] }
+rig = { version = "0.44", features = ["pdf", "epub", "agent"] }
 mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
@@ -23,8 +23,8 @@ serde_json = "1"
 websearch = "*"
 tauri-specta = { version = "2.0.0-rc.24", features = ["typescript", "derive"] }
 specta.workspace = true
-specta-typescript = "0.0.11"
 dbnexus-db.workspace = true
+dbnexus-db2 = { workspace = true, optional = true }
 tokio.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
@@ -35,37 +35,40 @@ lazy_static.workspace = true
 log.workspace = true
 uuid.workspace = true
 thiserror = "*"
+rust_xlsxwriter.workspace = true
 hex.workspace = true
 mongodb.workspace = true
 rand.workspace = true
 redis.workspace = true
 chrono.workspace = true
 tauri-plugin-store = { version = "2.4.1" }
-tauri-plugin-clipboard-manager = "2.3"
+tauri-plugin-clipboard-manager = "2.5"
 tauri-plugin-keyring = "0.1.0"
 tauri-plugin-opener = "2.5"
 tauri-plugin-os = "2.3"
 font-kit = "0.14.3"
+specta-typescript.workspace = true
 reqwest.workspace = true
 tauri-plugin-process = "2"
 include_dir.workspace = true
-rustls = { version = "0.23", features = ["aws-lc-rs"] }
 sys-locale = "0.3.2"
 tokio-util.workspace = true
 tauri-plugin-devtools = "2.0.1"
 tauri-plugin-log = "2"
 base64.workspace = true
 tauri-plugin-http = "2"
+calamine.workspace = true
+
+[dev-dependencies]
+dotenvy = { version = "*" }
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
-# 用来给前端来测试loading 按钮
-# 打开口所有的接口都会卡一会
+# for testing
 random-sleep = []
 random-error = []
-duckdb = ["dbnexus-db/duckdb"]
-paid = ["dbnexus-db/paid"]
+duckdb = ["dep:dbnexus-db2"]
 hive = ["dbnexus-db/hive"]
 devtools = []
 

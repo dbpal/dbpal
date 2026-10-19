@@ -1,6 +1,7 @@
 import {
   CSSProperties,
   Dispatch,
+  memo,
   ReactNode,
   SetStateAction,
   useCallback,
@@ -10,20 +11,30 @@ import {
   useRef,
   useState,
 } from "react";
-import ClearIcon from "@mui/icons-material/Clear";
+import wcmatch from "wildcard-match";
+import {
+  ClearIcon,
+  InfoIcon,
+  CloseIcon,
+  SaveIcon,
+  CancelIcon,
+  ChatBubbleOutlineOutlinedIcon,
+  ContentCopyIcon,
+  CircleIcon,
+  DeleteForeverIcon,
+  EventNoteIcon,
+  DownloadIcon,
+  AttachFileIcon,
+  ChatBubbleIcon,
+  EditIcon,
+  FaBookmark,
+  FaCopy,
+  IoMdInformationCircleOutline,
+  LuRefreshCcw,
+  IoTimerOutline,
+  MdTimer,
+} from "./icons";
 import Stack from "@mui/material/Stack";
-import InfoIcon from "@mui/icons-material/Info";
-import CloseIcon from "@mui/icons-material/Close";
-import SaveIcon from "@mui/icons-material/Save";
-import { FaBookmark } from "react-icons/fa";
-import { IoMdInformationCircleOutline } from "react-icons/io";
-import CancelIcon from "@mui/icons-material/Cancel";
-import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import CircleIcon from "@mui/icons-material/Circle";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import EventNoteIcon from "@mui/icons-material/EventNote";
-import { LuRefreshCcw } from "react-icons/lu";
 import {
   Autocomplete,
   Box,
@@ -31,6 +42,8 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
+  Divider,
   FormControlLabel,
   FormLabel,
   IconButton,
@@ -38,7 +51,9 @@ import {
   InputAdornment,
   ListItemIcon,
   ListItemText,
+  Menu,
   MenuItem,
+  MenuList,
   Modal,
   Pagination,
   Paper,
@@ -51,22 +66,28 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
+
 import {
-  AppCodeExtraButtons,
+  AppCodeExtraUI,
   AppCodeHanleEdit,
+  arrayToMarkdownTable,
   ChatShowContext,
+  createCSV,
   DataSourceKind,
   editorPositionToEnd,
+  generateDefaultFilename,
   handleCopyToClipboard,
   isMacOs,
   KeyPressed,
+  parseCellType,
   prettyMs,
   quoteDatabaseIdentifier,
   secondConfirm,
   TabActiveContext,
   TabContent,
   textEllipsisStyle,
+  DbnameContext,
+  isTypeLargeText,
 } from "./helper";
 import { editor } from "monaco-editor";
 import {
@@ -78,10 +99,19 @@ import {
   NameAndQueryId,
   reloadOK,
 } from "./Common";
-import AddIcon from "@mui/icons-material/Add";
-import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
-import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
-import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
+
+import {
+  MetaValueView,
+  ModalHeader,
+  OpenFileWithDefaultApp,
+  SelectPageSize,
+} from "./CommonComp";
+import {
+  FileHandle,
+  readFile,
+  writeTextFile,
+  open as openFile,
+} from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -97,29 +127,29 @@ import {
   useFavoriteStore,
   useLLM,
   useNotification,
-  useOneShotDialogUI,
   UseSizeConfig,
   useSizeStore,
+  useSqlDataFilter,
   useTableFilter,
   useTabSize,
   useTabsManage,
 } from "./store";
 import { MonacoEditor } from "./Editor";
-import EditIcon from "@mui/icons-material/Edit";
+
 import { Highlight, themes } from "prism-react-renderer";
 import { visit, SKIP } from "unist-util-visit";
 import {
   commands,
   CouchBaseBucketType,
-  CreateDatabaseExtra,
+  CreateDatabaseArg,
   CreateIndexColumn,
   CreateIndexReq,
+  Field,
   IndexKind,
   MetaValue,
   SqlNullAble,
+  XlsxCellData,
 } from "./bindings";
-import { IoTimerOutline } from "react-icons/io5";
-import { MdTimer } from "react-icons/md";
 import {
   gridPageCountSelector,
   gridPaginationModelSelector,
@@ -147,37 +177,41 @@ export function ClearableTextField({
         ...props.slotProps,
         input: {
           ...props.slotProps?.input,
-          endAdornment: value ? (
+          endAdornment: !props.disabled && value && (
             <InputAdornment position="end">
               <IconButton onClick={onClear} edge="end">
                 <ClearIcon fontSize="small" />
               </IconButton>
             </InputAdornment>
-          ) : null,
+          ),
         },
       }}
     />
   );
 }
 
-function AppCode(props: {
+function AppCode_(props: {
   codeBlock: string;
   language: string;
-  extra?: AppCodeExtraButtons;
+  extra?: AppCodeExtraUI;
   handleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
+  style?: CSSProperties;
 }) {
   const theme = useTheme();
-  const { codeBlock, language, extra, handleEdit, highlightStr } = props;
+  const { codeBlock, language, extra, handleEdit, highlightStr, style } = props;
   const { showNotification } = useNotification();
+
   return (
     <Paper
       style={{
         padding: "2px 4px",
         borderRadius: "0.4rem",
         margin: 0,
-        maxHeight: "55vh",
         overflow: "auto",
+        minWidth: "100%",
+        width: "fit-content",
+        ...style,
       }}
       elevation={10}>
       <Stack
@@ -243,12 +277,11 @@ function AppCode(props: {
   );
 }
 
-function CreateDatabase(props: {
-  uuid: string;
-  handleClose: () => void;
-  kind: DataSourceKind;
-}) {
-  const { uuid, handleClose, kind } = props;
+const AppCode = memo(AppCode_);
+
+function CreateDatabase(props: { handleClose: () => void }) {
+  const { dbName, kind } = useContext(DbnameContext);
+  const { handleClose } = props;
   const { showNotification } = useNotification();
   const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
@@ -272,7 +305,7 @@ function CreateDatabase(props: {
       showNotification({ severity: "warning", title: "database name is empty" });
       return;
     }
-    let extra: CreateDatabaseExtra = null;
+    let extra: CreateDatabaseArg = null;
     switch (kind) {
       case DataSourceKind.CouchBase:
         extra = {
@@ -287,7 +320,7 @@ function CreateDatabase(props: {
         };
     }
     commands
-      .createDatabase(uuid, database, extra)
+      .createDatabase(dbName, database, extra)
       .then(() => {
         showNotification({ severity: "success", title: "Create OK" });
         handleClose();
@@ -392,13 +425,13 @@ function CreateDatabase(props: {
  * Modal used to create a new schema / keyspace / database object.
  */
 function CreateSchema(props: {
-  uuid: string;
   handleClose: () => void;
   handleReload: () => void;
-  kind: DataSourceKind;
+
   schemas: string[];
 }) {
-  const { uuid, handleClose, kind, schemas, handleReload } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+  const { handleClose, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useNotification();
   const [schema, setSchema] = useState("");
@@ -429,7 +462,7 @@ function CreateSchema(props: {
         break;
     }
     commands
-      .createSchema(uuid, schema, extra)
+      .createSchema(dbName, schema, extra)
       .then(() => {
         showNotification({ severity: "success", title: "create  ok" });
         handleClose();
@@ -545,7 +578,6 @@ function SimpleFlexEditor(props: {
   value?: string;
   barLeft?: ReactNode;
   readOnly?: boolean;
-
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
   handleValue?: (value: string) => void;
 }) {
@@ -604,15 +636,16 @@ function SimpleFlexEditor(props: {
 /**
  * Menu item for connection info tab.
  */
-function MenuConnectionInfo(props: { uuid: string }) {
-  const { uuid } = props;
+function MenuConnectionInfo(props: { dbName: string }) {
+  const { dbName } = props;
   const appendTab = useTabsManage((state) => state.appendTab);
   const handleInfo = async () => {
     appendTab(
       new TabContent(
-        uuid,
-        <ConnConfigInfo uuid={uuid} />,
+        dbName,
+        <ConnConfigInfo />,
         <IoMdInformationCircleOutline />,
+        dbName,
       ),
     );
   };
@@ -629,8 +662,8 @@ function MenuConnectionInfo(props: { uuid: string }) {
 /**
  * Displays backend connection metadata values.
  */
-function ConnConfigInfo(props: { uuid: string }) {
-  const { uuid } = props;
+function ConnConfigInfo() {
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   const [metas, setMetas] = useState<MetaValue[]>([]);
   const { getConnection } = useConnectionStore();
@@ -638,17 +671,19 @@ function ConnConfigInfo(props: { uuid: string }) {
   const handleInfo = useCallback(
     async (showOK: boolean) => {
       try {
-        let metas: MetaValue[] = await commands.serverMetas(uuid);
-        const config = await getConnection(uuid);
+        const config = await getConnection(dbName);
         let configMetas = [];
-
+        let metas: MetaValue[] = await commands.serverMetas(dbName).catch((e) => {
+          console.error("call server metas failed", e);
+          return [];
+        });
         if (passwordKey in config) {
           delete config[passwordKey];
         }
         for (const key in config) {
           configMetas.push({
             name: key,
-            value: config[key],
+            value: JSON.stringify(config[key]),
           });
         }
         setMetas([...configMetas, ...metas]);
@@ -658,12 +693,12 @@ function ConnConfigInfo(props: { uuid: string }) {
       } catch (e) {
         showNotification({
           severity: "error",
-          title: "call server metas failed",
+          title: "get config info failed",
           message: e,
         });
       }
     },
-    [getConnection, showNotification, uuid],
+    [getConnection, showNotification, dbName],
   );
   useEffect(() => {
     handleInfo(false);
@@ -671,7 +706,12 @@ function ConnConfigInfo(props: { uuid: string }) {
 
   return (
     <Stack style={{ height: "100%" }}>
-      <MetaValueView values={metas} showToolbar />
+      <MetaValueView
+        values={metas}
+        reload={() => {
+          handleInfo(true);
+        }}
+      />
     </Stack>
   );
 }
@@ -833,7 +873,7 @@ function LoadStoreFile(props: {
 }
 
 const MarkdownBody = styled("div")(({ theme }) => ({
-  // ---- 裸标签 reset + 留一点空隙 ----
+  // ---- Reset bare tags and leave a little spacing ----
   "& p": { margin: "0 0 0.5em 0", lineHeight: 1.45 },
   "& h1,& h2,& h3,& h4,& h5,& h6": { margin: "0 0 0.35em 0" },
   "& ul,& ol": { margin: "0 0 0.5em 0", paddingLeft: theme.spacing(2) },
@@ -843,14 +883,14 @@ const MarkdownBody = styled("div")(({ theme }) => ({
     borderLeft: `4px solid ${theme.palette.divider}`,
   },
 
-  // ---- 新增：表格样式 (Table) ----
+  // ---- Added: table styles ----
   "& table": {
     width: "100%",
     borderCollapse: "collapse",
     marginBottom: "1em",
     overflow: "hidden",
-    display: "block", // 允许横向滚动
-    overflowX: "auto", // 适配小屏幕
+    display: "block", // Allow horizontal scrolling.
+    overflowX: "auto", // Adapt to small screens.
   },
   "& th, & td": {
     border: `1px solid ${theme.palette.divider}`,
@@ -862,10 +902,10 @@ const MarkdownBody = styled("div")(({ theme }) => ({
     fontWeight: theme.typography.fontWeightBold,
   },
   "& tr:nth-of-type(even)": {
-    backgroundColor: theme.palette.action.hover, // 隔行变色
+    backgroundColor: theme.palette.action.hover, // Alternate row colors.
   },
 
-  // ---- 其余保持原样 ----
+  // ---- Leave the rest unchanged ----
   "& code": {
     ...theme.typography.body2,
     backgroundColor: theme.palette.action.selected,
@@ -878,7 +918,7 @@ type AppMarkDownProps = {
   children: string;
   handlePathUrl?: (href: string) => void;
   placeHolder?: string;
-  appcodeExtra?: AppCodeExtraButtons;
+  appcodeExtra?: AppCodeExtraUI;
   appCodeHandleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
 };
@@ -934,7 +974,7 @@ function AppMarkDown(props: AppMarkDownProps) {
     const { showNotification } = useNotification();
     const handleClick = (event) => {
       event.preventDefault();
-      // 在这里处理链接点击，比如使用 Tauri API 打开链接
+      // Handle link clicks here, for example, by opening links with the Tauri API.
       console.info(`Link clicked: ${href}`);
       if (href.startsWith("http")) {
         openUrl(href)
@@ -984,6 +1024,7 @@ function AppMarkDown(props: AppMarkDownProps) {
                   language={match[1]}
                   handleEdit={appCodeHandleEdit}
                   codeBlock={String(children).replace(/\n$/, "")}
+                  style={{ maxHeight: "40vh" }}
                 />
               ) : (
                 <code className={className} {...props}>
@@ -1017,13 +1058,12 @@ function UrlDocument(props: { url: string }) {
 }
 
 function SaveFavoriteSqlViewOnTheFly(props: {
-  uuid: string;
-  kind: DataSourceKind;
   sql: string;
   onChangeFavName: (name: string) => void;
   handleClose: () => void;
 }) {
-  const { kind, sql, onChangeFavName, uuid, handleClose } = props;
+  const { sql, onChangeFavName, handleClose } = props;
+  const { dbName, kind } = useContext(DbnameContext);
   const [favoriteName, setFavoriteName] = useState("");
   const { showNotification } = useNotification();
   const { save } = useFavoriteStore();
@@ -1053,7 +1093,7 @@ function SaveFavoriteSqlViewOnTheFly(props: {
 
               return;
             }
-            save({ uuid, name: favoriteName, kind, sql });
+            save({ dbName, name: favoriteName, kind, sql });
             showNotification({
               severity: "success",
               title: "save favorite sql success.",
@@ -1076,14 +1116,15 @@ function SaveFavoriteSqlViewOnTheFly(props: {
 function SaveFavoriteSqlView(props: {
   favoriteName?: string;
   editor: editor.IStandaloneCodeEditor;
-  uuid: string;
-  kind: DataSourceKind;
 }) {
-  const { favoriteName: oldName, editor, uuid, kind } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+
+  const { favoriteName: oldName, editor } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const { showNotification } = useNotification();
-  const { setUi } = useOneShotDialogUI();
   const { save } = useFavoriteStore();
+  const [showDia, setShowDia] = useState(false);
+
   return (
     <>
       <Tooltip
@@ -1100,26 +1141,13 @@ function SaveFavoriteSqlView(props: {
                 return;
               }
               if (favoriteName) {
-                save({ uuid, name: favoriteName, kind, sql });
+                save({ dbName, name: favoriteName, kind, sql });
                 showNotification({
                   severity: "success",
                   title: "save favorite sql success.",
                 });
               } else {
-                setUi(
-                  <SaveFavoriteSqlViewOnTheFly
-                    uuid={uuid}
-                    sql={sql}
-                    kind={kind}
-                    onChangeFavName={(name) => {
-                      setFavoriteName(name);
-                    }}
-                    handleClose={() => {
-                      setUi(null);
-                    }}
-                  />,
-                  "set favorite name",
-                );
+                setShowDia(true);
               }
             } catch (e) {
               showNotification({
@@ -1133,6 +1161,19 @@ function SaveFavoriteSqlView(props: {
           <FaBookmark style={{ fontSize: "1.2rem" }} />
         </IconButton>
       </Tooltip>
+      {showDia && (
+        <Dialog open={showDia}>
+          <SaveFavoriteSqlViewOnTheFly
+            sql={editor.getValue()}
+            onChangeFavName={(name) => {
+              setFavoriteName(name);
+            }}
+            handleClose={() => {
+              setShowDia(false);
+            }}
+          />
+        </Dialog>
+      )}
     </>
   );
 }
@@ -1192,22 +1233,10 @@ function SliderSize(props: { config: UseSizeConfig }) {
       </Paper>>
       <Chip
         style={{ ...textEllipsisStyle }}
-        label={`${config.name ? config.name + ":" : ""} ${sizeIsNumber ? size : config.default}`}
+        label={`${sizeIsNumber ? size : config.default}`}
         color="info"
       />
     </Tooltip>
-  );
-}
-
-/**
- * Icon button used to add a new table row or item.
- */
-function TableAddButton(props: { handleAdd: () => void }) {
-  const { handleAdd } = props;
-  return (
-    <IconButton onClick={handleAdd} color="primary">
-      <AddIcon />
-    </IconButton>
   );
 }
 
@@ -1363,16 +1392,17 @@ function CreateIndexView(props: {
  */
 function TypeSelect(props: {
   handleChange: (value: string | null) => void;
-  uuid: string;
+
   type: string | null;
   style?: CSSProperties;
 }) {
-  const { handleChange, uuid, type, style } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { handleChange, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .listDataTypes(uuid)
+      .listDataTypes(dbName)
       .then((data) => {
         setTypes(data);
       })
@@ -1383,7 +1413,7 @@ function TypeSelect(props: {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   return (
     <Autocomplete
       freeSolo
@@ -1413,7 +1443,7 @@ function ColumnNullness(props: {
     <Autocomplete
       value={nullable}
       options={opts}
-      style={{ width: "16rem" }}
+      style={{ flexGrow: 1, flexShrink: 2, minWidth: "3rem" }}
       renderInput={(params) => <TextField {...params} label="specify null" />}
       onChange={(_, value) => {
         handleNullness(value);
@@ -1424,16 +1454,16 @@ function ColumnNullness(props: {
 }
 
 function SqlDefaultValue(props: {
-  uuid: string;
   defaultValue: string | null;
   setDefaultValue: (value: string | null) => void;
 }) {
-  const { uuid, defaultValue, setDefaultValue } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .listSqlCurrentValues(uuid)
+      .listSqlPredefineValues(dbName)
       .then((data) => {
         setCurrentValue(data);
       })
@@ -1444,24 +1474,22 @@ function SqlDefaultValue(props: {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
 
   return (
-    <Stack direction="row">
-      <Autocomplete
-        freeSolo
-        options={currentValue}
-        style={{ width: "14rem" }}
-        value={defaultValue}
-        renderInput={(params) => <TextField {...params} label="default value" />}
-        onChange={(_, value) => {
-          setDefaultValue(value);
-        }}
-        onInputChange={(_, value) => {
-          setDefaultValue(value);
-        }}
-      />
-    </Stack>
+    <Autocomplete
+      freeSolo
+      options={currentValue}
+      style={{ flexGrow: 1, flexShrink: 2, minWidth: "3rem" }}
+      value={defaultValue}
+      renderInput={(params) => <TextField {...params} label="default value" />}
+      onChange={(_, value) => {
+        setDefaultValue(value);
+      }}
+      onInputChange={(_, value) => {
+        setDefaultValue(value);
+      }}
+    />
   );
 }
 
@@ -1495,32 +1523,27 @@ function AppDataGridPagination(props: {
 }
 
 function AppDataGridToolBar(props: {
-  title?: string;
+  titleName: string;
   left?: ReactNode;
   right?: ReactNode;
-  disableBorder?: boolean;
 }) {
-  const { title, left, right, disableBorder } = props;
+  const { titleName, left, right } = props;
   return (
     <Stack
       direction="row"
       style={{
         alignItems: "center",
         justifyContent: "space-between",
-        border: disableBorder ? undefined : "2px solid gray",
+        border: "2px solid gray",
+        borderBottom: "0.5rem solid gray",
         borderRadius: "4px",
         padding: "2px 4px",
       }}>
       <DataGridPageKeyboardControl />
       <StackRowCenter>{left}</StackRowCenter>
-      {title && <Typography variant="h5">{title}</Typography>}
+      {titleName && <Typography variant="h5">{titleName}</Typography>}
       <Stack direction="row" style={{ alignItems: "center" }}>
-        {right}
-        {/* {right ? (
-          <Divider orientation="vertical" variant="middle" sx={{ mx: 0.5 }} flexItem />
-        ) : undefined} */}
-
-        <CustomToolbar />
+        {right} <CustomToolbar />
       </Stack>
     </Stack>
   );
@@ -1533,10 +1556,10 @@ function QueryStatus(props: { status?: string }) {
   const { status } = props;
   return (
     status && (
-      <Stack direction="row">
+      <StackRowCenter>
         <CircularProgress />
         <Typography> {status} </Typography>
-      </Stack>
+      </StackRowCenter>
     )
   );
 }
@@ -1561,16 +1584,16 @@ function SetFilterSort(props: {
   label: "filter" | "sort";
   tableName: string;
   kind: DataSourceKind;
-  uuid: string;
 }) {
-  let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
+  const { dbName } = useContext(DbnameContext);
+  let { open, handleClose, value, setValue, label, tableName, kind } = props;
   const isFilter = label == "filter";
   const extractFn = isFilter
-    ? function (uuid: string, sql: string) {
-        return commands.extractTableSelectSelection(uuid, sql);
+    ? function (sql: string) {
+        return commands.extractTableSelectSelection(dbName, sql);
       }
-    : function (uuid: string, sql: string) {
-        return commands.extractTableSelectSort(uuid, sql);
+    : function (sql: string) {
+        return commands.extractTableSelectSort(dbName, sql);
       };
   tableName = quoteDatabaseIdentifier(tableName, kind);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -1579,11 +1602,11 @@ function SetFilterSort(props: {
 
   const [selectFilter, setSelectFilter] = useState("");
   const { getFilter, addFilter, removeFilter } = useTableFilter();
-  const filters = getFilter(uuid, tableName);
+  const filters = getFilter(dbName, tableName);
   const tabSize = useTabSize();
   const handleSet = async () => {
     try {
-      let data = await extractFn(uuid, editor.getValue());
+      let data = await extractFn(editor.getValue());
       setValue(data == null ? "" : data);
       handleClose();
     } catch (e) {
@@ -1622,7 +1645,7 @@ function SetFilterSort(props: {
             setEditor(e);
             e.focus();
             editorPositionToEnd(e);
-            e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind);
+            e.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind);
           }}
           language={"sql"}
         />
@@ -1645,8 +1668,8 @@ function SetFilterSort(props: {
                       return;
                     }
                     try {
-                      const data = await extractFn(uuid, value);
-                      addFilter(uuid, tableName, data);
+                      const data = await extractFn(value);
+                      addFilter(dbName, tableName, data);
                     } catch (e) {
                       showNotification({
                         severity: "error",
@@ -1660,12 +1683,13 @@ function SetFilterSort(props: {
               </Tooltip>
               <IconButton
                 onClick={() => {
-                  removeFilter(uuid, tableName);
+                  removeFilter(dbName, tableName);
                   showNotification({
                     severity: "success",
                     title: "delete filter success",
                   });
-                }}>
+                }}
+                disabled={filters.length == 0}>
                 <DeleteForeverIcon />
               </IconButton>
               <Autocomplete
@@ -1718,23 +1742,12 @@ function ToggleChatShow() {
 /**
  * Copy SQL button with inline SQL preview.
  */
-function CopySql(props: { sql: string; style?: CSSProperties }) {
-  let { sql, style } = props;
-  const { showNotification } = useNotification();
+function CopySql(props: { sql: string }) {
+  let { sql } = props;
   if (!sql) {
     return <> </>;
   }
-  return (
-    <Stack style={{ ...style, alignItems: "center" }} direction="row">
-      <IconButton
-        onClick={() => {
-          handleCopyToClipboard(sql, showNotification);
-        }}>
-        <ContentCopyIcon />
-      </IconButton>
-      <code> {sql} </code>
-    </Stack>
-  );
+  return <AppCode codeBlock={sql} language="sql" />;
 }
 
 function IconModifed() {
@@ -1742,7 +1755,7 @@ function IconModifed() {
 }
 
 function ListenElementSize(props: {
-  dom: Element;
+  dom?: Element;
   name: string;
   set: "height" | "width" | "both";
 }) {
@@ -1776,6 +1789,7 @@ function ListenElementSize(props: {
       const div = dom as HTMLDivElement;
       if (set == "height" || set == "both") {
         if (size.height) {
+          // eslint-disable-next-line react-hooks/immutability
           div.style.height = size.height + "px";
         }
       }
@@ -1795,7 +1809,7 @@ function ListenElementSize(props: {
 function AiMarkdownModel(props: {
   editor: editor.IStandaloneCodeEditor;
   markdownModel: boolean;
-  appcodeExtra?: AppCodeExtraButtons;
+  appcodeExtra?: AppCodeExtraUI;
   appCodeHandleEdit?: AppCodeHanleEdit;
 }) {
   const { editor, markdownModel, appcodeExtra, appCodeHandleEdit } = props;
@@ -1811,12 +1825,12 @@ function AiMarkdownModel(props: {
     setMarkdownModelValue(editor.getValue());
     let d1 = editor.onDidChangeModelContent(() => {
       setMarkdownModelValue(editor.getValue());
-      // 1. 计算距离底部的剩余距离
-      // scrollHeight (内容总高) - scrollTop (已滚距离) - clientHeight (可视区高度)
+      // 1. Calculate the remaining distance to the bottom.
+      // scrollHeight (total content height) - scrollTop (scrolled distance) - clientHeight (visible area height)
       let dom = markdownDivDom.current;
       const distanceFromBottom = dom.scrollHeight - dom.scrollTop - dom.clientHeight;
-      // 2. 设置一个缓冲区阈值（如 100 像素）
-      // 如果距离底部小于 100px，说明用户还在底部附近，允许自动滚动
+      // 2. Set a buffer threshold (for example, 100 pixels).
+      // If the distance to the bottom is less than 100px, the user is still near the bottom, so allow automatic scrolling.
       if (distanceFromBottom < 220) {
         dom.scrollTop = dom.scrollHeight;
       }
@@ -1854,9 +1868,10 @@ function AiMarkdownModelSwitch(props: {
   setMarkdownModel: Dispatch<SetStateAction<boolean>>;
   markdownModel: boolean;
 }) {
+  const { dbName } = useContext(DbnameContext);
   const { setMarkdownModel, markdownModel } = props;
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const switchKey = "ai-markdown-model";
+  const switchKey = "ai-markdown-model" + "-" + dbName;
   const llm = useLLM();
   const vis = useContext(TabActiveContext);
   useEffect(() => {
@@ -1865,14 +1880,14 @@ function AiMarkdownModelSwitch(props: {
     }
     const v = getSwitch(switchKey);
     setMarkdownModel(v);
-  }, [getSwitch, llm, setMarkdownModel]);
+  }, [getSwitch, llm, setMarkdownModel, switchKey]);
 
   useEffect(() => {
     if (!llm) {
       return;
     }
     setSwitch(switchKey, markdownModel);
-  }, [llm, markdownModel, setSwitch]);
+  }, [llm, markdownModel, setSwitch, switchKey]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1891,7 +1906,7 @@ function AiMarkdownModelSwitch(props: {
   return (
     llm && (
       <Tooltip
-        title={`toggle markdown model, keyboard shortcut is ${isMacOs() ? "⌘" : "Ctrl"} + B`}>
+        title={`toggle markdown model,keyboard shortcut is ${isMacOs() ? "⌘" : "Ctrl"} + B,enable this editor will show as markdown`}>
         <FormControlLabel
           control={
             <Switch
@@ -1931,13 +1946,18 @@ function EscPressedDo(props: { doingIt: () => boolean; setUndo: () => void }) {
 /**
  * Display count summary when filtered results are less than total.
  */
-function ShowingCount(props: { showing: number; total: number }) {
-  const { showing, total } = props;
+function ShowingCount(props: {
+  showing: number;
+  total: number;
+  style?: CSSProperties;
+}) {
+  const { showing, total, style } = props;
   if (showing == total) {
     return <></>;
   }
+
   return (
-    <Typography color="info" style={textEllipsisStyle}>
+    <Typography color="info" style={{ ...textEllipsisStyle, ...style }}>
       showing {showing} of {total}
     </Typography>
   );
@@ -1985,7 +2005,7 @@ function FetchTimeAndLoadingStatus(props: { isLoading: boolean }) {
         <Tooltip title="fetch used duration">
           <Chip
             label={prettyMs(fetchTime)}
-            color={fetchTime > 5000 ? "error" : "info"}
+            color={fetchTime > 5000 ? "error" : "success"}
             icon={<MdTimer />}
           />
         </Tooltip>
@@ -1997,7 +2017,7 @@ function FetchTimeAndLoadingStatus(props: { isLoading: boolean }) {
 function FetchTimeDataGrid() {
   const apiRef = useGridApiContext();
 
-  // 使用选择器获取当前的 loading 状态
+  // Use the selector to get the current loading state.
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
   return <FetchTimeAndLoadingStatus isLoading={isLoading} />;
@@ -2039,8 +2059,7 @@ function DataGridPageKeyboardControl() {
   return <> </>;
 }
 
-function ShowQueryLog(props: { uuid: string; kind: DataSourceKind }) {
-  const { uuid, kind } = props;
+function ShowQueryLog() {
   const [showQueryLog, setShowQueryLog] = useState(false);
 
   return (
@@ -2054,12 +2073,7 @@ function ShowQueryLog(props: { uuid: string; kind: DataSourceKind }) {
           <EventNoteIcon />
         </IconButton>
       </Tooltip>
-      <QueryLog
-        showQueryLog={showQueryLog}
-        setShowQueryLog={setShowQueryLog}
-        uuid={uuid}
-        kind={kind}
-      />
+      <QueryLog showQueryLog={showQueryLog} setShowQueryLog={setShowQueryLog} />
     </>
   );
 }
@@ -2072,7 +2086,445 @@ function RefreshButton(props: IconButtonProps) {
   );
 }
 
+function ExportQueryResultToFile() {
+  // Store the clicked HTML element instead of a boolean
+  const [anchorEl, setAnchorEl] = useState(null);
+  const openMenu = Boolean(anchorEl);
+  const api = useGridApiContext();
+
+  const { showNotification } = useNotification();
+
+  const handleWriteFile = async (
+    extension: string,
+    exportFn: (_: (_: string) => Promise<void>) => void,
+  ) => {
+    let fileHandle: FileHandle;
+    try {
+      const path = await save({
+        defaultPath: generateDefaultFilename("query_resp", extension),
+      });
+      if (!path) {
+        return;
+      }
+      fileHandle = await openFile(path, { write: true, truncate: true, create: true });
+      await exportFn(async (x: string) => {
+        await fileHandle.write(new TextEncoder().encode(x));
+      });
+      showNotification({
+        severity: "success",
+        title: "download ok",
+        message: <OpenFileWithDefaultApp file={path} />,
+      });
+    } catch (e) {
+      showNotification({ severity: "error", message: e, title: "export failed" });
+    } finally {
+      if (fileHandle) {
+        fileHandle.close();
+      }
+    }
+  };
+
+  return (
+    <>
+      <Tooltip title="download this result to a file,notice that we are export this query result,type may lost because of implementaition">
+        <IconButton
+          onClick={(event) => {
+            setAnchorEl(event.currentTarget);
+          }}
+          color="primary">
+          <DownloadIcon />
+        </IconButton>
+      </Tooltip>
+
+      {anchorEl && (
+        <Menu
+          open={openMenu}
+          anchorEl={anchorEl} // 🚀 Tells Menu exactly where to position itself
+          anchorReference="anchorEl"
+          onClose={() => {
+            setAnchorEl(null);
+          }}
+          onClick={() => {
+            setAnchorEl(null);
+          }}>
+          <MenuList>
+            <MenuItem
+              onClick={() => {
+                handleWriteFile("csv", async (fileHandle) => {
+                  let fs = api.current.getAllColumns().map((x) => x.field);
+                  await fileHandle(createCSV(fs));
+                  for (const id of api.current.getSortedRowIds()) {
+                    let values = api.current
+                      .getAllColumns()
+                      .map((f) => api.current.getCellValue(id, f.field));
+                    await fileHandle(createCSV(values));
+                  }
+                });
+              }}>
+              <ListItemText> Download as CSV </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => {
+                handleWriteFile("json", async (fileHandle) => {
+                  let first = true;
+                  await fileHandle("[\n");
+                  for (const id of api.current.getSortedRowIds()) {
+                    let o = {};
+                    for (const f of api.current.getAllColumns()) {
+                      o[f.field] = parseCellType(api.current.getCellValue(id, f.field));
+                    }
+                    if (!first) {
+                      await fileHandle(",\n");
+                    }
+                    if (first) {
+                      first = false;
+                    }
+                    await fileHandle(JSON.stringify(o, null, 2));
+                  }
+                  await fileHandle("\n]");
+                });
+              }}>
+              <ListItemText> Download as JSON </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={async () => {
+                const all: XlsxCellData[] = [];
+                api.current.getAllColumns().forEach((f, index) => {
+                  all.push({ row: 0, column: index, content: f.field });
+                });
+                for (const [row, id] of api.current.getSortedRowIds().entries()) {
+                  for (const [column, f] of api.current.getAllColumns().entries()) {
+                    const content = api.current.getCellValue(id, f.field);
+                    if (content) {
+                      all.push({ row: row + 1, column: column, content });
+                    }
+                  }
+                }
+                try {
+                  const path = await save({
+                    filters: [{ extensions: ["xlsx"], name: "Excel file" }],
+                    defaultPath: generateDefaultFilename("export-xlsx", "xlsx"),
+                  });
+                  if (!path) {
+                    return;
+                  }
+                  await commands.writeXlsx(path, all);
+                  showNotification({
+                    severity: "success",
+                    message: <OpenFileWithDefaultApp file={path} />,
+                    title: "export file ok",
+                  });
+                } catch (e) {
+                  showNotification({
+                    severity: "error",
+                    message: e,
+                    title: "write xlsx file failed",
+                  });
+                }
+              }}>
+              <ListItemText> Download as Excel </ListItemText>
+            </MenuItem>
+            <Divider />
+            <MenuItem
+              onClick={async () => {
+                let result = "";
+                const fs = api.current.getAllColumns().map((f) => f.field);
+                result += createCSV(fs);
+                for (const id of api.current.getSortedRowIds()) {
+                  const values = api.current
+                    .getAllColumns()
+                    .map((f) => api.current.getCellValue(id, f.field));
+                  result += createCSV(values);
+                }
+                handleCopyToClipboard(result, showNotification);
+              }}>
+              <ListItemText> Copy as CSV </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={async () => {
+                const result: string[][] = [];
+                result.push(api.current.getAllColumns().map((f) => f.field));
+                for (const id of api.current.getSortedRowIds()) {
+                  const values = api.current
+                    .getAllColumns()
+                    .map((x) => api.current.getCellValue(id, x.field));
+
+                  result.push(values);
+                }
+                handleCopyToClipboard(arrayToMarkdownTable(result), showNotification);
+              }}>
+              <ListItemText> Copy as Markdown </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={async () => {
+                const result = [];
+
+                for (const id of api.current.getSortedRowIds()) {
+                  let o = {};
+                  for (const f of api.current.getAllColumns()) {
+                    o[f.field] = parseCellType(api.current.getCellValue(id, f.field));
+                  }
+                  result.push(o);
+                }
+
+                handleCopyToClipboard(
+                  JSON.stringify(result, null, 2),
+                  showNotification,
+                );
+              }}>
+              <ListItemText> Copy as JSON </ListItemText>
+            </MenuItem>
+          </MenuList>
+        </Menu>
+      )}
+    </>
+  );
+}
+
+function CopyAsXXX(props: {
+  content: string;
+  getRow: () => object;
+  field: string;
+  dbName: string;
+  fieldType: string;
+}) {
+  const { content, getRow, field, dbName, fieldType } = props;
+
+  const { showNotification } = useNotification();
+
+  return (
+    <>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}>
+          <ListItemIcon>
+            <FaCopy fontSize="1.4rem" />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(field, showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy Column Name </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={() => {
+          const row = getRow();
+          for (const x in row) {
+            row[x] = parseCellType(row[x]);
+          }
+          handleCopyToClipboard(JSON.stringify(row, null, 2), showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy as JSON </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={() => {
+          const row = getRow();
+          const result: string[][] = [];
+          result.push(Object.keys(row));
+          result.push(Object.keys(row).map((x) => row[x]));
+          handleCopyToClipboard(arrayToMarkdownTable(result), showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy as Markdown </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={async () => {
+            try {
+              const value = await commands.sqlEncodeValue(dbName, fieldType, content);
+              handleCopyToClipboard(`(${value})`, showNotification);
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                message: e,
+                title: "format for in failed",
+              });
+            }
+          }}>
+          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+          <ListItemText> Copy as For in </ListItemText>
+        </MenuItem>
+      )}
+    </>
+  );
+}
+
+function SqlTableViewData(props: {
+  handleData: (args: any) => Promise<void>;
+  fields: Field[];
+  initValues?: object;
+  buttonName: string;
+  isAdd: boolean;
+  handleClose?: () => void;
+  extraButtons?: [{ name: string; handleValue: (value: object) => void }];
+}) {
+  let { handleData, fields, initValues, buttonName, isAdd, handleClose, extraButtons } =
+    props;
+  if (!initValues) {
+    initValues = {};
+  }
+  fields.forEach((e) => {
+    if (e.is_auto_increment && isAdd) {
+      initValues[e.field] = "";
+    }
+  });
+  const { filter, setFilter } = useSqlDataFilter();
+
+  const filterFn = useMemo(() => {
+    return filter
+      ? wcmatch("*" + filter + "*", { flags: "i" })
+      : () => {
+          return true;
+        };
+  }, [filter]);
+
+  const [loading, setLoading] = useState(false);
+  const [args, setArgs] = useState(initValues);
+  const { showNotification } = useNotification();
+  const inputDoms = useRef({});
+
+  const handleModify = () => {
+    const argsclone = { ...args };
+    for (let i = 0; i < fields.length; i++) {
+      const f = fields[i];
+      if (f.is_auto_increment) {
+        continue;
+      }
+      if (!argsclone[f.field] && !f.nullable && !f.default_value) {
+        inputDoms.current[f.field].focus();
+        showNotification({
+          severity: "error",
+          title: `filed '${f.field}' need be filled`,
+        });
+        return;
+      }
+    }
+    for (const key in argsclone) {
+      if (!argsclone[key]) {
+        // make sure '' convert to null
+        argsclone[key] = null;
+      }
+    }
+    setLoading(true);
+    handleData(argsclone)
+      .then(() => {
+        showNotification({ severity: "success", title: `${buttonName} OK` });
+        if (handleClose) {
+          handleClose();
+        }
+      })
+      .catch((e) => {
+        console.error("handle value failure", e);
+        showNotification({
+          severity: "error",
+          title: `${buttonName} failure`,
+          message: e,
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  return (
+    <Stack>
+      {fields
+        .filter(
+          (f) =>
+            filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
+        )
+        .map((f) => {
+          return (
+            <Stack
+              key={f.field}
+              direction="row"
+              sx={{ alignContent: "center", justifyContent: "center" }}>
+              <TextField
+                inputRef={(x) => {
+                  inputDoms.current[f.field] = x;
+                }}
+                disabled={f.is_auto_increment}
+                value={args[f.field]}
+                helperText={
+                  f.data_type +
+                  " " +
+                  (f.nullable ? "null" : "not null") +
+                  " " +
+                  (f.is_auto_increment ? "auto increment" : "") +
+                  " " +
+                  (f.default_value ? `default ${f.default_value}` : "")
+                }
+                required={!f.nullable}
+                label={f.field}
+                multiline={isTypeLargeText(f.data_type)}
+                rows={4}
+                fullWidth
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const newArgs = { ...args };
+                  newArgs[f.field] = value;
+                  setArgs(newArgs);
+                }}
+              />
+            </Stack>
+          );
+        })}
+      <Divider />
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
+        <Button loading={loading} onClick={handleModify}>
+          {buttonName}
+        </Button>
+        {extraButtons &&
+          extraButtons.map((callback) => (
+            <Button
+              key={callback.name}
+              onClick={() => {
+                const argsClone = { ...args };
+                for (const key in argsClone) {
+                  if (!argsClone[key]) {
+                    argsClone[key] = null;
+                  }
+                }
+                callback.handleValue(argsClone);
+              }}>
+              {callback.name}
+            </Button>
+          ))}
+        <ClearableTextField
+          value={filter}
+          onChange={(e) => {
+            setFilter(e.target.value);
+          }}
+          label="filter"
+          style={{ flex: 1 }}
+          helperText="can match field name and content"
+          onClear={() => {
+            setFilter("");
+          }}
+        />
+      </Stack>
+    </Stack>
+  );
+}
 export {
+  SqlTableViewData,
+  CopyAsXXX,
+  ExportQueryResultToFile,
   ShowQueryLog,
   FetchTimeDataGrid,
   FetchTimeAndLoadingStatus,
@@ -2088,7 +2540,6 @@ export {
   SaveFavoriteSqlView,
   CancelButton,
   SliderSize,
-  TableAddButton,
   SelectColumnAsc,
   CreateIndexView,
   TypeSelect,

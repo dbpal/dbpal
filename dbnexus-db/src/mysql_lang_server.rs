@@ -1,18 +1,19 @@
 /*
 
-MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程（PROCEDURE）”没有开同样的绿灯。
-换言之：
-对表（table）和视图（view）更没有“绿灯”——
-它们必须用“库名.对象名”或先 USE 库名 再裸写对象名，否则就报 ERROR 1146 (42S02): Table 'db.tbl' doesn't exist。
-一句话：
-函数（function）：sys 独享全局免前缀。
-过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
+MySQL allows the sys. prefix to be omitted when calling functions, but does not grant the same privilege to stored procedures (PROCEDURE).
+In other words:
+Tables and views have even less privilege—
+they require a database.object name or a preceding USE database command; otherwise, they return ERROR 1146 (42S02): Table 'db.tbl' doesn't exist.
+In short:
+Functions: sys functions alone can be called globally without a prefix.
+Procedures, tables, and views: none have this privilege; to access them across databases, add a prefix or switch the default database.
 */
 
 use crate::db::{name_start_ascii_alphabetic, BackendKindMysql, SqlEvent};
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, DBExecutable, GetKeyWords, LangServerCommon, LanguageServer,
+    LexerCompletionTrait,
 };
 use crate::mariadb::MARIADB_FUNCTIONS;
 use crate::mysql::MysqlDB;
@@ -52,17 +53,15 @@ impl GetKeyWords for MysqlDB {
                 let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
                     .fetch_all(conn.deref_mut())
                     .await?;
-                let mut ret = vec![];
                 for row in rows.iter() {
                     let name: Option<String> = row.try_get(0)?;
                     if let Some(name) = name {
                         if !name_start_ascii_alphabetic(&name) {
                             continue;
                         }
-                        ret.push(name);
+                        lock.push(name);
                     }
                 }
-                *lock = ret;
                 return anyhow::Ok(lock.clone());
             }
         }
@@ -95,7 +94,7 @@ impl LanguageServer for MysqlDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -162,10 +161,7 @@ impl LangServerCommon for MysqlDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql.as_str()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -173,6 +169,7 @@ impl LangServerCommon for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let conn = match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => x.clone(),
@@ -207,8 +204,8 @@ impl LangServerCommon for MysqlDB {
 
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
         let sql = "SELECT  DISTINCT  user FROM mysql.user";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
 
         for r in rows {
@@ -323,12 +320,12 @@ impl LangServerCommon for MysqlDB {
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         /*
-        mysql在数据库test可以直接调用sys的procedure 不使用sys这个前缀
-        编辑
-        复制
-        不行。
-        MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程（PROCEDURE）”没有开同样的绿灯。
-        换言之：
+        Can a procedure in sys be called directly from the test database without the sys prefix?
+        Edit
+        Copy
+        No.
+        MySQL allows the sys. prefix to be omitted when calling functions, but does not grant the same privilege to stored procedures (PROCEDURE).
+        In other words:
         */
         let schema = self.not_allow_empty_schema(schema).await?;
         let mut conn = self.get_conn().await?;
@@ -349,10 +346,7 @@ impl LangServerCommon for MysqlDB {
         if self.kind == BackendKindMysql::Mariadb {
             let sql = format!(
         "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",schema );
-            let mut conn = self.get_conn().await?;
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(&sql).await?;
             for row in rows.iter() {
                 let name: String = row.try_get(0)?;
                 ret.push(name);
@@ -374,6 +368,7 @@ impl LangServerCommon for MysqlDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         MysqlDB::list_schema_impl(self).await
     }
+
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         /*
             TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
@@ -393,9 +388,10 @@ impl LangServerCommon for MysqlDB {
                 FROM performance_schema.prepared_statements_instances WHERE 
                 statement_name is not null;
         "#;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql).into_sql_str())
             .fetch_all(conn.deref_mut())
             .await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let text: String = row.try_get(0)?;
@@ -424,10 +420,7 @@ impl AstCompletionHelper for MysqlDB {
             "#,
             schema
         );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
 
         for row in rows.iter() {
@@ -473,10 +466,8 @@ impl AstCompletionHelper for MysqlDB {
             schema, table
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -499,10 +490,8 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
 
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -524,10 +513,7 @@ impl AstCompletionHelper for MysqlDB {
             table, schema
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -539,7 +525,7 @@ impl AstCompletionHelper for MysqlDB {
 
 // src/mysql_types.rs
 pub const MYSQL_TYPES: &[&str] = &[
-    /* ---------- 数值 ---------- */
+    /* ---------- Numeric ---------- */
     "TINYINT",
     "SMALLINT",
     "MEDIUMINT",
@@ -552,13 +538,13 @@ pub const MYSQL_TYPES: &[&str] = &[
     "DOUBLE",
     "REAL",
     "BIT",
-    /* ---------- 日期/时间 ---------- */
+    /* ---------- Date/time ---------- */
     "DATE",
     "TIME",
     "DATETIME",
     "TIMESTAMP",
     "YEAR",
-    /* ---------- 字符串 ---------- */
+    /* ---------- String ---------- */
     "CHAR",
     "VARCHAR",
     "BINARY",
@@ -573,7 +559,7 @@ pub const MYSQL_TYPES: &[&str] = &[
     "LONGTEXT",
     /* ---------- JSON ---------- */
     "JSON",
-    /* ---------- 空间/几何 (MySQL & MariaDB) ---------- */
+    /* ---------- Spatial/geometry (MySQL & MariaDB) ---------- */
     "GEOMETRY",
     "POINT",
     "LINESTRING",
@@ -582,13 +568,13 @@ pub const MYSQL_TYPES: &[&str] = &[
     "MULTILINESTRING",
     "MULTIPOLYGON",
     "GEOMETRYCOLLECTION",
-    /* ---------- 枚举/集合 ---------- */
+    /* ---------- Enum/set ---------- */
     "ENUM",
     "SET",
-    /* ---------- MariaDB 独有扩展 ---------- */
+    /* ---------- MariaDB-specific extensions ---------- */
     "INET4", // MariaDB 10.10+
     "INET6", // MariaDB 10.10+
-    /* ---------- 别名（官方文档列出，会出现在 DDL 中） ---------- */
+    /* ---------- Aliases (listed in the official documentation and used in DDL) ---------- */
     "BOOL",
     "BOOLEAN",
     "SERIAL",
@@ -608,10 +594,11 @@ pub const MYSQL_TYPES: &[&str] = &[
 ];
 
 // I said this to AI haha.
-// https://dev.mysql.com/doc/refman/8.4/en/built-in-function-reference.html 14.1 Built-In Function and Operator Reference 14.1 Built-In Function and Operator Reference    帮我把这里面所有的函数整理成rust数组
-// MySQL 8.4 全部内置函数名称
+// https://dev.mysql.com/doc/refman/8.4/en/built-in-function-reference.html 14.1 Built-In Function and Operator Reference
+// Organize all the functions on this page into a Rust array.
+// All MySQL 8.4 built-in function names.
 pub const MYSQL_FUNCTIONS: &[&str] = &[
-    // 数值
+    // Numeric
     "ABS",
     "ACOS",
     "ADDDATE",
@@ -675,7 +662,7 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
     "VAR_POP",
     "VAR_SAMP",
     "VARIANCE",
-    // 字符串
+    // String
     "ASCII",
     "BIN",
     "BIT_LENGTH",
@@ -724,7 +711,7 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
     "UNHEX",
     "UPPER",
     "UUID_SHORT",
-    // 日期时间
+    // Date/time
     "ADDDATE",
     "ADDTIME",
     "CONVERT_TZ",
@@ -818,7 +805,7 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
     "JSON_UNQUOTE",
     "JSON_VALID",
     "JSON_VALUE",
-    // 聚合/窗口
+    // Aggregate/window
     "ANY_VALUE",
     "AVG",
     "BIT_AND",
@@ -848,7 +835,7 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
     "VAR_POP",
     "VAR_SAMP",
     "VARIANCE",
-    // 加密/哈希
+    // Encryption/hash
     "AES_DECRYPT",
     "AES_ENCRYPT",
     "COMPRESS",
@@ -861,13 +848,13 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
     "SHA2",
     "UNCOMPRESS",
     "VALIDATE_PASSWORD_STRENGTH",
-    // 锁
+    // Lock
     "GET_LOCK",
     "IS_FREE_LOCK",
     "IS_USED_LOCK",
     "RELEASE_ALL_LOCKS",
     "RELEASE_LOCK",
-    // 系统信息
+    // System information
     "BENCHMARK",
     "BINLOG_GTID_POS",
     "COERCIBILITY",
@@ -891,7 +878,7 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::{MysqlDBConfig, SslFilesWithStrModel};
     use crate::db::{BackendKindMysql, QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::LanguageServer;
@@ -911,8 +898,8 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::mysql_default(),
+            charset: Default::default(),
         }
     }
 
@@ -965,7 +952,7 @@ mod tests {
             BEFORE INSERT ON employees
             FOR EACH ROW
             BEGIN
-                -- 什么都不做
+                -- Do nothing.
             END;
 
             //
@@ -986,7 +973,7 @@ mod tests {
             STARTS CURRENT_TIMESTAMP
             DO
             BEGIN
-            /* 空语句块，可永久存在 */
+            /* Empty statement block; may exist indefinitely. */
             END;
             "#,
             )

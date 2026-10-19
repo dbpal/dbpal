@@ -72,7 +72,7 @@ impl Scopes {
         let mut ret = vec![];
         let lock = self.scopes.lock().expect("lock failed");
         for s in lock.iter().rev() {
-            ret.extend(s.tables.clone().into_iter());
+            ret.extend(s.tables.clone());
         }
         ret
     }
@@ -120,10 +120,10 @@ impl Scopes {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, specta::Type, serde::Serialize, serde::Deserialize)]
 pub struct TempTableColumn {
-    pub(crate) name: String,
-    pub(crate) data_type: Option<String>,
+    pub name: String,
+    pub data_type: Option<String>,
 }
 impl std::hash::Hash for TempTableColumn {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -376,7 +376,17 @@ impl<'a> CompletionStatement<'a> {
                         if self.finished() {
                             return;
                         }
-                        for c in insert.columns.iter().chain(insert.after_columns.iter()) {
+                        self.scopes
+                            .current_scope(|s| s.enter_table(None, table_name.clone()));
+
+                        for c in insert.columns.iter() {
+                            let idents = self.object_name_to_idents(c).await;
+                            self.c_on_expr_compound_identifier(&idents).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                        for c in insert.after_columns.iter() {
                             self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
@@ -389,6 +399,9 @@ impl<'a> CompletionStatement<'a> {
                     TableObject::TableFunction(f) => {
                         self.c_on_function_call(f).await;
                     }
+                    TableObject::TableQuery(query) => {
+                        let _ = self.c_on_query(query).await;
+                    }
                 }
                 //
                 if let Some(query) = &insert.source {
@@ -399,15 +412,15 @@ impl<'a> CompletionStatement<'a> {
                 }
 
                 if let Some(alias) = &insert.table_alias {
-                    if self.in_pos(&alias.span) {
+                    if self.in_pos(&alias.alias.span) {
                         self.set_on_def();
                         return;
                     }
                 }
                 if let Some(returning) = &insert.returning {
-                    // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                    // 或 DELETE 语句后返回被操作的行的特定列。
-                    // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                    // In SQL, especially PostgreSQL, the RETURNING keyword returns specified columns from rows affected by an INSERT, UPDATE,
+                    // or DELETE statement.
+                    // This lets you retrieve information, such as the ID of a newly inserted record, immediately after modifying data.
                     self.c_on_select_items(&returning[..]).await;
                     if self.finished() {
                         return;
@@ -519,13 +532,10 @@ impl<'a> CompletionStatement<'a> {
             }) => {
                 let mut joins = vec![table.clone()];
                 if let Some(kind) = from.as_ref() {
-                    joins.extend(
-                        match kind {
-                            UpdateTableFromKind::BeforeSet(items) => items.clone(),
-                            UpdateTableFromKind::AfterSet(items) => items.clone(),
-                        }
-                        .into_iter(),
-                    );
+                    joins.extend(match kind {
+                        UpdateTableFromKind::BeforeSet(items) => items.clone(),
+                        UpdateTableFromKind::AfterSet(items) => items.clone(),
+                    });
                 }
                 self.c_on_table_with_joins(&joins[..]).await;
                 if let Some(selection) = selection {
@@ -664,8 +674,8 @@ impl<'a> CompletionStatement<'a> {
                 self.scopes
                     .current_scope(|s| s.enter_table(None, create_index.table_name.clone()));
 
-                // using 在 PostgreSQL 中，USING 关键字用于指定索引的类型，例如
-                // B-tree、HASH、GIN 等。示例如下： using 用lexer的自动完成即可
+                // In PostgreSQL, the USING keyword specifies the index type, such as
+                // B-tree, HASH, or GIN. Example: using can be completed by the lexer.
 
                 for c in create_index.columns.iter() {
                     self.c_on_order_by_expr(&c.column).await;
@@ -673,10 +683,10 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                // 在 PostgreSQL 中，CREATE INDEX 语句的 INCLUDE
-                // 关键字用于在创建索引时指定额外的列，这些列不会用于索引的排序或查找，
-                // 但会被包含在索引的叶节点中。这种功能主要用于提高查询性能，
-                // 特别是在需要返回额外列的场景中。
+                // In PostgreSQL, the INCLUDE keyword in CREATE INDEX
+                // specifies additional columns when creating an index. These columns are not used for sorting or lookup,
+                // but are included in the index's leaf nodes. This feature primarily improves query performance,
+                // especially when additional columns need to be returned.
                 for i in create_index.include.iter() {
                     self.c_on_column(&create_index.table_name, i, false).await;
                     if self.finished() {
@@ -753,8 +763,8 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
-                // CREATE POLICY 是 PostgreSQL 中用于定义行级安全策略的命令，
-                // 主要适用于表（tables）和视图（views）。通过行级安全，您可以控制用户在表或视图中可访问的行。
+                // CREATE POLICY defines row-level security policies in PostgreSQL,
+                // primarily for tables and views. Row-level security lets you control which rows users can access.
                 self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
@@ -766,7 +776,7 @@ impl<'a> CompletionStatement<'a> {
                     }) {
                         // this postgres specific statement
                         // hit the position
-                        // 是的，CREATE POLICY 语句中的 TO 子句用于指定角色（role）。这允许您定义特定角色对表或视图的访问权限。
+                        // Yes, the TO clause in CREATE POLICY specifies a role, allowing you to define that role's access to a table or view.
                         let mut results: Vec<_> = self.helper.list_role_completion().await;
                         // https://www.postgresql.org/docs/current/sql-createpolicy.html
                         results.extend(
@@ -944,8 +954,8 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::DropSecret { .. } => {
-                // DROP SECRET 并不是 SQL 标准语句，而是部分现代数据库为管理“外部访问密钥”引入的扩展命令，
-                // 用于删除事先通过 CREATE SECRET 注册的凭证对象。目前可见于以下系统
+                // DROP SECRET is not part of the SQL standard. It is an extension command in some modern databases for managing external access credentials,
+                // and removes a credential object previously registered with CREATE SECRET. It is currently available in the following systems.
             }
             Statement::DropPolicy(DropPolicy {
                 table_name, name, ..
@@ -1028,7 +1038,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ShowVariables { filter, .. } => {
-                // 给我的语法结构不好做自动完成
+                // This syntax structure is difficult to autocomplete.
                 // SHOW VARIABLES LIKE 'version';
                 // fallback to lexer
                 if let Some(filter) = filter {
@@ -1071,7 +1081,7 @@ impl<'a> CompletionStatement<'a> {
                     Use::Warehouse(..) => {}
                     Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
                     Use::SecondaryRoles(..) => {
-                        // USE SECONDARY ROLES ALL 是 Snowflake 数据库的 SQL 语句
+                        // USE SECONDARY ROLES ALL is a Snowflake SQL statement.
                     }
                     Use::Object(..) => {
                         // TODO use a table???
@@ -1211,9 +1221,13 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 if let Some(r) = create_f.return_type.as_ref() {
-                    self.c_on_data_type(r).await;
-                    if self.finished() {
-                        return;
+                    match r {
+                        FunctionReturnType::DataType(data_type) => {
+                            self.c_on_data_type(data_type).await
+                        }
+                        FunctionReturnType::SetOf(data_type) => {
+                            self.c_on_data_type(data_type).await
+                        }
                     }
                 }
                 if let Some(x) = create_f.options.as_ref() {
@@ -1283,10 +1297,10 @@ impl<'a> CompletionStatement<'a> {
                 }
                 let mut scope = Scope::default();
                 /*
-                    AI提示词 没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                    AI prompt: There are no NEW/OLD references; instead, use the inserted.col and deleted.col pseudo-tables.
                 */
                 if self.helper.backend_kind() == BackendKind::SqlServer {
-                    // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                    // There are no NEW/OLD references; instead, the inserted and deleted pseudo-tables use inserted.col and deleted.col.
                     scope.enter_table(
                         Some(Ident::new("inserted")),
                         create_trigger.table_name.clone(),
@@ -1515,7 +1529,7 @@ impl<'a> CompletionStatement<'a> {
                         let mut results = self.result.take().unwrap_or_default();
                         let kw = self.helper.key_words_completion().await;
                         // possible
-                        results.extend(kw.into_iter());
+                        results.extend(kw);
                         self.result = Some(results);
                     }
                 }
@@ -1544,8 +1558,8 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ReleaseSavepoint { .. } => {
-                // 我在postgres和mysql都没找到可以查询savepoint的语句
-                // 所以这里不能做
+                // I could not find a statement for querying savepoints in PostgreSQL or MySQL,
+                // so this cannot be implemented here.
             }
             Statement::Merge(Merge {
                 table,
@@ -1688,7 +1702,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::LISTEN { .. } => {
-                // 非常奇怪的命令像是 消息中间件
+                // An unusual command, like one from a message broker.
             }
             Statement::UNLISTEN { .. } => {}
             Statement::NOTIFY { .. } => {}
@@ -1831,6 +1845,34 @@ impl<'a> CompletionStatement<'a> {
             Statement::AlterOperator(..) => {}
             Statement::AlterOperatorFamily(..) => {}
             Statement::AlterOperatorClass(..) => {}
+            Statement::AlterFunction(..) => {}
+            Statement::AlterCollation(..) => {}
+            Statement::CreateCollation(..) => {}
+            Statement::ShowCatalogs { .. } => {}
+            Statement::ShowProcessList { .. } => {}
+            Statement::Lock(..) => {}
+            Statement::Throw(ThrowStatement {
+                error_number,
+                message,
+                state,
+            }) => {
+                if let Some(e) = error_number {
+                    self.c_on_expr(e).await
+                }
+                if let Some(e) = state {
+                    self.c_on_expr(e).await
+                }
+                if let Some(e) = message {
+                    self.c_on_expr(e).await
+                }
+            }
+            Statement::WaitFor(wait_for_statement) => {
+                self.c_on_expr(&wait_for_statement.expr).await;
+            } // Statement::CreateTextSearch(..) => {}
+              // Statement::AlterTextSearch(..) => {}
+              // Statement::CreateFileFormat { .. } => {}
+              // Statement::CreateWarehouse(..) => {}
+              // Statement::Put { .. } => {}
         }
     }
 
@@ -2028,7 +2070,7 @@ impl<'a> CompletionStatement<'a> {
             if self.finished() {}
         }
 
-        // 其他都可以fallback 到lexer的实现
+        // Fall back to the lexer implementation for everything else.
     }
 
     pub(crate) async fn c_on_create_table_like_kind(&mut self, ast: &CreateTableLikeKind) {
@@ -2331,12 +2373,12 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     /*
-    example:
+    Example:
 
     CREATE DOMAIN phone_cn AS text
     CHECK (
-        VALUE ~ '^1[0-9]{10}$'   -- 11 位，1 开头
-        AND VALUE IS NOT NULL        -- 显式拒绝 NULL
+        VALUE ~ '^1[0-9]{10}$'   -- 11 digits, starting with 1
+        AND VALUE IS NOT NULL        -- Explicitly reject NULL
     );*/
     async fn c_on_create_domain(&mut self, ast: &CreateDomain) {
         self.c_on_schema(&ast.name).await;
@@ -2367,25 +2409,6 @@ impl<'a> CompletionStatement<'a> {
     }
 }
 
-use regex::Regex;
-
-/// 从错误字符串中提取 `Line: X, Column: Y`
-pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>, Option<u32>) {
-    // 匹配两种常见格式：
-    // 1. Line: 2, Column: 14
-    // 2. line 2, column 14
-    let error = error.into();
-    let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)")
-        .expect("this regexp must compile");
-    if let Some(caps) = re.captures(&error) {
-        let line = caps.get(1).and_then(|s| s.as_str().parse().ok());
-        let col = caps.get(2).and_then(|s| s.as_str().parse().ok());
-        (line, col)
-    } else {
-        (None, None)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2409,21 +2432,6 @@ mod tests {
         .equal_name(&Ident::new("ABC")));
     }
 
-    #[test]
-    fn test_extract_line_col() {
-        {
-            let err = "Expected: SELECT, VALUES, or a subquery in the query body, found: from at Line: 2, Column: 14";
-            let (line, col) = sqlparser_err_extract_line_col(err);
-            assert_eq!(line, Some(2));
-            assert_eq!(col, Some(14));
-        }
-        {
-            let err = "Expected: an SQL statement, found: 3.14 at Line: 3, Column: 22";
-            let (line, col) = sqlparser_err_extract_line_col(err);
-            assert_eq!(line, Some(3));
-            assert_eq!(col, Some(22));
-        }
-    }
     #[ignore = "this is just a test for me"]
     #[test]
     fn test_sql_statement() {

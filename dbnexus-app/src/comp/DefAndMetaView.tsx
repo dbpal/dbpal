@@ -1,19 +1,13 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { DataSourceKind, TabContext } from "./helper";
-
-import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
-import { Chip, CircularProgress, Stack, Tooltip } from "@mui/material";
-import { useNotification, useQueryExtraUI } from "./store";
+import { CircularProgress, Stack } from "@mui/material";
+import { useNotification } from "./store";
 import { DefAndMetas, MetaValue, TriggerDetail } from "./bindings";
+import { AppCode } from "./CommonComp2";
 
-function DefAndMetasView(props: {
-  reloadOP: () => Promise<DefAndMetas>;
-  uuid: string;
-  kind: DataSourceKind;
-}) {
-  const { reloadOP, kind, uuid } = props;
+function DefAndMetasView(props: { reloadOP: () => Promise<DefAndMetas> }) {
+  const { reloadOP } = props;
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: "",
@@ -43,33 +37,6 @@ function DefAndMetasView(props: {
     },
     [reloadOP, showNotification],
   );
-  const tabCtx = useContext(TabContext);
-  const { setExtra, removeExtra } = useQueryExtraUI();
-  useEffect(() => {
-    setExtra(
-      tabCtx.id,
-      detail.metas.length > 0 ? (
-        <Tooltip
-          title={
-            <Stack style={{ width: "100%", height: "40vh" }}>
-              <MetaValueView values={detail.metas} showToolbar />
-            </Stack>
-          }
-          slotProps={{
-            tooltip: {
-              style: { width: "1550px" },
-            },
-          }}>
-          <Chip label="some meta " />
-        </Tooltip>
-      ) : null,
-    );
-  }, [detail.metas, setExtra, tabCtx.id]);
-  useEffect(() => {
-    return () => {
-      removeExtra(tabCtx.id);
-    };
-  }, [removeExtra, tabCtx.id]);
 
   useEffect(() => {
     handleReload(false);
@@ -79,7 +46,10 @@ function DefAndMetasView(props: {
     <>
       <Stack sx={{ height: "100%" }}>
         {loading && <CircularProgress />}
-        <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
+        <AppCode codeBlock={detail.def} language="sql" />
+        {detail.metas && detail.metas.length > 0 && (
+          <MetaValueView values={detail.metas} />
+        )}
       </Stack>
     </>
   );
@@ -112,15 +82,10 @@ function triggerDetailsToMetas(x: TriggerDetail): MetaValue[] {
   return ret;
 }
 
-function TriggerDetailView(props: {
-  reloadOP: () => Promise<TriggerDetail>;
-  uuid: string;
-  kind: DataSourceKind;
-}) {
-  const { reloadOP, uuid, kind } = props;
+function TriggerDetailView(props: { reloadOP: () => Promise<TriggerDetail> }) {
+  const { reloadOP } = props;
   return (
     <DefAndMetasView
-      kind={kind}
       reloadOP={async () => {
         return reloadOP().then((detail) => {
           return {
@@ -130,7 +95,6 @@ function TriggerDetailView(props: {
           };
         });
       }}
-      uuid={uuid}
     />
   );
 }

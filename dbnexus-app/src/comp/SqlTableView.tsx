@@ -1,17 +1,13 @@
-import {
-  createContext,
+import React, {
   Dispatch,
   SetStateAction,
   useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-
-import { FaUpload } from "react-icons/fa";
-import CancelIcon from "@mui/icons-material/Cancel";
+import { ArrowOutwardIcon, CancelIcon, FaUpload, MdOutlineReply } from "./icons";
 import {
   Box,
   Button,
@@ -28,15 +24,11 @@ import {
   MenuList,
   Modal,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 
-import { MdOutlineReply } from "react-icons/md";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import EditIcon from "@mui/icons-material/Edit";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { VisibilityIcon, EditIcon } from "./icons";
 
 import {
   EscDownEvent,
@@ -46,16 +38,17 @@ import {
   modalStyle,
   reloadOK,
 } from "./Common";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import KeyIcon from "@mui/icons-material/Key";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV } from "react-icons/fa";
+import {
+  DeleteForeverIcon,
+  KeyIcon,
+  ArrowUpwardIcon,
+  ArrowDownwardIcon,
+  FilterAltIcon,
+  FaArrowsAltV,
+} from "./icons";
 import {
   DataSourceKind,
   handleCopyToClipboard,
-  isTypeLargeText,
   secondConfirm,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
@@ -65,24 +58,37 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   TabContext,
+  clickDataGridColumn,
+  AppColumnMenuCtx,
+  DatabaseOperation,
+  DatabaseOpKind,
+  gridColumnHeaderSelectClassName,
+  allGridHeaderTitle,
+  columnHeaderStyle,
+  SqlOpContext,
+  DbnameContext,
+  TabContent,
+  getRowIdOnKeyNotInTable,
 } from "./helper";
-import { FaCopy } from "react-icons/fa6";
-import FileCopyIcon from "@mui/icons-material/FileCopy";
+import { FileCopyIcon, MdEditNote } from "./icons";
 import {
   AppColumnMenu,
+  ExportTableOnTheFilterSort,
   ModalHeader,
   ResetColumnWidth,
+  SqlExportTableOnFilterSortNotice,
   ViewRowInModal,
 } from "./CommonComp";
 
 import { editor } from "monaco-editor";
-import wcmatch from "wildcard-match";
-import { MdEditNote } from "react-icons/md";
+
 import {
+  AppCode,
   AppDataGridPagination,
   AppDataGridToolBar,
-  ClearableTextField,
+  CopyAsXXX,
   CopySql,
+  ExportQueryResultToFile,
   FetchTimeDataGrid,
   ListenElementSize,
   QueryStatus,
@@ -90,26 +96,26 @@ import {
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
+  SqlTableViewData,
   StackRowCenter,
 } from "./CommonComp2";
 import { showTable } from "./handlers";
-import { AddTableModal } from "./LeftTable";
+import { AddTableModal, openNewTableStructure } from "./LeftTable";
 import {
   useColumnWidthStore,
   useConfirmMsg,
   useContextMenu,
   useEditInModalLanguageStore,
   useNotification,
-  useOneShotDialogUI,
   usePageSize,
   UseSizeConfig,
   useSizeStore,
-  useSqlDataFilter,
   useSqlTableFilterOp,
   useTableColumnVisibleStore,
+  useTabsManage,
 } from "./store";
-import { commands, Field, MuiDataGridData } from "./bindings";
-import { ExportTableOrView } from "./Export";
+import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
+import { UploadIcon } from "./icons";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -124,6 +130,7 @@ import {
   useGridApiRef,
   useGridSelector,
 } from "./datagridExport";
+import { SqlCreateTableImportFile } from "./CreateTable";
 
 const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   const hasPri = !!fields.find((x) => x.is_primary);
@@ -137,7 +144,7 @@ const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   });
 };
 
-const getRowId = (e) => e[keyNotInTable];
+const editorInModalLangs = ["text", "html", "json", "xml"];
 
 function EditInModal(props: {
   content: string;
@@ -146,18 +153,15 @@ function EditInModal(props: {
 }) {
   const { content, handleModify, handleClose } = props;
 
-  const langs = useMemo(() => {
-    return ["text", "html", "json", "xml"];
-  }, []);
   const { editingRowLanguage, setEditingRowLanguage } = useEditInModalLanguageStore();
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [editInModalBox, setEditInModalBox] = useState(null);
 
   useEffect(() => {
     if (!editingRowLanguage) {
-      setEditingRowLanguage(langs[0]);
+      setEditingRowLanguage(editorInModalLangs[0]);
     }
-  }, [editingRowLanguage, langs, setEditingRowLanguage]);
+  }, [editingRowLanguage, setEditingRowLanguage]);
 
   return (
     <Modal
@@ -178,7 +182,7 @@ function EditInModal(props: {
         <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
         <Stack style={{ flex: 1 }}>
           <Stack direction="row">
-            {langs.map((lang) => (
+            {editorInModalLangs.map((lang) => (
               <Chip
                 key={lang}
                 label={lang}
@@ -220,19 +224,6 @@ class EditInModalCellData {
   ) {}
 }
 
-enum DatabaseOpKind {
-  Update,
-  Delete,
-}
-
-class DatabaseOperation {
-  public constructor(
-    public op: DatabaseOpKind,
-    public sql: string,
-    public tableId: string,
-    public newValue: object | null,
-  ) {}
-}
 function tryGetId(data: object, fields: Field[]) {
   let pf = fields.filter((e) => e.is_primary);
   if (pf.length == 0) {
@@ -247,14 +238,12 @@ interface SqlTableCustomToolBarLeftProps {
   setWhere: (val: string) => void;
   sort: string;
   setSort: (val: string) => void;
-  kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
+  kind: DataSourceKind; // Assumes you have already defined this enum or type.
   allowFiltering: boolean;
   setAllowFiltering: Dispatch<SetStateAction<boolean>>;
-  isTable: boolean;
-  uuid: string;
   tableName: string;
 }
-// 建议放在文件顶部，或者单独的文件中
+// Consider placing this at the top of the file or in a separate file.
 function SqlTableCustomToolBarLeft({
   handleReload,
   where,
@@ -264,20 +253,18 @@ function SqlTableCustomToolBarLeft({
   kind,
   allowFiltering,
   setAllowFiltering,
-  isTable,
-  uuid,
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
-  // 获取 DataGrid 内部的 api 实例
-
-  const { ops, setOps } = useContext(OpsContext);
+  // Get the DataGrid's internal API instance.
+  const { dbName } = useContext(DbnameContext);
+  const { ops, setOps } = useContext(SqlOpContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [showSetSort, setShowSetSort] = useState(false);
 
   const { showNotification } = useNotification();
 
-  // 使用选择器获取当前的 loading 状态
+  // Use the selector to get the current loading state.
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
   return (
@@ -288,47 +275,13 @@ function SqlTableCustomToolBarLeft({
         onClick={() => handleReload(true)}
       />
 
-      {showSetWhere && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetWhere}
-          value={where}
-          setValue={(v) => {
-            setWhere(v);
-          }}
-          handleClose={() => {
-            setShowSetWhere(false);
-          }}
-          label="filter"
-          kind={kind}
-          uuid={uuid}
-        />
-      )}
-
-      {showSetSort && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetSort}
-          value={sort}
-          setValue={(v) => {
-            setSort(v);
-          }}
-          kind={kind}
-          handleClose={() => {
-            setShowSetSort(false);
-          }}
-          label="sort"
-          uuid={uuid}
-        />
-      )}
-
       <Tooltip title={where ? where : "filter something like 'age=18'"}>
         <Chip
-          label={where}
+          label={where ? where : "..."}
           onClick={() => setShowSetWhere(true)}
           style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
           size="medium"
-          color="primary"
+          color="success"
           icon={<FilterAltIcon />}
           onDelete={where ? () => setWhere("") : undefined}
         />
@@ -336,7 +289,7 @@ function SqlTableCustomToolBarLeft({
 
       <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
         <Chip
-          label={sort}
+          label={sort ? sort : "..."}
           onClick={() => setShowSetSort(true)}
           style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
           size="medium"
@@ -359,7 +312,6 @@ function SqlTableCustomToolBarLeft({
         />
       )}
 
-      {isTable && <AddTableModal kind={kind} tableName={tableName} uuid={uuid} />}
       {ops.length > 0 && (
         <>
           <Tooltip
@@ -374,13 +326,12 @@ function SqlTableCustomToolBarLeft({
               {ops.map((x, index) => (
                 <CopySql sql={x.sql} key={index} />
               ))}
-              <Typography style={{ fontWeight: "bold" }}> apply all </Typography>
             </>>
             <IconButton
               onClick={async () => {
                 for (const op of ops) {
                   try {
-                    await commands.simpleExecuteSql(uuid, op.sql);
+                    await commands.simpleExecuteSql(dbName, op.sql);
                     showNotification({
                       severity: "success",
                       message: <CopySql sql={op.sql} />,
@@ -417,17 +368,83 @@ function SqlTableCustomToolBarLeft({
           </IconButton>
         </>
       )}
+      {showSetWhere && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetWhere}
+          value={where}
+          setValue={(v) => {
+            setWhere(v);
+          }}
+          handleClose={() => {
+            setShowSetWhere(false);
+          }}
+          label="filter"
+          kind={kind}
+        />
+      )}
+
+      {showSetSort && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetSort}
+          value={sort}
+          setValue={(v) => {
+            setSort(v);
+          }}
+          kind={kind}
+          handleClose={() => {
+            setShowSetSort(false);
+          }}
+          label="sort"
+        />
+      )}
     </Stack>
   );
 }
 
-type CustomPaginationProps = { resp: MuiDataGridData; clientModel: boolean };
-export function CustomPagination({
-  dbpal: { resp, clientModel },
+type CustomPaginationProps = {
+  resp: MuiDataGridData;
+  clientModel: boolean;
+  kind: DataSourceKind;
+  table: string;
+  isTable: boolean;
+  para: ShowTableParameter;
+};
+function ImportDataFromFile(props: {
+  table: string;
+  dbname: string;
+  kind: DataSourceKind;
+}) {
+  const { appendTab } = useTabsManage();
+  const { dbname, table, kind } = props;
+  return (
+    <IconButton
+      color="success"
+      onClick={async () => {
+        appendTab(
+          new TabContent(
+            table,
+            <SqlCreateTableImportFile hasTableName={table} />,
+            <UploadIcon />,
+            dbname,
+            kind,
+          ),
+        );
+      }}>
+      <UploadIcon />
+    </IconButton>
+  );
+}
+
+function SqlTablePagination_({
+  dbpal: { resp, clientModel, kind, table, isTable, para },
 }: {
   dbpal: CustomPaginationProps;
 }) {
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
+  const { appendTab } = useTabsManage();
   return (
     <Stack
       direction="row"
@@ -438,9 +455,31 @@ export function CustomPagination({
         overflow: "auto",
       }}>
       <Stack direction="row" sx={{ alignItems: "center", flex: 1 }}>
+        {isTable && (
+          <Button
+            onClick={() => {
+              openNewTableStructure(appendTab, dbName, kind, table);
+            }}
+            variant="outlined">
+            structure
+            <ArrowOutwardIcon />
+          </Button>
+        )}
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
+        {isTable && <ImportDataFromFile table={table} dbname={dbName} kind={kind} />}
+
+        <ExportQueryResultToFile />
+
+        <ExportTableOnTheFilterSort
+          tableName={table}
+          isTable={isTable}
+          para={para}
+          extraUI=<SqlExportTableOnFilterSortNotice />
+        />
+
+        {isTable && <AddTableModal kind={kind} tableName={table} />}
         {resp.sql && (
           <Tooltip title={resp.sql}>
             <Typography
@@ -459,12 +498,15 @@ export function CustomPagination({
             result {resp.data.length} of {resp.total}
           </Typography>
         )}
+        {clientModel && <Typography>Rows:{resp.data.length}</Typography>}
 
         <AppDataGridPagination showPageSelect />
       </Stack>
     </Stack>
   );
 }
+
+export const SqlTablePagination = React.memo(SqlTablePagination_);
 
 function EditRowInModal(props: {
   handleClose: () => void;
@@ -510,23 +552,14 @@ function EditRowInModal(props: {
   );
 }
 
-const OpsContext = createContext<{
-  ops: DatabaseOperation[];
-  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
-  fields: Field[];
-  uuid: string;
-  handleReload: () => void;
-  clickedField: string;
-}>(null);
-
 function CellButtons(props: {
   op: DatabaseOperation;
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
-  uuid: string;
   firstField: boolean;
   handleReload: () => void;
 }) {
-  const { op, setOps, uuid, firstField, handleReload } = props;
+  const { op, setOps, firstField, handleReload } = props;
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   return (
     firstField && (
@@ -538,7 +571,7 @@ function CellButtons(props: {
           <IconButton
             onClick={async () => {
               try {
-                await commands.simpleExecuteSql(uuid, op.sql);
+                await commands.simpleExecuteSql(dbName, op.sql);
                 setOps((ops) => ops.filter((x) => x != op));
                 showNotification({
                   severity: "success",
@@ -570,8 +603,7 @@ function CellButtons(props: {
 
 function CustomCell(props: GridRenderCellParams) {
   const { row, field } = props;
-  const { ops, setOps, fields, uuid, handleReload, clickedField } =
-    useContext(OpsContext);
+  const { ops, setOps, fields, handleReload } = useContext(SqlOpContext);
   let dbId = tryGetId(row, fields);
   const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
   const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
@@ -585,7 +617,6 @@ function CustomCell(props: GridRenderCellParams) {
         {...dataField}
         style={{ alignItems: "center" }}>
         <CellButtons
-          uuid={uuid}
           setOps={setOps}
           op={deleted}
           handleReload={handleReload}
@@ -606,7 +637,6 @@ function CustomCell(props: GridRenderCellParams) {
         style={{ alignItems: "center" }}
         {...dataField}>
         <CellButtons
-          uuid={uuid}
           setOps={setOps}
           op={modified}
           handleReload={handleReload}
@@ -632,55 +662,47 @@ function CustomCell(props: GridRenderCellParams) {
       </Stack>
     );
   }
-  if (field == clickedField) {
-    return (
-      <Typography {...dataField} style={{ background: " #c8e6c9", color: "black" }}>
-        {row[field]}
-      </Typography>
-    );
-  }
   return <Typography {...dataField}>{row[field]}</Typography>;
 }
-function SqlTableView(props: {
-  kind: DataSourceKind;
+function SqlTableView_(props: {
   tableName: string;
-  uuid: string;
+
   isTable: boolean;
 }) {
-  const { kind, tableName, uuid, isTable } = props;
+  const { tableName, isTable } = props;
+  const { dbName, kind } = useContext(DbnameContext);
   const getUpdateSql = useCallback(
     (x, y) => {
-      return commands.tableUpdateSql(uuid, tableName, x, y);
+      return commands.tableUpdateSql(dbName, tableName, x, y);
     },
-    [tableName, uuid],
+    [tableName, dbName],
   );
   const getDeleteSql = useCallback(
     (x) => {
-      return commands.tableDeleteSql(uuid, tableName, x);
+      return commands.tableDeleteSql(dbName, tableName, x);
     },
-    [tableName, uuid],
+    [tableName, dbName],
   );
-  const putValueInSql = useCallback(
+  const sqlEncodeValue = useCallback(
     (typ, x) => {
-      return commands.putValueInSql(uuid, typ, x);
+      return commands.sqlEncodeValue(dbName, typ, x);
     },
-    [uuid],
+    [dbName],
   );
   const addOP = useCallback(
     async (x) => {
-      await commands.tableInsert(uuid, tableName, x);
+      await commands.tableInsert(dbName, tableName, x);
     },
-    [uuid, tableName],
+    [dbName, tableName],
   );
 
   const [loading, setLoading] = useState(false);
-  const [where, setWhere] = useState("");
+  const [filter, setFilter] = useState("");
 
   const [sort, setSort] = useState("");
 
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize();
-  const { setUi } = useOneShotDialogUI();
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -711,10 +733,11 @@ function SqlTableView(props: {
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [queryStatus, setQueryStatus] = useState("");
-  const [clickedField, setClickedField] = useState("");
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [showClone, setShowClone] = useState<object>(null);
   const getSize = useSizeStore((s) => s.getSize);
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+
   const [showFilter, setShowFilter] = useState<{
     field: string;
     content: string;
@@ -739,7 +762,6 @@ function SqlTableView(props: {
           const makeTitle = (): string => {
             let ret = field.field + " ";
             ret += field.data_type;
-
             if (!isTable) {
               return ret;
             }
@@ -758,18 +780,21 @@ function SqlTableView(props: {
           };
           return (
             <Stack
-              onClick={(e) => {
-                e.stopPropagation();
-                setClickedField(field.field);
+              style={{
+                alignItems: "center",
+                ...columnHeaderStyle,
               }}
-              style={{ alignItems: "center" }}
-              direction="row">
+              direction="row"
+              onClick={(event) => {
+                event.stopPropagation();
+                clickDataGridColumn(apiRef, event, field.field, setSelectColumns);
+              }}>
+              {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
               <Tooltip title={makeTitle()}>
                 <Typography style={{ fontSize: dataGridheaderFontSize }}>
                   {field.field}
                 </Typography>
               </Tooltip>
-              {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
             </Stack>
           );
         };
@@ -777,21 +802,21 @@ function SqlTableView(props: {
       }
       setResp(resp);
     },
-    [getColumnWidth, isTable],
+    [apiRef, getColumnWidth, isTable],
   );
 
   const makePara = useCallback(() => {
-    const where_str = where.trim();
-    let order_by = sort.trim();
+    const filterStr = filter.trim();
+    let sortStr = sort.trim();
     return {
-      where_str: where_str ? where_str : null,
-      order_by: order_by ? order_by : null,
+      where_str: filterStr ? filterStr : null,
+      order_by: sortStr ? sortStr : null,
       page: page + 1,
       page_size: pageSize,
       allow_filtering: allowFiltering,
       limit: getSize(UseSizeConfig.queryLimit),
     };
-  }, [allowFiltering, getSize, page, pageSize, sort, where]);
+  }, [allowFiltering, getSize, page, pageSize, sort, filter]);
   const handleReload = useCallback(
     (showOK: boolean) => {
       switch (kind) {
@@ -803,7 +828,7 @@ function SqlTableView(props: {
         setStatus: setQueryStatus,
         name: tableName,
         isView: !isTable,
-        uuid,
+        dbName,
         setLoading,
         okCallBack: showOK
           ? () => {
@@ -818,13 +843,12 @@ function SqlTableView(props: {
         },
       });
     },
-    [handleResp, isTable, kind, makePara, showNotification, tableName, uuid],
+    [handleResp, isTable, kind, makePara, showNotification, tableName, dbName],
   );
 
   const rowHasOP = useCallback(
     (row: object) => {
       let id = tryGetId(row, resp.fields);
-
       return ops.find((e) => e.tableId == id);
     },
     [ops, resp.fields],
@@ -844,6 +868,10 @@ function SqlTableView(props: {
       const findDiff = (): Map<string, string | null> => {
         const m = new Map();
         for (const key in newRow) {
+          // Check whether both are null; this is a defensive check.
+          if (!newRow[key] && !oldRow[key]) {
+            continue;
+          }
           if (newRow[key] != oldRow[key]) {
             m.set(key, newRow[key]);
           }
@@ -911,7 +939,7 @@ function SqlTableView(props: {
   );
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, where, sort, allowFiltering, handleReload]);
+  }, [page, pageSize, filter, sort, allowFiltering, handleReload]);
 
   const paginationModel = useMemo(() => {
     return { page, pageSize };
@@ -919,7 +947,10 @@ function SqlTableView(props: {
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
-      if (reason.reason == "setPaginationModel") {
+      if (e.pageSize > 100) {
+        console.error("should not have page size greater than 100");
+      }
+      if (reason.reason == "setPaginationModel" && e.pageSize <= 100) {
         setPageSize("sql", e.pageSize);
       }
     },
@@ -951,19 +982,11 @@ function SqlTableView(props: {
     [showNotification],
   );
 
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
-
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
-          console.log("xxxxx", field);
           if (!field) {
             return;
           }
@@ -971,15 +994,26 @@ function SqlTableView(props: {
           const content = row[field];
           const nullable =
             resp.fields.find((e) => e.field == field).nullable && !!content;
+          const fieldDef = resp.fields.find((x) => x.field == field);
+
           setUpMenu({
             content: (
-              <Menu
+              <CellMenu
+                getRow={() => {
+                  const ret = {};
+                  for (const f of apiRef.current.getAllColumns()) {
+                    ret[f.field] = apiRef.current.getCellValue(id, f.field);
+                  }
+                  return ret;
+                }}
                 kind={kind}
                 editCellInModal={() => {
                   setEditCellInModal(
                     new EditInModalCellData(row, field, row[field], parseInt(id)),
                   );
                 }}
+                dbName={dbName}
+                fieldType={fieldDef.data_type}
                 editRowInModal={() => {
                   setRowEditInModal(row);
                 }}
@@ -1025,42 +1059,48 @@ function SqlTableView(props: {
         },
         style: { cursor: "context-menu" },
       },
-
       pagination: {
         dbpal: (function (): CustomPaginationProps {
-          return { resp, clientModel };
+          return {
+            resp,
+            clientModel,
+            kind,
+            table: tableName,
+            isTable,
+            para: makePara(),
+          };
         })(),
       },
       toolbar: {
         dbpal: (function (): SqlTableCustomToolBarLeftProps {
           return {
             handleReload,
-            where,
-            setWhere,
+            where: filter,
+            setWhere: setFilter,
             sort,
             setSort,
             kind,
             allowFiltering,
             setAllowFiltering,
-            isTable,
             tableName,
-            uuid,
           };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [
     resp,
     setUpMenu,
     kind,
+    dbName,
     isTable,
-    uuid,
-    tableName,
+    apiRef,
     handleDelete,
     handleProcessRowUpdate,
     clientModel,
+    tableName,
+    makePara,
     handleReload,
-    where,
+    filter,
     sort,
     allowFiltering,
   ]);
@@ -1073,77 +1113,94 @@ function SqlTableView(props: {
       }: GridSlotProps["toolbar"] & { dbpal: SqlTableCustomToolBarLeftProps }) => {
         return (
           <AppDataGridToolBar
-            title={tableName}
-            right=<>
-              <IconButton
-                onClick={() => {
-                  setUi(
-                    <ExportTableOrView
-                      uuid={uuid}
-                      name={tableName}
-                      kind={kind}
-                      isTable={isTable}
-                      para={makePara()}
-                    />,
-                  );
-                }}>
-                <ArrowCircleDownIcon />
-              </IconButton>
-            </>
+            titleName={tableName}
             left=<SqlTableCustomToolBarLeft {...dbpal} />
           />
         );
       },
-      pagination: CustomPagination,
+      pagination: SqlTablePagination,
     };
-  }, [isTable, kind, makePara, setUi, tableName, uuid]);
+  }, [tableName]);
+
   const sortModel = clientModel ? "client" : "server";
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+
+  const onCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+
+  const columnVisibilityModel = useMemo(() => {
+    return getColumnVisibility(dbName, tableName);
+  }, [dbName, getColumnVisibility, tableName]);
+
+  const onColumnVisibilityModelChange = useCallback(
+    (e) => {
+      setColumnVisibility(dbName, tableName, e);
+    },
+    [dbName, setColumnVisibility, tableName],
+  );
+
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-      <OpsContext
+
+      <SqlOpContext
         value={{
           ops,
           setOps,
-          fields: resp.fields,
-          uuid,
           handleReload: () => {
             handleReload(false);
           },
-          clickedField: clickedField,
+          fields: resp.fields,
         }}>
-        <DataGrid
-          slots={slots}
-          apiRef={apiRef}
-          onCellClick={() => {
-            setClickedField("");
-          }}
-          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, tableName, e);
-          }}
-          slotProps={slotProps}
-          style={dataGridStyle}
-          getRowId={getRowId}
-          paginationModel={clientModel ? undefined : paginationModel}
-          pageSizeOptions={pageSizeOptions}
-          paginationMode={sortModel}
-          onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
-          checkboxSelection={false}
-          rowCount={clientModel ? resp.data.length : resp.total}
-          sortingMode={clientModel ? "client" : "server"}
-          onSortModelChange={clientModel ? undefined : onSortModelChange}
-          columns={resp.fields}
-          rows={resp.data}
-          onColumnResize={onColumnResize}
-          processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
-          onProcessRowUpdateError={onProcessRowUpdateError}
-          loading={loading}
-        />
-      </OpsContext>
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+          }}>
+          <DataGrid
+            getCellClassName={getCellClassName}
+            onCellClick={onCellClick}
+            slots={slots}
+            apiRef={apiRef}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+            slotProps={slotProps}
+            style={dataGridStyle}
+            getRowId={getRowIdOnKeyNotInTable}
+            paginationModel={clientModel ? undefined : paginationModel}
+            pageSizeOptions={pageSizeOptions}
+            paginationMode={sortModel}
+            onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
+            checkboxSelection={false}
+            rowCount={clientModel ? resp.data.length : resp.total}
+            sortingMode={clientModel ? "client" : "server"}
+            onSortModelChange={clientModel ? undefined : onSortModelChange}
+            columns={resp.fields}
+            rows={resp.data}
+            processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
+            onProcessRowUpdateError={onProcessRowUpdateError}
+            loading={loading}
+          />
+        </AppColumnMenuCtx>
+      </SqlOpContext>
 
       <ViewRowInModal
         data={viewInModal}
@@ -1180,14 +1237,14 @@ function SqlTableView(props: {
           <DialogTitle> Quick filter </DialogTitle>
           <FilterOnValue
             content={showFilter.content}
-            setWhere={setWhere}
+            setWhere={setFilter}
             field={showFilter.field}
             kind={kind}
             handleClose={() => {
               setShowFilter(null);
             }}
             putValueInSql={(value) => {
-              return putValueInSql(showFilter.typ, value);
+              return sqlEncodeValue(showFilter.typ, value);
             }}
           />
         </Dialog>
@@ -1218,13 +1275,14 @@ function SqlTableView(props: {
                 setShowClone(null);
               }}
             />
-            <SqlTableViewData
-              buttonName="add"
-              handleData={addOP}
-              fields={resp.fields}
-              handleClose={() => setShowClone(null)}
+            <CloneRow
               initValues={showClone}
-              isAdd
+              handleClose={() => {
+                setShowClone(null);
+              }}
+              fields={resp.fields}
+              addOP={addOP}
+              table={tableName}
             />
           </Box>
         </Modal>
@@ -1233,149 +1291,61 @@ function SqlTableView(props: {
   );
 }
 
-function SqlTableViewData(props: {
-  handleData: (args: any) => Promise<void>;
+function CloneRow(props: {
+  addOP;
   fields: Field[];
-  initValues?: object;
-  buttonName;
-  isAdd: boolean;
-  handleClose?: () => void;
+  handleClose: () => void;
+  initValues;
+
+  table: string;
 }) {
-  let { handleData, fields, initValues, buttonName, isAdd, handleClose } = props;
-  if (!initValues) {
-    initValues = {};
-  }
-  fields.forEach((e) => {
-    if (e.is_auto_increment && isAdd) {
-      initValues[e.field] = "";
-    }
-  });
-  const { filter, setFilter } = useSqlDataFilter();
-
-  const filterFn = useMemo(() => {
-    return filter
-      ? wcmatch("*" + filter + "*", { flags: "i" })
-      : () => {
-          return true;
-        };
-  }, [filter]);
-
-  const [loading, setLoading] = useState(false);
-  const [args, setArgs] = useState(initValues);
+  const { dbName } = useContext(DbnameContext);
+  const { addOP, fields, handleClose, initValues, table } = props;
+  const [sql, setSql] = useState("");
   const { showNotification } = useNotification();
-  const inputDoms = useRef({});
-
-  const handleModify = () => {
-    const argsclone = { ...args };
-    for (let i = 0; i < fields.length; i++) {
-      const f = fields[i];
-      if (f.is_auto_increment) {
-        continue;
-      }
-      if (!argsclone[f.field] && !f.nullable && !f.default_value) {
-        inputDoms.current[f.field].focus();
-        showNotification({
-          severity: "error",
-          title: `filed '${f.field}' need be filled`,
-        });
-        return;
-      }
-    }
-    for (const key in argsclone) {
-      if (!argsclone[key]) {
-        // make sure '' convert to null
-        argsclone[key] = null;
-      }
-    }
-    setLoading(true);
-    handleData(argsclone)
-      .then(() => {
-        console.log("handle value success");
-        showNotification({ severity: "success", title: `${buttonName} OK` });
-        if (handleClose) {
-          handleClose();
-        }
+  const handleGenSql = (values) => {
+    commands
+      .tableInsertSql(dbName, table, values)
+      .then((sql) => {
+        setSql(sql);
       })
       .catch((e) => {
-        console.error("handle value failure", e);
         showNotification({
           severity: "error",
-          title: `${buttonName} failure`,
+          title: "generate sql failed",
           message: e,
         });
-      })
-      .finally(() => {
-        setLoading(false);
       });
   };
-
   return (
     <Stack>
-      {fields
-        .filter(
-          (f) =>
-            filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
-        )
-        .map((f) => {
-          return (
-            <Stack
-              key={f.field}
-              direction="row"
-              sx={{ alignContent: "center", justifyContent: "center" }}>
-              <TextField
-                inputRef={(x) => {
-                  inputDoms.current[f.field] = x;
-                }}
-                disabled={f.is_auto_increment}
-                value={args[f.field]}
-                helperText={
-                  f.data_type +
-                  " " +
-                  (f.nullable ? "null" : "not null") +
-                  " " +
-                  (f.is_auto_increment ? "auto increment" : "") +
-                  " " +
-                  (f.default_value ? `default ${f.default_value}` : "")
-                }
-                required={!f.nullable}
-                label={f.field}
-                multiline={isTypeLargeText(f.data_type)}
-                rows={4}
-                fullWidth
-                onChange={(e) => {
-                  const value = e.target.value;
-                  const newArgs = { ...args };
-                  newArgs[f.field] = value;
-                  setArgs(newArgs);
-                }}
-              />
-            </Stack>
-          );
-        })}
-      <Divider />
-      <Stack direction="row" style={{ alignItems: "flex-start" }}>
-        <Button loading={loading} onClick={handleModify}>
-          {buttonName}
-        </Button>
-        <ClearableTextField
-          value={filter}
-          onChange={(e) => {
-            setFilter(e.target.value);
-          }}
-          label="filter"
-          fullWidth
-          helperText="can match field name and content"
-          onClear={() => {
-            setFilter("");
-          }}
-        />
-      </Stack>
+      {sql && <AppCode codeBlock={sql} language="sql" />}
+      <SqlTableViewData
+        buttonName="add"
+        handleData={addOP}
+        fields={fields}
+        handleClose={handleClose}
+        initValues={initValues}
+        isAdd
+        extraButtons={[
+          {
+            name: "gen sql",
+            handleValue: (x) => {
+              handleGenSql(x);
+            },
+          },
+        ]}
+      />
     </Stack>
   );
 }
 
-function Menu(props: {
+const SqlTableView = React.memo(SqlTableView_);
+
+function CellMenu(props: {
+  dbName: string;
   field: string;
+  fieldType: string;
   content: string;
   handleDelete?: () => void;
   setSort: Dispatch<SetStateAction<string>>;
@@ -1388,6 +1358,7 @@ function Menu(props: {
   isTable: boolean;
   setShowFilter: () => void;
   setShowClone: () => void;
+  getRow: () => object;
 }) {
   const {
     field,
@@ -1403,9 +1374,11 @@ function Menu(props: {
     isTable,
     setShowFilter,
     setShowClone,
+    dbName,
+    fieldType,
+    getRow,
   } = props;
 
-  const { showNotification } = useNotification();
   const quoteField = quoteDatabaseIdentifier(field, kind);
 
   return (
@@ -1452,19 +1425,13 @@ function Menu(props: {
         </ListItemIcon>
         <ListItemText> View in Modal </ListItemText>
       </MenuItem>
-
-      {content && (
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}>
-          <ListItemIcon>
-            <FaCopy fontSize="1.4rem" />
-          </ListItemIcon>
-          <ListItemText> Copy </ListItemText>
-        </MenuItem>
-      )}
-
+      <CopyAsXXX
+        dbName={dbName}
+        field={field}
+        fieldType={fieldType}
+        getRow={getRow}
+        content={content}
+      />
       <Divider />
       <MenuItem
         onClick={() => {
@@ -1511,9 +1478,11 @@ function Menu(props: {
       {isTable && (
         <MenuItem onClick={handleDelete}>
           <ListItemIcon>
-            <DeleteForeverIcon />
+            <DeleteForeverIcon color="warning" />
           </ListItemIcon>
-          <ListItemText> Delete Row</ListItemText>
+          <ListItemText>
+            <Typography color="warning"> Delete Row </Typography>
+          </ListItemText>
         </MenuItem>
       )}
     </MenuList>
@@ -1582,18 +1551,23 @@ function FilterOnValue(props: {
           />
         ))}
       </Stack>
-      <Stack direction="row">
-        {["null", "not null"].map((e) => (
-          <Chip
-            label={e}
-            color={filter == e ? "success" : "default"}
-            onClick={() => {
-              setFilter(e);
-            }}
-            key={e}
-          />
-        ))}
-      </Stack>
+
+      {/* cassandra not support this syntax  */}
+      {kind != DataSourceKind.Cassandra && (
+        <Stack direction="row">
+          {["null", "not null"].map((e) => (
+            <Chip
+              label={e}
+              color={filter == e ? "success" : "default"}
+              onClick={() => {
+                setFilter(e);
+              }}
+              key={e}
+            />
+          ))}
+        </Stack>
+      )}
+
       {formatValue.endsWith("'") && (
         <Stack direction="row">
           {["starts", "ends", "contains"].map((e) => (

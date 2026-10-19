@@ -1,4 +1,4 @@
-/// TiDB 关键字全集（含保留/非保留）
+/// Complete TiDB keyword list (reserved and non-reserved).
 pub const TIDB_KEYWORDS: &[&str] = &[
     "ACCOUNT",
     "ACTION",
@@ -700,7 +700,7 @@ pub const TIDB_KEYWORDS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::{MysqlDBConfig, SslFilesWithStrModel};
     use crate::mysql::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
 
@@ -714,7 +714,8 @@ mod tests {
             port: 4000,
             db: Some("test".to_string()),
             read_only: false,
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::mysql_default(),
+            charset: Default::default(),
         }
     }
 
@@ -754,10 +755,10 @@ mod tests {
     async fn test_rename() {
         test_fns::test_rename(make_test_object(make_config()).await).await;
     }
-    // 在 TiDB 中，用户定义函数（UDF）不能直接通过 SQL 语句创建。与 MySQL
-    // 等其他数据库不同，TiDB 需要通过 C/C++ 编写 UDF，并编译成动态链接库（.so
-    // 文件），然后将其注册。这是因为 UDF 的实现涉及底层的 C/C++ 代码，而不是简单的
-    // SQL 语句。
+    // In TiDB, user-defined functions (UDFs) cannot be created directly with SQL statements. Unlike MySQL
+    // and other databases, TiDB requires UDFs to be written in C/C++ and compiled into a shared library (.so
+    // file) before they can be registered. This is because UDF implementation involves low-level C/C++ code, not just
+    // SQL statements.
     // #[tokio::test]
     // async fn test_udf() {
     //     test_fns::test_udf(make_test_object(make_config()).await).await;

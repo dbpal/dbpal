@@ -8,6 +8,8 @@ import { secondConfirm } from "./comp/helper.ts";
 import { saveWindowState, StateFlags } from "@tauri-apps/plugin-window-state";
 import { commands } from "./comp/bindings.ts";
 
+import "react-virtualized/styles.css"; // The styles must be imported.
+
 saveWindowState(StateFlags.ALL);
 
 const currentWebview = WebviewWindow.getCurrent();
@@ -22,9 +24,9 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
     return;
   }
-  for (const x of await WebviewWindow.getAll()) {
-    if (x.label != currentWebview.label) {
-      await x.close();
+  for (const view of await WebviewWindow.getAll()) {
+    if (view.label != currentWebview.label) {
+      await view.close();
     }
   }
 });
@@ -35,4 +37,25 @@ if (import.meta.env.DEV) {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
 
-// commands.commandPanic();
+// function Haha({ value, m }) {
+//   const [height, setHeight] = useState(100);
+//   return (
+//     <div style={{ backgroundColor: value % 2 == 0 ? "red" : "blue", height: height }}>
+//       {height}
+//       <button
+//         onClick={() => {
+//           setHeight(height + 10);
+//           m();
+//         }}>
+//         +
+//       </button>
+//       <button
+//         onClick={() => {
+//           setHeight(height - 10);
+//           m();
+//         }}>
+//         -
+//       </button>
+//     </div>
+//   );
+// }

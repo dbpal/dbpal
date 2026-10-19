@@ -5,13 +5,13 @@ import ReactDOM from "react-dom/client";
 import { AllKindChat } from "./comp/Chat.tsx";
 import { SeprateWindow } from "./comp/MainPage.tsx";
 import { providerQueryID } from "./comp/Common.ts";
-import { DataSourceKind } from "./comp/helper.ts";
+import { DataSourceKind, DbnameContext } from "./comp/helper.ts";
 
 const queryString = window.location.search;
 
-// 2. 实例化 URLSearchParams
+// 2. Instantiate URLSearchParams.
 const urlParams = new URLSearchParams(queryString);
-const uuid = urlParams.get("uuid");
+const dbName = urlParams.get("dbName");
 const kind = urlParams.get("kind");
 const queryId = urlParams.get("queryId");
 
@@ -19,6 +19,8 @@ providerQueryID.id = queryId || "";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <SeprateWindow>
-    <AllKindChat uuid={uuid} kind={kind as DataSourceKind} />
+    <DbnameContext value={{ dbName, kind: kind as DataSourceKind }}>
+      <AllKindChat />
+    </DbnameContext>
   </SeprateWindow>,
 );

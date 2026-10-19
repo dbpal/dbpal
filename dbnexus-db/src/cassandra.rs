@@ -1,44 +1,46 @@
-// 出现错误 InvalidRequest: Error from server: code=2200 [Invalid query]
+// The error InvalidRequest: Error from server: code=2200 [Invalid query]
 // message="org.apache.cassandra.auth.CassandraRoleManager doesn't support
-// PASSWORD" 的原因是 Cassandra 的身份验证机制未启用，或者配置不支持密码身份验证
-// 。
-// 要解决这个问题，请按照以下步骤操作：
-// 1. 修改 cassandra.yaml 配置文件
-// 默认情况下，Cassandra 使用
-// AllowAllAuthenticator，这表示禁用了身份验证。你需要将其改为
-// PasswordAuthenticator，以启用基于密码的身份验证 。
+// PASSWORD" occurs because Cassandra authentication is disabled or the configuration does not support password authentication.
 //
-// 打开 cassandra.yaml 文件（通常位于 /etc/cassandra/conf/cassandra.yaml 或
-// Cassandra 安装目录的 conf 文件夹中）。 找到以下行：
-// yaml复制
+// To resolve this issue, follow these steps:
+// 1. Edit the cassandra.yaml configuration file.
+// By default, Cassandra uses
+// AllowAllAuthenticator, which disables authentication. Change it to
+// PasswordAuthenticator to enable password-based authentication.
+//
+// Open cassandra.yaml (usually located at /etc/cassandra/conf/cassandra.yaml or
+// in the conf directory of your Cassandra installation). Find the following line:
+// YAML (copy)
 //
 // authenticator: AllowAllAuthenticator
 //
-// 将其更改为：
-// yaml复制
+// Change it to:
+// YAML (copy)
 //
 // authenticator: PasswordAuthenticator
 //
-// 保存文件并重启 Cassandra 服务
+// Save the file and restart the Cassandra service.
 //
 // InvalidRequest: Error from server: code=2200 [Invalid query]
 // message="User-defined functions are disabled in cassandra.yaml - set
 // user_defined_functions_enabled=true to enable"
 //
 
-use crate::datasource_config::CassandraDBConfig;
+#[cfg(test)]
+use crate::datasource_config::CassandraDialect;
+use crate::datasource_config::{CassandraConsistency, CassandraDBConfig};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    XlsxEdit,
+    export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
+    ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
+    DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
+    ListTable, MetaValue, NameWithParameter, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
 };
 
-use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::LexerCompletionTrait;
+use crate::helper::create_csv;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
@@ -48,13 +50,16 @@ use futures_util::StreamExt;
 use num_bigint::BigInt;
 use scylla::authentication::{AuthenticatorProvider, PlainTextAuthenticator};
 
+use scylla::client::execution_profile::ExecutionProfile;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use scylla::policies::address_translator::{AddressTranslator, UntranslatedPeer};
 use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
+use scylla_openssl::ssl::{SslContextBuilder, SslMethod};
 use sqlx::types::BigDecimal;
 use std::collections::HashMap;
 
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -68,7 +73,7 @@ pub struct CassandraDB {
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
-// 定义一个简单的转换器，把所有地址都转换成你手动指定的 IP
+// Define a simple resolver that maps every address to an IP you specify manually.
 #[derive(Debug)]
 struct LocalhostTranslator {
     fixed_addr: SocketAddr,
@@ -80,18 +85,22 @@ impl AddressTranslator for LocalhostTranslator {
         &self,
         _untranslated_peer: &UntranslatedPeer,
     ) -> Result<SocketAddr, scylla::errors::TranslationError> {
-        Ok(self.fixed_addr.clone())
+        Ok(self.fixed_addr)
     }
 }
 
 async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
-    let target_ip = format!("{}:{}", config.host, config.port.unwrap_or(9042));
+    let target_ip = format!("{}:{}", config.host, config.port);
     let fixed_addr: SocketAddr = target_ip.parse()?;
-    let mut builder = SessionBuilder::new().known_node(format!(
-        "{}:{}",
-        config.host,
-        config.port.unwrap_or(9042)
-    ));
+
+    let profile: ExecutionProfile = ExecutionProfile::builder()
+        .consistency(config.consistency.try_into()?)
+        .request_timeout(config.conn_timeout.map(Duration::from))
+        .build();
+
+    let mut builder = SessionBuilder::new()
+        .known_node(format!("{}:{}", config.host, config.port))
+        .default_execution_profile_handle(profile.into_handle());
     if let (Some(user), Some(pass)) = (&config.username, &config.password) {
         builder = builder.authenticator_provider(Arc::new(PlainTextAuthenticator::new(
             user.clone(),
@@ -99,25 +108,26 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
         )) as Arc<dyn AuthenticatorProvider>);
     }
 
+    if config.ssl_enable {
+        let mut tls_builder = SslContextBuilder::new(SslMethod::tls_client())?;
+        if let Some(f) = &config.ssl_ca_file {
+            tls_builder.set_ca_file(f)?;
+        }
+        builder = builder.tls_context(tls_builder.build().into());
+    }
+
     builder = builder.address_translator(Arc::new(LocalhostTranslator { fixed_addr }));
 
     let session = builder.build().await?;
     if let Some(key_space) = config.db.as_ref() {
-        session.use_keyspace(key_space, false).await?;
+        session.use_keyspace(key_space, true).await?;
     }
     anyhow::Ok(session)
 }
 
 impl CassandraDB {
     pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
-        let session = tokio::time::timeout(
-            config
-                .conn_timeout
-                .map(|x| x.into())
-                .unwrap_or(Duration::from_secs(15)),
-            async { make_session(&config).await },
-        )
-        .await??;
+        let session = make_session(&config).await?;
         anyhow::Ok(Self {
             session: Arc::new(session),
             config,
@@ -162,6 +172,8 @@ impl GetBackendKind for CassandraDB {
     }
 }
 
+const JSON_TYPE_FIELD: &str = "dbpal-export-json-type";
+
 fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::Value> {
     debug_assert_eq!(cols.len(), rows.columns.len());
 
@@ -178,13 +190,19 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
             CqlValue::Ascii(x) => serde_json::Value::from(x),
             CqlValue::Boolean(x) => serde_json::Value::from(x),
             CqlValue::Blob(items) => {
-                let values: Vec<_> = items.into_iter().map(serde_json::Value::from).collect();
-                serde_json::Value::Array(values)
+                let value = encode_bytes(&items);
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "blob".into());
+                map.insert("value".to_string(), value.into());
+                serde_json::Value::from(map)
             }
             CqlValue::Counter(counter) => serde_json::Value::from(counter.0),
             CqlValue::Decimal(c) => {
-                let x = cql_decimal_to_bigdecimal(&c).to_string();
-                serde_json::Value::String(x)
+                let value = cql_decimal_to_bigdecimal(&c).to_string();
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "decimal".into());
+                map.insert("value".to_string(), value.into());
+                serde_json::Value::Object(map)
             }
             CqlValue::Date(cql_date) => serde_json::Value::from(cql_date.0),
             CqlValue::Double(x) => serde_json::Value::from(x),
@@ -243,13 +261,26 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
             }
             CqlValue::SmallInt(x) => serde_json::Value::from(x),
             CqlValue::TinyInt(x) => serde_json::Value::from(x),
-            CqlValue::Time(cql_time) => serde_json::Value::from(cql_time.0),
-            CqlValue::Timeuuid(cql_timeuuid) => serde_json::Value::from(cql_timeuuid.to_string()),
+            CqlValue::Time(cql_time) => format_time(cql_time.0).into(),
+            CqlValue::Timeuuid(cql_timeuuid) => {
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "timeuuid".into());
+                map.insert("value".to_string(), cql_timeuuid.to_string().into());
+                serde_json::Value::Object(map)
+            }
 
-            CqlValue::Uuid(uuid) => serde_json::Value::from(uuid.to_string()),
+            CqlValue::Uuid(uuid) => {
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "uuid".into());
+                map.insert("value".to_string(), uuid.to_string().into());
+                serde_json::Value::Object(map)
+            }
             CqlValue::Varint(cql_varint) => {
                 let v = varint_2_bigint(&cql_varint);
-                serde_json::Value::from(v.to_string())
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "varint".into());
+                map.insert("value".to_string(), v.to_string().into());
+                serde_json::Value::Object(map)
             }
             CqlValue::Tuple(cql_values) => {
                 let mut values = vec![];
@@ -291,6 +322,114 @@ fn format_timestamp(x: i64) -> anyhow::Result<String> {
     }
 }
 
+impl EncodeXlsxDatetime for CassandraDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("timestamp"))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("date"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("time"))
+    }
+}
+fn encode_row_as_xlsx(row: Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = vec![];
+    for v in row.columns {
+        let value = match v {
+            Some(x) => Some(encode_value_as_xlsx(x)?),
+            None => None,
+        };
+        values.push(value);
+    }
+
+    anyhow::Ok(values)
+}
+
+fn encode_value_as_xlsx(value: CqlValue) -> anyhow::Result<XlsxEditContent> {
+    let v: XlsxEditContent = match value {
+        CqlValue::Ascii(x) | CqlValue::Text(x) => XlsxEditContent::String(x),
+        CqlValue::Boolean(x) => x.into(),
+        CqlValue::Blob(x) => encode_bytes(&x).into(),
+        CqlValue::Counter(counter) => counter.0.into(),
+        CqlValue::Decimal(c) => cql_decimal_to_bigdecimal(&c).to_string().into(),
+        CqlValue::Date(cql_date) => format_date(cql_date.0)?.into(),
+        CqlValue::Double(x) => XlsxEditContent::number(x),
+        CqlValue::Duration(..) => anyhow::bail!("duration not support"),
+        CqlValue::Empty => XlsxEditContent::String("".to_string()),
+        CqlValue::Float(x) => XlsxEditContent::number(x),
+        CqlValue::Int(x) => XlsxEditContent::number(x),
+        CqlValue::BigInt(x) => x.into(),
+        CqlValue::Timestamp(cql_timestamp) => format_timestamp(cql_timestamp.0)?.into(),
+        CqlValue::Inet(ip_addr) => ip_addr.to_string().into(),
+        CqlValue::List(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("[{}]", values.join(",")).into()
+        }
+        CqlValue::Map(m) => {
+            let mut values = vec![];
+            for (k, v) in m {
+                let v = encode_value_as_string(v, true)?;
+                let k = encode_value_as_string(k, true)?;
+                values.push(format!("{}:{}", k, v));
+            }
+            format!("{{{}}}", values.join(",")).into()
+        }
+        CqlValue::Set(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("{{{}}}", values.join(",")).into()
+        }
+        CqlValue::UserDefinedType { fields, .. } => {
+            let mut values = vec![];
+            for (k, v) in fields {
+                let v = match v {
+                    Some(x) => encode_value_as_string(x, true)?,
+                    None => "null".to_string(),
+                };
+                values.push(format!("{}:{}", k, v));
+            }
+            format!("{{{}}}", values.join(",")).into()
+        }
+        CqlValue::SmallInt(x) => XlsxEditContent::number(x),
+        CqlValue::TinyInt(x) => XlsxEditContent::number(x),
+        CqlValue::Time(cql_time) => format_time(cql_time.0).into(),
+        CqlValue::Timeuuid(cql_timeuuid) => cql_timeuuid.to_string().into(),
+        CqlValue::Tuple(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = match v {
+                    Some(v) => encode_value_as_string(v, true)?,
+                    None => "null".to_string(),
+                };
+                values.push(v);
+            }
+            format!("({})", values.join(",")).into()
+        }
+        CqlValue::Uuid(uuid) => uuid.to_string().into(),
+        CqlValue::Varint(x) => varint_2_bigint(&x).to_string().into(),
+        CqlValue::Vector(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("[{}]", values.join(",")).into()
+        }
+        _ => anyhow::bail!(format!("unsupported type:{:?}", value)),
+    };
+    anyhow::Ok(v)
+}
+
 fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = vec![];
     for v in row.columns {
@@ -300,12 +439,11 @@ fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
         };
         values.push(value);
     }
-
     anyhow::Ok(values)
 }
 
 fn format_time(x: i64) -> String {
-    let time = NaiveTime::default() + std::time::Duration::from_micros(x as u64);
+    let time = NaiveTime::default() + std::time::Duration::from_nanos(x as u64);
     time.to_string()
 }
 
@@ -319,32 +457,59 @@ fn cql_decimal_to_bigdecimal(cql_decimal: &CqlDecimal) -> BigDecimal {
         return BigDecimal::new(BigInt::from(0), scale as i64);
     }
     let big_int = BigInt::from_signed_bytes_be(bytes);
-    // 注意：BigDecimal::new 的第二个参数是负数
+    // Note: The second argument to BigDecimal::new is negative.
     BigDecimal::new(big_int, scale as i64)
+}
+
+fn encode_bytes(bs: &[u8]) -> String {
+    format!("0x{}", hex::encode(bs))
 }
 
 fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<String> {
     let v = match value {
         CqlValue::Ascii(x) | CqlValue::Text(x) => {
             if is_nested {
-                format!("'{}'", escape_sql_str(&x))
+                quote_sql_str(&x)
             } else {
                 x
             }
         }
         CqlValue::Boolean(x) => x.to_string(),
-        CqlValue::Blob(x) => format!("0x{}", hex::encode(&x)),
+        CqlValue::Blob(x) => encode_bytes(&x),
         CqlValue::Counter(counter) => counter.0.to_string(),
         CqlValue::Decimal(c) => cql_decimal_to_bigdecimal(&c).to_string(),
-        CqlValue::Date(cql_date) => format_date(cql_date.0)?,
+        CqlValue::Date(cql_date) => {
+            let r = format_date(cql_date.0)?;
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
         CqlValue::Double(x) => x.to_string(),
         CqlValue::Duration(..) => anyhow::bail!("duration not support"),
         CqlValue::Empty => "null".to_string(),
         CqlValue::Float(x) => x.to_string(),
         CqlValue::Int(x) => x.to_string(),
         CqlValue::BigInt(x) => x.to_string(),
-        CqlValue::Timestamp(cql_timestamp) => format_timestamp(cql_timestamp.0)?,
-        CqlValue::Inet(ip_addr) => ip_addr.to_string(),
+        CqlValue::Timestamp(cql_timestamp) => {
+            let r = format_timestamp(cql_timestamp.0)?;
+
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
+        CqlValue::Inet(ip_addr) => {
+            let r = ip_addr.to_string();
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
+
         CqlValue::List(cql_values) => {
             let mut values = vec![];
             for v in cql_values {
@@ -383,7 +548,14 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
         }
         CqlValue::SmallInt(x) => x.to_string(),
         CqlValue::TinyInt(x) => x.to_string(),
-        CqlValue::Time(cql_time) => format_time(cql_time.0),
+        CqlValue::Time(cql_time) => {
+            let r = format_time(cql_time.0);
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
         CqlValue::Timeuuid(cql_timeuuid) => cql_timeuuid.to_string(),
         CqlValue::Tuple(cql_values) => {
             let mut values = vec![];
@@ -457,15 +629,15 @@ impl ExportQueryResult for CassandraDB {
             ExportKind::Sql { .. } => {
                 anyhow::bail!("can't export query result to sql")
             }
-            ExportKind::Xlsx { include_header } => {
+            ExportKind::Xlsx { include_header, .. } => {
                 if include_header {
                     for (index, col) in pager.column_specs().iter().enumerate() {
                         sender
                             .send(
                                 XlsxEdit {
                                     row: row_num,
-                                    column: index as rust_xlsxwriter::ColNum,
-                                    content: col.name().to_string(),
+                                    column: index as u16,
+                                    content: col.name().to_string().into(),
                                 }
                                 .into(),
                             )
@@ -503,7 +675,7 @@ impl ExportQueryResult for CassandraDB {
                 }
                 ExportKind::Sql { .. } => anyhow::bail!("can't export query result as sql"),
                 ExportKind::Xlsx { .. } => {
-                    let data = encode_row(row)?;
+                    let data = encode_row_as_xlsx(row)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { .. } => {
@@ -522,6 +694,17 @@ impl ExportQueryResult for CassandraDB {
 
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.session
             .query_unpaged(sql, &[])
@@ -547,6 +730,9 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(resp)
     }
 
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn query_sql(
         &self,
         query_id: &str,
@@ -566,6 +752,8 @@ impl QuerySql for CassandraDB {
                     .map(|x| Field::from_name_type(x.name(), format!("{:?}", x.typ())))
                     .collect(),
                 sql: Some(sql.to_string()),
+                tables: crate::language_server::LangServerCommon::extract_tables(self, sql)
+                    .unwrap_or_default(),
                 ..Default::default()
             }
             .into(),
@@ -666,25 +854,25 @@ impl CassandraDB {
     }
 }
 
-/// Cassandra / CQL 里可直接写在语句中的 CURRENT_* 字面量
+/// CURRENT_* literals that can be used directly in Cassandra/CQL statements.
 pub const CQL_CURRENT_LITERALS: &[&str] = &[
-    "CURRENT_TIMESTAMP", // 微秒时间戳，如 1692962187000000
-    "CURRENT_TIME",      // 当前 64-bit 时间值（time）
-    "CURRENT_DATE",      // 当前日期（date）
+    "CURRENT_TIMESTAMP", // Microsecond timestamp, such as 1692962187000000.
+    "CURRENT_TIME",      // Current 64-bit time value (time).
+    "CURRENT_DATE",      // Current date (date).
 ];
 
 impl SqlBuilder for CassandraDB {
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_lowercase();
         log::trace!("encode value '{:?}' on type '{}'", value, typ);
         match typ.as_str() {
-            "ascii" | "varchar" | "text" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "ascii" | "varchar" | "text" => anyhow::Ok(quote_sql_str(value)),
             "timestamp" | "date" | "time" | "inet" => anyhow::Ok(format!("'{}'", value)),
             _ => anyhow::Ok(value.to_string()),
         }
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         CQL_CURRENT_LITERALS
     }
 
@@ -699,13 +887,18 @@ impl SqlBuilder for CassandraDB {
         para: Option<&ShowTableParameter>,
     ) -> String {
         let mut sql = format!(
-            r#"SELECT {} FROM "{table_name}" "#,
-            self.backend_kind().format_fields(fields)
+            r#"SELECT {} FROM {}"{table_name}" "#,
+            self.backend_kind().format_fields(fields),
+            self.config
+                .db
+                .as_ref()
+                .map(|x| format!("{}.", x))
+                .unwrap_or_default(),
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 allow_filtering,
                 ..
             } = para;
@@ -784,10 +977,71 @@ impl CassandraDB {
     }
 }
 
+impl ExtractSqlValeFromJsonValue for CassandraDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        fn encode_value(v: &serde_json::Value, is_nested: bool) -> anyhow::Result<Option<String>> {
+            let r = match v {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => Some(if is_nested {
+                    quote_sql_str(x)
+                } else {
+                    x.clone()
+                }),
+                serde_json::Value::Array(values) => {
+                    let mut results = Vec::with_capacity(values.len());
+                    for v in values.iter() {
+                        results.push(encode_value(v, true)?.unwrap_or("null".to_string()));
+                    }
+                    Some(format!("[{}]", results.join(",")))
+                }
+                serde_json::Value::Object(map) => {
+                    if map.get(JSON_TYPE_FIELD).is_some() {
+                        match map.get("value") {
+                            Some(x) => match x {
+                                serde_json::Value::Null => return anyhow::Ok(None),
+                                serde_json::Value::String(x) => {
+                                    return anyhow::Ok(x.clone().into())
+                                }
+                                _ => {
+                                    anyhow::bail!("not a valid value for field value")
+                                }
+                            },
+                            None => anyhow::bail!("should contains value field"),
+                        }
+                    }
+
+                    let mut results = Vec::with_capacity(map.len());
+                    for (k, v) in map.iter() {
+                        let v = encode_value(v, true)?.unwrap_or("null".to_string());
+                        results.push(format!("{}:{}", k, v));
+                    }
+                    Some(format!("{{{}}}", results.join(",")))
+                }
+            };
+            anyhow::Ok(r)
+        }
+
+        anyhow::Ok(encode_value(value, false)?)
+    }
+}
+
+#[allow(unused)]
+pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> &str {
+    match x {
+        cql3_parser::common::Identifier::Quoted(x) => x.as_str(),
+        cql3_parser::common::Identifier::Unquoted(x) => x.as_str(),
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
 
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
@@ -1071,11 +1325,11 @@ impl SchemaTrait for CassandraDB {
         self.show_table_columns(view_name).await
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_udf_impl(self.config.key_space_str()?).await
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         // add parameter to udf have this error
         // cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
         // Improper DESCRIBE command.
@@ -1114,7 +1368,7 @@ impl SchemaTrait for CassandraDB {
         ));
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         self.can_write()?;
 
         let p = format!(
@@ -1195,7 +1449,7 @@ impl DBTrait for CassandraDB {
     async fn create_schema(
         &self,
         name: &str,
-        extra: Option<CreateSchemaExtra>,
+        extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let extra = match &extra {
@@ -1203,7 +1457,7 @@ impl DBTrait for CassandraDB {
             None => anyhow::bail!("cassandra need extra parameter."),
         };
         let (replication_strategy, replication_factor) = match extra {
-            CreateSchemaExtra::Cassandra {
+            CreateSchemaArg::Cassandra {
                 replication_strategy,
                 replication_factor,
             } => (replication_strategy, replication_factor),
@@ -1226,7 +1480,7 @@ impl DBTrait for CassandraDB {
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("DROP KEYSPACE {name}");
+        let sql = format!("DROP KEYSPACE `{name}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
@@ -1234,7 +1488,7 @@ impl DBTrait for CassandraDB {
 }
 
 impl CassandraDB {
-    pub(crate) async fn list_udf_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_udf_impl(&self, key_space: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"SELECT function_name, argument_types, return_type, language 
                 FROM system_schema.functions 
@@ -1247,7 +1501,7 @@ impl CassandraDB {
         let mut ret = Vec::new();
         while let Some(row) = stream.next().await {
             let (name, argument_types, return_type, language) = row?;
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 parameters: None,
                 cassandra_parameters: Some(argument_types),
@@ -1255,35 +1509,43 @@ impl CassandraDB {
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("language", language),
                 ],
-                rand: generate_random_string(10),
             });
         }
         anyhow::Ok(ret)
     }
 }
+
+impl TryFrom<CassandraConsistency> for scylla::statement::Consistency {
+    type Error = anyhow::Error;
+
+    fn try_from(value: CassandraConsistency) -> Result<Self, Self::Error> {
+        scylla::statement::Consistency::try_from(value.0)
+            .map_err(|e| anyhow::Error::msg(e.to_string()))
+    }
+}
+
+impl Default for CassandraConsistency {
+    fn default() -> Self {
+        Self(scylla::statement::Consistency::One as u16)
+    }
+}
+
 // cqlsh -u cassandra -p  cassandra
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
-    use crate::{
-        datasource_config::{CassandraSsl, SSLFiles},
-        TEST_HOST,
-    };
+    use crate::TEST_HOST;
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
-        port: Some(9042),
+        port: 9042,
         username: Some("cassandra".to_string()),
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
+        dialect: CassandraDialect::Cassandra,
         conn_timeout: None,
-
-        ssl: CassandraSsl {
-            ssl_files: SSLFiles {
-                ssl_ca: None,
-                ssl_cert: None,
-                ssl_key: None,
-            },
-        },
+        ssl_ca_file: None,
+        consistency: Default::default(),
+        ssl_enable: false,
     })
     .await
     .unwrap();
@@ -1297,7 +1559,7 @@ pub(crate) fn test_lock() -> &'static Mutex<()> {
 }
 
 impl CassandraDB {
-    pub async fn list_aggregate_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub async fn list_aggregate_impl(&self, key_space: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
         SELECT aggregate_name, argument_types, return_type, state_func, final_func, initcond
@@ -1319,7 +1581,7 @@ impl CassandraDB {
         while let Some(row) = stream.next().await {
             let (name, argument_types, return_type, state_func, final_func, initcond) = row?;
 
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 parameters: None,
                 name,
                 metas: vec![
@@ -1329,14 +1591,13 @@ impl CassandraDB {
                     MetaValue::new("initcond", initcond),
                 ],
                 cassandra_parameters: Some(argument_types.unwrap_or_default()),
-                rand: generate_random_string(10),
             });
         }
 
         anyhow::Ok(ret)
     }
 
-    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_aggregate_impl(self.config.key_space_str()?).await
     }
 
@@ -1393,23 +1654,28 @@ impl CassandraDB {
 }
 
 impl GetTestExportTableKinds for CassandraDB {}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_impls {
+    use std::io::Write;
+
     use super::*;
     use crate::{
-        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
+        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn, TableImportPara},
         enable_test_log,
     };
 
-    #[tokio::test]
+    pub fn new_test_show_parameter() -> ShowTableParameter {
+        ShowTableParameter {
+            ..Default::default()
+        }
+    }
 
-    async fn test_list_schema() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(None).await;
+    pub async fn test_list_schema_inner(db: CassandraDB) {
         let _ = db
             .create_schema(
                 "test",
-                Some(CreateSchemaExtra::Cassandra {
+                Some(CreateSchemaArg::Cassandra {
                     replication_strategy: "SimpleStrategy".to_string(),
                     replication_factor: 1,
                 }),
@@ -1420,21 +1686,17 @@ mod tests {
         println!("list schema:{:?}", schemas)
     }
 
-    #[tokio::test]
-    async fn test_aggregate() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_aggregate_inner(db: CassandraDB) {
         {
-            // drop some function.
             let _ = db
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
                 .await;
             let _ = db
-                .drop_udf(&NamedStaff::from("sum_state_function".to_string()))
+                .drop_udf(&NameWithParameter::from("sum_state_function".to_string()))
                 .await;
 
             let _ = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: "sum_final_function".to_string(),
                     cassandra_parameters: Some(vec!["int".to_string()]),
                     ..Default::default()
@@ -1469,7 +1731,7 @@ mod tests {
                 RETURNS int
                 LANGUAGE java
                 AS $$
-                    return state; // 直接返回累加结果
+                    return state;
                 $$;
     "#,
             )
@@ -1492,7 +1754,6 @@ mod tests {
             .unwrap();
 
         let list = db.list_aggregate().await.unwrap();
-
         list.iter().for_each(|x| println!("aggregate:{:?}", x));
 
         let details = db
@@ -1503,27 +1764,15 @@ mod tests {
         println!("details:{:?}", details);
     }
 
-    #[tokio::test]
-    async fn test_check_conn() {
+    pub async fn test_check_conn_inner(db: CassandraDB) {
         enable_test_log();
-        let _guard = test_lock().lock().await;
 
-        let db = make_test_object(None).await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("d:{:?}", d);
     }
-    fn new_test_show_parameter() -> ShowTableParameter {
-        ShowTableParameter {
-            ..Default::default()
-        }
-    }
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_a_lot_data() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_a_lot_data_inner(db: CassandraDB) {
         let table_name = "test_a_lot_data";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1542,25 +1791,23 @@ mod tests {
         let size = 1550;
         for k in 0..size {
             let mut values = HashMap::new();
-            values.insert("id".to_string(), Some("uuid()".to_string()));
+            values.insert(
+                "id".to_string(),
+                Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+            );
             values.insert(
                 "ascii_column".to_string(),
                 Some(format!("example_ascii {}", k)),
             );
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
             if k % 500 == 0 {
                 println!("insert {}", k);
             }
         }
     }
 
-    #[tokio::test]
-    async fn test_sort() {
-        let _guard = test_lock().lock().await;
-
+    pub async fn test_sort_inner(db: CassandraDB) {
         let table_name = "test_sort";
-
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1574,7 +1821,6 @@ mod tests {
                 value INT,
                 PRIMARY KEY (id , sort_key )
             ) ;
-
         "#,
         )
         .await
@@ -1598,23 +1844,16 @@ mod tests {
         println!("resp:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_show_table_column() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_show_table_column_inner(db: CassandraDB) {
         let fields = db.show_table_columns("example_table").await.unwrap();
         for field in fields {
             println!("field:{:?}", field);
         }
     }
 
-    #[tokio::test]
-    async fn test_duplicate() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_duplicate_inner(db: CassandraDB) {
         let table_name = "test_duplicate_table";
         let table_dup = "test_duplicate";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let _ = db.drop_table(table_dup, false).await;
 
@@ -1628,7 +1867,6 @@ mod tests {
                 name TEXT,
                 value INT
             );
-
         "#,
         )
         .await
@@ -1652,11 +1890,7 @@ mod tests {
         println!("resp:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_list_created_types() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_list_created_types_inner(db: CassandraDB) {
         let _ = db.drop_created_type("test_type").await;
 
         let query_id = "aaaa";
@@ -1680,12 +1914,11 @@ mod tests {
             println!("create type:{:?}", l);
         }
     }
-    #[tokio::test]
-    async fn test_types1() {
+
+    pub async fn test_types1_inner(db: CassandraDB) {
         let now = std::time::Instant::now();
-        let _guard = test_lock().lock().await;
+
         let table_name = "test_types1";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
 
         println!("drop table:{:?}", now.elapsed());
@@ -1711,21 +1944,23 @@ mod tests {
 
         println!("create table:{:?}", now.elapsed());
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+        );
         values.insert(
             "ascii_column".to_string(),
             Some("example_ascii".to_string()),
         );
         values.insert(
             "bigint_column".to_string(),
-            Some("1234567890123456789".to_string()),
+            Some("12345678901234".to_string()),
         );
         values.insert("blob_column".to_string(), Some("0x48656c6c6f".to_string()));
         values.insert("boolean_column".to_string(), Some("true".to_string()));
-
-        values.insert("decimal_column".to_string(), Some("123.45".to_string()));
-        values.insert("double_column".to_string(), Some("3.14159".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        values.insert("decimal_column".to_string(), Some("123.5".to_string()));
+        values.insert("double_column".to_string(), Some("3.25".to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -1734,13 +1969,12 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
-    #[tokio::test]
-    async fn test_types1_list() {
-        let _guard = test_lock().lock().await;
 
+    pub async fn test_types1_list_inner(db: CassandraDB) {
         let table_name = "test_types_list1";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1763,8 +1997,10 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+        );
         values.insert(
             "ascii_column".to_string(),
             Some("['example_ascii']".to_string()),
@@ -1778,27 +2014,24 @@ mod tests {
             Some("[0x48656c6c6f]".to_string()),
         );
         values.insert("boolean_column".to_string(), Some("[true]".to_string()));
-
         values.insert("decimal_column".to_string(), Some("[123.45]".to_string()));
         values.insert("double_column".to_string(), Some("[3.14159]".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
-    #[tokio::test]
-    async fn test_types2() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_types2_inner(db: CassandraDB) {
         let table_name = "test_types2";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1820,8 +2053,10 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+        );
         values.insert("float_value".to_string(), Some("3.14".to_string()));
         values.insert("int_value".to_string(), Some("42".to_string()));
         values.insert(
@@ -1829,29 +2064,23 @@ mod tests {
             Some("2023-01-01 10:00:00".to_string()),
         );
         values.insert("varchar_value".to_string(), Some("Sample Text".to_string()));
+        values.insert("varint_value".to_string(), Some("1234567890".to_string()));
 
-        values.insert(
-            "varint_value".to_string(),
-            Some("123456789012345678901234567890".to_string()),
-        );
-
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
-    #[tokio::test]
-    async fn test_types2_list() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_types2_list_inner(db: CassandraDB) {
         let table_name = "test_types_list2";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1873,8 +2102,10 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
         values.insert("float_value".to_string(), Some("[3.14]".to_string()));
         values.insert("int_value".to_string(), Some("[42]".to_string()));
         values.insert(
@@ -1885,29 +2116,26 @@ mod tests {
             "varchar_value".to_string(),
             Some("['Sample Text']".to_string()),
         );
-
         values.insert(
             "varint_value".to_string(),
             Some("[123456789012345678901234567890]".to_string()),
         );
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
-    #[tokio::test]
-    async fn test_types3() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_types3_inner(db: CassandraDB) {
         let table_name = "test_types3";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1923,7 +2151,6 @@ mod tests {
                     smallint_value SMALLINT,
                     tinyint_value TINYINT
                 );
-
         "#,
         )
         .await
@@ -1931,33 +2158,35 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
-        values.insert("id".to_string(), Some("uuid()".to_string()));
-        values.insert("timeuuid_value".to_string(), Some("now()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        values.insert(
+            "timeuuid_value".to_string(),
+            Some("19905370-a72a-11f1-a1e7-dbedeac510d7".to_string()),
+        );
         values.insert("inet_value".to_string(), Some("192.168.1.1".to_string()));
         values.insert("date_value".to_string(), Some("2023-01-01".to_string()));
         values.insert("time_value".to_string(), Some("10:30:00".to_string()));
-
         values.insert("smallint_value".to_string(), Some("123".to_string()));
         values.insert("tinyint_value".to_string(), Some("5".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
-    #[tokio::test]
-    async fn test_types_list3() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_types_list3_inner(db: CassandraDB) {
         let table_name = "test_types_list3";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1973,7 +2202,6 @@ mod tests {
                     smallint_value list<SMALLINT>,
                     tinyint_value list<TINYINT>
                 );
-
         "#,
         )
         .await
@@ -1981,36 +2209,38 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
-        values.insert("id".to_string(), Some("uuid()".to_string()));
-        values.insert("timeuuid_value".to_string(), Some("[now()]".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        values.insert(
+            "timeuuid_value".to_string(),
+            Some("[49b06ce8-a72a-11f1-a1e7-dbedeac510d7]".to_string()),
+        );
         values.insert(
             "inet_value".to_string(),
             Some("['192.168.1.1']".to_string()),
         );
         values.insert("date_value".to_string(), Some("['2023-01-01']".to_string()));
         values.insert("time_value".to_string(), Some("['10:30:00']".to_string()));
-
         values.insert("smallint_value".to_string(), Some("[123]".to_string()));
         values.insert("tinyint_value".to_string(), Some("[5]".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
-    #[tokio::test]
-    async fn test_types4() {
-        let _guard = test_lock().lock().await;
+    pub async fn test_types4_inner(db: CassandraDB) {
         let table_name = "test_types4";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2021,7 +2251,7 @@ mod tests {
                     id UUID PRIMARY KEY,
                     map_field map<int, int>,
                     set_field set<int>,
-                    person TypePerson,  -- 确保 TypePerson 已经定义
+                    person TypePerson,
                     tuple_field tuple<int, int>
                 );
         "#,
@@ -2031,31 +2261,32 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
-        values.insert("id".to_string(), Some("uuid()".to_string()));
-        values.insert("map_field".to_string(), Some("{1 :2}".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        values.insert("map_field".to_string(), Some("{1:2}".to_string()));
         values.insert("set_field".to_string(), Some("{1,2}".to_string()));
         values.insert(
             "person".to_string(),
-            Some("{first_name : 'yu' ,last_name : 'yang' , email : 'xxx',age : 100}".to_string()),
+            Some("{first_name:'yu',last_name:'yang',age:100,email:'xxx'}".to_string()),
         );
         values.insert("tuple_field".to_string(), Some("(1,100)".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import_csv(table_name).await;
+        db.test_table_export_and_import_excel(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
-    #[tokio::test]
-    async fn test_table_column() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_table_column_inner(db: CassandraDB) {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2110,12 +2341,9 @@ mod tests {
         let sql = db.drop_table_column(table_name, "value").await.unwrap();
         println!("drop table column sql :{}", sql);
     }
-    #[tokio::test]
-    async fn test_counter() {
-        let _guard = test_lock().lock().await;
 
+    pub async fn test_counter_inner(db: CassandraDB) {
         let table_name = "test_counter";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2126,7 +2354,6 @@ mod tests {
                 page_id UUID PRIMARY KEY,
                 view_count COUNTER
             );
-            
                 "#,
         )
         .await
@@ -2136,8 +2363,11 @@ mod tests {
         let mut values = HashMap::new();
         let mut wheres = HashMap::new();
         values.insert("view_count".to_string(), Some("view_count + 1".to_string()));
-        wheres.insert("page_id".to_string(), Some("uuid()".to_string()));
-        db.table_update(table_name, values, wheres).await.unwrap();
+        wheres.insert(
+            "page_id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        db.table_update(table_name, &values, &wheres).await.unwrap();
 
         let resp = db
             .show_table_collect(table_name, new_test_show_parameter())
@@ -2146,15 +2376,11 @@ mod tests {
         println!("xxxx:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_udf() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_udf_inner(db: CassandraDB) {
         let name = "test_udf";
         {
             let err = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: name.to_string(),
                     cassandra_parameters: Some(vec!["text".to_string()]),
                     ..Default::default()
@@ -2164,7 +2390,7 @@ mod tests {
                 println!("drop udf error:{}", err);
             }
             let err = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: name.to_string(),
                     cassandra_parameters: Some(vec!["list<int>".to_string()]),
                     ..Default::default()
@@ -2206,7 +2432,7 @@ mod tests {
         list.iter().for_each(|x| println!("udf:{:?}", x));
 
         let detail = db
-            .show_udf(&NamedStaff {
+            .show_udf(&NameWithParameter {
                 name: "test_udf".to_string(),
                 cassandra_parameters: Some(vec!["text".to_string()]),
                 ..Default::default()
@@ -2216,11 +2442,7 @@ mod tests {
         println!("detail:{:?}", detail);
     }
 
-    #[tokio::test]
-    async fn test_create_type() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_create_type_inner(db: CassandraDB) {
         db.session
             .query_unpaged(
                 r#"
@@ -2237,11 +2459,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
-    async fn test_rename() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_rename_inner(db: CassandraDB) {
         let table_name = "test_rename";
         let table_name2 = format!("{}2", table_name);
         let _ = db.drop_table(table_name, false).await;
@@ -2265,10 +2483,7 @@ mod tests {
         db.rename_table(&table_name2, table_name).await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test_index() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_index_inner(db: CassandraDB) {
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_email_index").await;
         let _ = db.drop_table(table_name, false).await;
@@ -2322,11 +2537,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_view() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
+    pub async fn test_view_inner(db: CassandraDB) {
         let table_name = "test_view_table";
         let view_name = "test_view";
         let _ = db.drop_materialized_view(view_name).await;
@@ -2380,6 +2591,232 @@ mod tests {
         }
     }
 
+    pub async fn test_import_failed(db: CassandraDB) {
+        enable_test_log();
+
+        use csv::Writer;
+        let table_name = "test_import_err";
+        let query_id = "aaaa";
+
+        let _err = db.drop_table(table_name, false).await;
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_import_err (
+                id uuid,
+                int_value int,
+                PRIMARY KEY (id)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
+
+        let mut wtr = Writer::from_writer(vec![]);
+        wtr.write_record(["int_value"]).unwrap();
+        wtr.write_record(["eeee"]).unwrap();
+
+        file.write_all(&wtr.into_inner().unwrap()).unwrap();
+        let x = std::fs::read_to_string(file.path()).unwrap();
+        println!("csv content:{}", x);
+
+        let err = db
+            .table_import_data_from_file(
+                table_name,
+                TableImportPara {
+                    path: file.path().to_str().unwrap().to_owned(),
+                    mongo_data: None,
+                    csv_delimiter: None,
+                },
+            )
+            .await;
+
+        match err {
+            Ok(_) => unreachable!(),
+            Err(x) => {
+                let err_msg = x.to_string();
+                println!("import error:{}", err_msg);
+                assert!(err_msg.contains("rollback"));
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::enable_test_log;
+
+    use super::test_impls;
+    use super::*;
+
+    #[tokio::test]
+    async fn test_list_schema() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(None).await;
+        test_impls::test_list_schema_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_aggregate() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_aggregate_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(None).await;
+        test_impls::test_check_conn_inner(db).await;
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_a_lot_data() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_a_lot_data_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_sort() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_sort_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_show_table_column() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_show_table_column_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_duplicate() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_duplicate_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_list_created_types() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_list_created_types_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types1() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types1_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types1_list() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types1_list_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types2() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types2_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types2_list() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types2_list_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types3() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types3_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types_list3() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types_list3_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types4() {
+        enable_test_log();
+
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types4_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_table_column_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_counter() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_counter_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_udf() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_udf_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_type() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_create_type_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_rename_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_index() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_index_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_view() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_view_inner(db).await;
+    }
+    #[tokio::test]
+    async fn test_import_failed() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_import_failed(db).await;
+    }
+
     #[test]
     fn test_agg() {
         let sql = r#"CREATE AGGREGATE my_count(text)
@@ -2392,4 +2829,8 @@ mod tests {
             .iter()
             .for_each(|x| println!("{:?}", x.statement));
     }
+
+    #[tokio::test]
+
+    async fn test_ssl() {}
 }

@@ -1,10 +1,13 @@
-use crate::helper::generate_random_string;
+use crate::helper::{is_csv_file, uuid_v4_string};
 use crate::language_server::LanguageServer;
+use calamine::Reader;
 use chrono::{DateTime, FixedOffset};
 use core::str;
 use std::any::Any;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::{self, Debug};
+use std::io::BufRead;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -30,6 +33,76 @@ pub enum BackendKind {
     Db2,
     CouchBase,
 }
+
+impl BackendKind {
+    pub(crate) fn case_rule(self) -> sql_insight::CaseRule {
+        match self {
+            BackendKind::Mysql(_) => {
+                // MySQL: case-sensitive on Unix and case-insensitive on Windows.
+                // Use Sensitive to preserve exact matching and avoid data correctness issues.
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::LibSql => {
+                // LibSQL: inherits SQLite behavior and is case-insensitive.
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::PostGres(_) => {
+                // PostgreSQL: unquoted identifiers are converted to lowercase; quoted ones retain their case.
+                sql_insight::CaseRule::Lower
+            }
+            BackendKind::SqlServer => {
+                // SQL Server: case-insensitive by default (depending on collation).
+                // Use Insensitive as the default behavior.
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::Mongo => {
+                // MongoDB: collection names are case-sensitive.
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::Redis => {
+                // Redis: keys are case-sensitive.
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::Sqlite => {
+                // SQLite: case-insensitive by default (depending on collation).
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::Cassandra => {
+                // Cassandra: quoted identifiers are case-sensitive; otherwise, they are converted to lowercase.
+                sql_insight::CaseRule::Lower
+            }
+            BackendKind::ClickHouse => {
+                // ClickHouse: identifiers are case-sensitive by default.
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::Firebird => {
+                // Firebird: unquoted identifiers are converted to uppercase.
+                sql_insight::CaseRule::Upper
+            }
+            BackendKind::Oracle => {
+                // Oracle: unquoted identifiers are converted to uppercase.
+                sql_insight::CaseRule::Upper
+            }
+            BackendKind::DuckDB => {
+                // DuckDB: preserves case but compares identifiers case-insensitively.
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::BigQuery => {
+                // BigQuery: case-insensitive.
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::Db2 => {
+                // DB2: unquoted identifiers are converted to uppercase.
+                sql_insight::CaseRule::Upper
+            }
+            BackendKind::CouchBase => {
+                // Couchbase: case-sensitive.
+                sql_insight::CaseRule::Sensitive
+            }
+        }
+    }
+}
+
 impl fmt::Display for BackendKindMysql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -106,19 +179,19 @@ impl BackendKind {
         matches!(self, Self::Mysql(..))
     }
 
-    // 支持这样的语法 @@或者@访问一些全局或者局部的变量
-    pub(crate) fn support_at(self) -> bool {
+    // Support syntax such as @@ or @ to access global or local variables.
+    pub fn support_at(self) -> bool {
         self.mysql_like() || self == Self::SqlServer
     }
-    pub(crate) fn postgres_like(self) -> bool {
+    pub fn postgres_like(self) -> bool {
         matches!(self, Self::PostGres(..))
     }
 
-    pub(crate) fn sqlite_like(&self) -> bool {
+    pub fn sqlite_like(&self) -> bool {
         matches!(self, Self::Sqlite | Self::LibSql)
     }
 
-    pub(crate) fn quote_style(self) -> &'static str {
+    pub fn quote_style(self) -> &'static str {
         if self.mysql_like() || self == Self::ClickHouse {
             "`"
         } else {
@@ -143,7 +216,7 @@ pub trait GetBackendKind {
     fn backend_kind(&self) -> BackendKind;
 }
 
-// those backend 不支持连接支持设置用这个trait辅助实现呢
+// For backends that do not support connection options, use this trait to provide a helper implementation.
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
     fn can_write(&self) -> anyhow::Result<()> {
@@ -156,19 +229,19 @@ pub trait ReadOnlyTrait {
 
 pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
-#[derive(serde::Deserialize, Clone, Debug, Default, specta::Type)]
+#[derive(serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct ShowTableParameter {
     #[serde(default)]
-    pub where_str: Option<String>,
+    pub filter: Option<String>,
     #[serde(default)]
-    pub order_by: Option<String>,
+    pub sort: Option<String>,
     #[serde(default)]
-    pub page: usize,
+    pub page: Option<u32>,
     #[serde(default)]
-    pub page_size: usize,
+    pub page_size: Option<u32>,
     // for backend don't support page like cassandra
     #[serde(default)]
-    pub limit: Option<usize>,
+    pub limit: Option<u32>,
     // right now only used for redis zset
     #[serde(default)]
     pub min: Option<f64>,
@@ -179,18 +252,71 @@ pub struct ShowTableParameter {
 
     // couchbase can use this parameter to format
     #[serde(default)]
-    pub tab_size: usize,
+    pub tab_size: u32,
 }
 
 impl ShowTableParameter {
-    #[cfg(test)]
+    pub fn has_page(&self) -> Option<(u32, u32)> {
+        match (self.page, self.page_size) {
+            (Some(x), Some(y)) => Some((x, y)),
+            _ => None,
+        }
+    }
+}
+
+impl Default for ShowTableParameter {
+    fn default() -> Self {
+        Self {
+            filter: None,
+            sort: None,
+            page: Some(1),
+            page_size: Some(100),
+            limit: None,
+            min: None,
+            max: None,
+            allow_filtering: true,
+            tab_size: 4,
+        }
+    }
+}
+
+#[derive(serde::Deserialize, Clone, Debug, specta::Type)]
+pub struct TableImportPara {
+    pub path: String,
+    #[serde(default)]
+    pub mongo_data: Option<Vec<JsUint8Array>>,
+    #[serde(default)]
+    pub csv_delimiter: Option<char>,
+}
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct ShowTableParameterOffset {
+    pub offset: u32,
+    pub page_size: u32,
+}
+impl ShowTableParameter {
+    pub fn offset(&self) -> Option<ShowTableParameterOffset> {
+        let x = self.has_page();
+        if let Some((page, page_size)) = x {
+            debug_assert!(dbg!(page) != 0);
+            debug_assert!(dbg!(page_size) != 0);
+            Some(ShowTableParameterOffset {
+                offset: (page - 1) * page_size,
+                page_size,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl ShowTableParameter {
     pub fn new_stupid_test<'a>(order: impl Into<Option<&'a str>>) -> Self {
         let order = order.into();
         Self {
-            where_str: Some("1 = 1".to_owned()),
-            order_by: order.map(|x| x.to_string()),
-            page: 1,
-            page_size: 100,
+            filter: Some("1 = 1".to_owned()),
+            sort: order.map(|x| x.to_string()),
+            page: Some(1),
+            page_size: Some(100),
             ..Default::default()
         }
     }
@@ -202,7 +328,6 @@ struct QueryRespMemoryCollector {
 }
 
 impl QueryRespMemoryCollector {
-    #[cfg(test)]
     fn result(&self) -> QueryResp {
         self.ret
             .lock()
@@ -242,6 +367,54 @@ impl QueryEventEmit for QueryRespMemoryCollector {
     }
 }
 
+pub(crate) struct DropConn {
+    pub(crate) db: Option<Box<dyn QuerySql>>,
+    pub(crate) query_id: String,
+    pub(crate) try_rollback: TryRollBack,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TryRollBack {
+    rollback: Arc<AtomicBool>,
+}
+
+impl TryRollBack {
+    pub(crate) fn new() -> Self {
+        Self {
+            rollback: Arc::new(AtomicBool::new(true)),
+        }
+    }
+    // not rollback when operation success call this function.
+    pub(crate) fn do_not(&self) {
+        self.rollback.store(false, Ordering::Relaxed);
+    }
+    pub(crate) fn get(&self) -> bool {
+        self.rollback.load(Ordering::Relaxed)
+    }
+}
+
+impl Drop for DropConn {
+    fn drop(&mut self) {
+        let db = self.db.take();
+
+        let rollback = self.try_rollback.get();
+
+        if let Some(db) = db {
+            let query_id = self.query_id.clone();
+            tokio::spawn(async move {
+                if db.support_tx() && rollback {
+                    if let Err(err) = db.rollback(&query_id).await {
+                        log::error!("rollback failed:{}", err);
+                    }
+                }
+                if let Err(err) = db.close_connection(&query_id).await {
+                    log::error!("close connection failed:{}", err);
+                }
+            });
+        }
+    }
+}
+
 /// representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
@@ -254,7 +427,16 @@ pub trait SchemaTrait:
     + 'static
     + ExportQueryResult
     + SqlBuilder
+    + ExtractSqlValeFromJsonValue
+    + EncodeXlsxDatetime
 {
+    async fn list_foreign_key(&self, _table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        self.backend_kind().not_support_feature("list foreign key")
+    }
+    async fn drop_foreign_key(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("drop foreign key")
+    }
+
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
         let mut sc = SqlCollect::default();
@@ -291,20 +473,18 @@ pub trait SchemaTrait:
         _: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
-    #[cfg(test)]
     async fn show_table_collect(
         &self,
         table_name: &str,
         para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let result = QueryRespMemoryCollector::default();
-        let result_clone = result.clone();
-        self.show_table(table_name, para, Arc::new(result_clone))
+        let collector = QueryRespMemoryCollector::default();
+        let collection_clone = collector.clone();
+        self.show_table(table_name, para, Arc::new(collection_clone))
             .await?;
-        anyhow::Ok(result.result())
+        anyhow::Ok(collector.result())
     }
 
-    #[cfg(test)]
     async fn show_view_collect(
         &self,
         table_name: &str,
@@ -320,17 +500,17 @@ pub trait SchemaTrait:
     async fn table_insert_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
+        let sql = SqlBuilder::insert_sql(self, table_name, &fs, values)?;
         anyhow::Ok(sql)
     }
 
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
         let r = self.simple_execute_sql(&sql).await?;
@@ -340,19 +520,19 @@ pub trait SchemaTrait:
     async fn table_update_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
+        let sql = SqlBuilder::update_sql(self, table_name, &fs, values, wheres)?;
         anyhow::Ok(sql)
     }
 
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_update_sql(table_name, values, wheres).await?;
         self.simple_execute_sql(&sql).await
@@ -363,28 +543,28 @@ pub trait SchemaTrait:
     async fn table_delete_sql(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
+        SqlBuilder::delete_sql(self, table_name, &fs, wheres)
     }
 
     async fn table_delete(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
+        let sql = SqlBuilder::delete_sql(self, table_name, &fs, wheres)?;
         let ret = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(ret)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list view")
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop view")
     }
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>>;
 
@@ -393,7 +573,7 @@ pub trait SchemaTrait:
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
     async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop table column")
     }
     async fn modify_table_column(
         &self,
@@ -402,15 +582,249 @@ pub trait SchemaTrait:
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("modify table column")
     }
+
+    async fn table_import_data_from_file_make_data(
+        &self,
+        table: &str,
+        para: TableImportPara,
+        sender: tokio::sync::mpsc::Sender<HashMap<String, Option<String>>>,
+    ) -> anyhow::Result<()> {
+        let cols = self.show_table_columns(table).await?;
+        let mut cols_map = HashMap::new();
+        cols.iter().for_each(|x| {
+            cols_map.insert(x.field.clone(), x.clone());
+        });
+        let this = SchemaTrait::clone(self);
+        spawn_blocking(move || -> anyhow::Result<()> {
+            let handle_json_map = |map: &serde_json::Map<String, serde_json::Value>| {
+                let mut values = HashMap::new();
+                for (k, v) in map.iter() {
+                    let field = match cols_map.get(k) {
+                        Some(x) => x,
+                        None => {
+                            continue;
+                        }
+                    };
+                    values.insert(
+                        k.clone(),
+                        this.extrat_sql_value_from_json_value(v, &field.data_type)?,
+                    );
+                }
+                sender.blocking_send(values)?;
+
+                anyhow::Ok(())
+            };
+
+            let path_lower = para.path.to_lowercase();
+
+            match para {
+                _ if is_csv_file(&path_lower) => {
+                    let mut rb = csv::ReaderBuilder::new();
+                    if path_lower.ends_with(".tsv") {
+                        rb.delimiter(b'\t');
+                    } else if let Some(x) = para.csv_delimiter {
+                        rb.delimiter(x as u8);
+                    }
+                    let mut reader: csv::Reader<std::fs::File> = rb.from_path(&para.path)?;
+                    let headers: Vec<_> = reader.headers()?.iter().map(|x| x.to_string()).collect();
+
+                    for csv_line in reader.records() {
+                        let csv_line = csv_line?;
+                        let mut values = HashMap::new();
+                        for (index, h) in headers.iter().enumerate() {
+                            values.insert(
+                                h.clone(),
+                                csv_line.get(index).and_then(|x| {
+                                    if x.is_empty() {
+                                        None
+                                    } else {
+                                        Some(x.to_owned())
+                                    }
+                                }),
+                            );
+                        }
+                        sender.blocking_send(values)?;
+                    }
+                }
+                _ if path_lower.ends_with(".json") => {
+                    let f = std::fs::File::open(para.path)?;
+                    let values: Vec<serde_json::Map<String, serde_json::Value>> =
+                        serde_json::from_reader(f)?;
+                    for value in values.iter() {
+                        handle_json_map(value)?;
+                    }
+                }
+                _ if path_lower.ends_with(".jsonl") => {
+                    //
+                    let f = std::fs::File::open(&para.path)?;
+                    let reader = std::io::BufReader::new(f);
+                    for line in reader.lines() {
+                        let line = line?;
+                        if line.trim().is_empty() {
+                            // skip empty line
+                            continue;
+                        }
+                        let map: serde_json::Map<String, serde_json::Value> =
+                            serde_json::from_str(&line)?;
+                        handle_json_map(&map)?;
+                    }
+                }
+                _ if crate::helper::is_excel_file(&path_lower) => {
+                    let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+                        calamine::open_workbook(&para.path)?;
+                    if wb.sheet_names().is_empty() {
+                        anyhow::bail!("this contains no sheets")
+                    }
+                    let range = wb.worksheet_range(&wb.sheet_names()[0])?;
+                    let mut headers = vec![];
+
+                    for (row_idx, row) in range.rows().enumerate() {
+                        if row_idx == 0 {
+                            headers = row.iter().map(|x| x.to_string()).collect();
+                            continue;
+                        }
+                        let mut values = HashMap::new();
+                        for (index, data) in row.iter().enumerate() {
+                            let f = headers.get(index).and_then(|name| cols_map.get(name));
+                            if let Some(f) = f {
+                                // trying to format date , datetime
+
+                                let value = match data {
+                                    calamine::Data::DateTime(x) => {
+                                        let x = EncodeXlsxDatetime::encode(
+                                            this.as_ref(),
+                                            &f.data_type,
+                                            x,
+                                        )?;
+                                        x
+                                    }
+                                    _ => {
+                                        let v = data.to_string();
+                                        if v.is_empty() {
+                                            None
+                                        } else {
+                                            Some(v)
+                                        }
+                                    }
+                                };
+
+                                values.insert(f.field.clone(), value);
+                            }
+                        }
+                        sender.blocking_send(values)?;
+                    }
+                }
+                _ => {
+                    anyhow::bail!("unsupported file type,only support csv,json,jsonl,xlsx etc.")
+                }
+            }
+            anyhow::Ok(())
+        })
+        .await?
+    }
+
+    async fn table_import_data_from_file(
+        &self,
+        table: &str,
+        para: TableImportPara,
+    ) -> anyhow::Result<()> {
+        if !self.table_exists(table).await? {
+            anyhow::bail!(format!("table '{}' not exists", table))
+        }
+        let (sender, mut receiver) =
+            tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
+
+        let cols = self.show_table_columns(table).await?;
+        let this_make = SchemaTrait::clone(self);
+        // read data from the file
+        let task_read = this_make.table_import_data_from_file_make_data(table, para, sender);
+        let this = SchemaTrait::clone(self);
+        let table = table.to_owned();
+
+        let task_write = tokio::spawn(async move {
+            // use tx to commit the data
+
+            let query_id = uuid_v4_string();
+            this.open_connection(&query_id).await?;
+            let try_rollback = TryRollBack::new();
+
+            let _guard = DropConn {
+                db: Some(SchemaTrait::clone(this.as_ref())),
+                query_id: query_id.clone(),
+                try_rollback: try_rollback.clone(),
+            };
+            if this.support_tx() {
+                this.set_auto_commit(&query_id, false).await?;
+            }
+            while let Some(record) = receiver.recv().await {
+                // build the sql
+                let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
+                log::info!("insert sql:{}", sql);
+                this.execute_sql(&query_id, &sql)
+                    .await?
+                    .map_err(anyhow::Error::msg)?;
+            }
+            if this.support_tx() {
+                this.commit(&query_id).await?;
+            }
+            try_rollback.do_not();
+            anyhow::Ok(())
+        });
+        let (res1, res2) = tokio::join!(task_read, task_write);
+
+        res2??;
+        res1
+    }
+
+    async fn table_import_data_from_file_insert_samples(
+        &self,
+        table: &str,
+        para: TableImportPara,
+        sample_count: usize,
+    ) -> anyhow::Result<Vec<String>> {
+        if !self.table_exists(table).await? {
+            anyhow::bail!(format!("table '{}' not exists", table))
+        }
+        let (sender, mut receiver) =
+            tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
+
+        let cols = self.show_table_columns(table).await?;
+        let this_make = SchemaTrait::clone(self);
+
+        let task_read = this_make.table_import_data_from_file_make_data(table, para, sender);
+        let this = SchemaTrait::clone(self);
+        let table = table.to_owned();
+
+        let task_write = tokio::spawn(async move {
+            let mut ret = Vec::with_capacity(sample_count);
+            while let Some(record) = receiver.recv().await {
+                let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
+                ret.push(sql);
+                if ret.len() >= sample_count {
+                    break;
+                }
+            }
+            anyhow::Ok(ret)
+        });
+        let (res1, res2) = tokio::join!(task_read, task_write);
+        let _err = res1;
+        if let Err(_err) = _err {
+            log::error!("this channel may closed this is fine to me,err:{}", _err);
+        }
+
+        res2?
+    }
+
     async fn add_table_column(
         &self,
         _table: &str,
         _name: &str,
         _col: ColumnType,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("add table column")
     }
 
     async fn rename_index(
@@ -419,27 +833,29 @@ pub trait SchemaTrait:
         _oldname: &str,
         _newname: &str,
     ) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("rename index")
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show indexes")
     }
 
     async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("create index")
     }
 
     async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop index")
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list materialized view")
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("drop materialized view")
     }
 
     async fn export_table_or_view(
@@ -449,7 +865,8 @@ pub trait SchemaTrait:
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("export table or view")
     }
 
     async fn show_view(
@@ -458,20 +875,20 @@ pub trait SchemaTrait:
         _para: ShowTableParameter,
         _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show view")
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
-        // 后端基于sqlx的需要使用prepare_with这种特殊的接口
+        // Some backends can return a complete result even when there is no data, so provide a default implementation.
+        // Backends based on sqlx need to use the special prepare_with interface.
         let result = QueryRespMemoryCollector::default();
         let result_clone = result.clone();
 
         self.show_view(
             view_name,
             ShowTableParameter {
-                page: 1,
-                page_size: 1,
+                page: Some(1),
+                page_size: Some(1),
                 ..Default::default()
             },
             Arc::new(result_clone),
@@ -490,12 +907,10 @@ pub trait SchemaTrait:
         kind: ExportKind,
         emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
-        if !self.table_exists(table_name).await? {
-            anyhow::bail!("table not exists")
-        }
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
+        let t1 = {
             let x = SchemaTrait::clone(self);
+            let kind = kind.clone();
             let table_name = table_name.to_string();
             let h1 = tokio::spawn(async move {
                 x.export_table_or_view(&table_name, para, kind, sender)
@@ -503,15 +918,15 @@ pub trait SchemaTrait:
             });
             h1
         };
-        let h2 = {
+        let t2 = {
             let filepath = filepath.to_string();
             let table_name = table_name.to_string();
             tokio::spawn(async move {
                 write_export_file(kind, &filepath, receiver, &table_name, emit).await
             })
         };
-        h1.await??;
-        h2.await??;
+        t1.await??;
+        t2.await??;
         anyhow::Ok(())
     }
 
@@ -519,21 +934,21 @@ pub trait SchemaTrait:
         &self,
         _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show create sql")
     }
 
     async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show view sql")
     }
 
-    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_kind().not_support_feature()
+    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
+        self.backend_kind().not_support_feature("list trigger")
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show trigger")
     }
     async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop trigger")
     }
 
     async fn enable_trigger(
@@ -542,45 +957,43 @@ pub trait SchemaTrait:
         _name: &str,
         _enable: bool,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("enable trigger")
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_kind().not_support_feature()
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
+        self.backend_kind().not_support_feature("list udf")
     }
 
-    async fn show_udf(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
-        self.backend_kind().not_support_feature()
+    async fn show_udf(&self, _name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
+        self.backend_kind().not_support_feature("show udf")
     }
 
-    async fn drop_udf(&self, _name: &NamedStaff) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+    async fn drop_udf(&self, _name: &NameWithParameter) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature("drop udf")
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_kind().not_support_feature()
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
+        self.backend_kind().not_support_feature("list procedure")
     }
-    async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
-        self.backend_kind().not_support_feature()
+    async fn show_procedure(&self, _name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
+        self.backend_kind().not_support_feature("show procedure")
     }
-    async fn drop_procedure(&self, _name: &NamedStaff) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+    async fn drop_procedure(&self, _name: &NameWithParameter) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature("drop procedure")
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
-        let e = self
-            .list_table()
-            .await?
-            .iter()
-            .any(|x| x.name.eq_ignore_ascii_case(table));
+        // I don't think case sensitivity needs to be checked here because users don't need to type
+        // the table name; the name comes from the database backend.
+        let e = self.list_table().await?.iter().any(|x| x.name == table);
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list created type")
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop created type")
     }
 
     async fn export_table_to_string(
@@ -590,6 +1003,7 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<String> {
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
+            let kind = kind.clone();
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
             let h1 = tokio::spawn(async move {
@@ -604,23 +1018,234 @@ pub trait SchemaTrait:
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list sequence")
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("rename sequence")
     }
 
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop sequence")
     }
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
         &[]
     }
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
     async fn drop_event(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop event")
+    }
+
+    #[allow(clippy::unwrap_used)]
+    async fn test_table_export_and_import_excel(&self, table: &str) {
+        let file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+        let file = file.path().to_str().unwrap();
+
+        // test csv
+        let export_kind = ExportKind::Xlsx {
+            include_header: true,
+            datetime_format: Default::default(),
+        };
+
+        self.export_table_or_view_to_file(table, None, file, export_kind.clone(), Arc::new(|_| {}))
+            .await
+            .unwrap();
+
+        println!("exported excel file:{}", file);
+
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara {
+                path: file.to_string(),
+                mongo_data: None,
+                csv_delimiter: None,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    #[allow(clippy::unwrap_used)]
+    async fn test_table_export_and_import_csv(&self, table: &str) {
+        use std::io::Write;
+
+        let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
+        let d = ';';
+
+        // test csv
+        let export_kind = ExportKind::Csv {
+            include_header: true,
+            delimiter: d,
+        };
+
+        let csv_str = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
+        file.write_all(csv_str.as_bytes()).unwrap();
+
+        println!("csv str:{}", csv_str);
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara {
+                path: file.path().to_str().unwrap().to_string(),
+                mongo_data: None,
+                csv_delimiter: Some(d),
+            },
+        )
+        .await
+        .unwrap();
+        let csv_str2 = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
+        {
+            println!("csv1:{}", csv_str);
+            println!("csv2:{}", csv_str2);
+        }
+    }
+    #[allow(clippy::unwrap_used)]
+    async fn test_table_export_and_import_json(&self, table: &str) {
+        use std::io::Write;
+
+        let mut file = tempfile::NamedTempFile::with_suffix(".json").unwrap();
+        // test json
+        let json_str = self
+            .export_table_to_string(table, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+
+        println!("json str:{}", json_str);
+
+        file.write_all(json_str.as_bytes()).unwrap();
+
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara {
+                path: file.path().to_str().unwrap().to_string(),
+                mongo_data: None,
+                csv_delimiter: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let json_str2 = self
+            .export_table_to_string(table, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        {
+            println!("json1:{}", json_str);
+            println!("json2:{}", json_str2);
+        }
+    }
+    #[allow(clippy::unwrap_used)]
+    async fn test_table_export_and_import_jsonline(&self, table: &str) {
+        use std::io::Write;
+
+        let mut file = tempfile::NamedTempFile::with_suffix(".jsonl").unwrap();
+        let export_kind = ExportKind::JsonLine;
+
+        let jsonline_str = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
+        file.write_all(jsonline_str.as_bytes()).unwrap();
+
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara {
+                path: file.path().to_str().unwrap().to_string(),
+                mongo_data: None,
+                csv_delimiter: None,
+            },
+        )
+        .await
+        .unwrap();
+        let jsonline_str2 = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
+        {
+            println!("jsonline1:{}", jsonline_str);
+            println!("jsonline2:{}", jsonline_str2);
+        }
+    }
+    #[allow(clippy::unwrap_used)]
+    async fn test_table_export_and_import(&self, table: &str) {
+        self.test_table_export_and_import_csv(table).await;
+        let para = ShowTableParameter::default();
+
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after csv import:{:?}", x.data);
+
+        self.test_table_export_and_import_json(table).await;
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after json import:{:?}", x.data);
+        self.test_table_export_and_import_jsonline(table).await;
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after jsonline import:{:?}", x.data);
+        self.test_table_export_and_import_excel(table).await;
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after excel import:{:?}", x.data);
+        log::info!("test export and import OK.")
+    }
+    #[allow(clippy::unwrap_used)]
+    async fn test_table_equal(
+        &self,
+        table: &str,
+        expected: &HashMap<String, Option<String>>,
+        skip_fields: &[&'static str],
+    ) {
+        let skip_fields: HashSet<&'static str> = skip_fields.iter().copied().collect();
+
+        let expected = {
+            let values: HashMap<_, _> = expected
+                .iter()
+                .filter(|(k, _)| !skip_fields.contains(&k.as_str()))
+                .collect();
+            values
+        };
+        let r = self
+            .show_table_collect(
+                table,
+                ShowTableParameter {
+                    page: Some(1),
+                    page_size: Some(1),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        let values = r
+            .fields
+            .iter()
+            .zip(r.data.first().unwrap())
+            .map(|(f, v)| (f.field.clone(), v.clone()))
+            .filter(|(k, _)| !skip_fields.contains(k.as_str()))
+            .collect::<HashMap<_, _>>();
+
+        for (k, v) in expected.iter() {
+            let v_e = v.as_ref().map(|s| s.as_str()).unwrap();
+            let v_a = values
+                .get(*k)
+                .unwrap()
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or_else(|| panic!("field: {} not found in actual result", *k));
+
+            if v_e != v_a {
+                println!("expect:{:?}", v_e.as_bytes());
+                println!("actual:{:?}", v_a.as_bytes());
+                panic!("field: {} expect: {:?} actual: {:?}", *k, v_e, v_a);
+            }
+        }
     }
 }
 
@@ -631,7 +1256,8 @@ pub struct SqlEvent {
     pub metas: Vec<MetaValue>,
 }
 pub trait SqlBuilder: GetBackendKind {
-    fn get_current_values(&self) -> &'static [&'static str] {
+    // get predefine name like current_time etc ...
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         &[]
     }
 
@@ -642,10 +1268,17 @@ pub trait SqlBuilder: GetBackendKind {
         para: Option<&ShowTableParameter>,
     ) -> String;
 
-    fn hit_current_value(&self, value: &str) -> bool {
-        self.get_current_values()
+    fn hit_predefine_value(&self, value: &str) -> bool {
+        self.get_predefine_values()
             .iter()
             .any(|cur| cur.eq_ignore_ascii_case(value))
+    }
+
+    fn encode_value_try_predefine(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        if self.hit_predefine_value(value) {
+            return anyhow::Ok(value.to_string());
+        }
+        self.encode_value(typ, value)
     }
 
     fn type_support_compare(&self, _typ: &str) -> bool {
@@ -664,7 +1297,7 @@ pub trait SqlBuilder: GetBackendKind {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String>;
+    fn encode_value(&self, _typ: &str, _value: &str) -> anyhow::Result<String>;
 
     fn make_where(
         &self,
@@ -676,9 +1309,11 @@ pub trait SqlBuilder: GetBackendKind {
         // otherwise should use all value
         // to do operation.
         let contains_pri = fs.iter().any(|x| x.is_primary);
+        // check all primary key have value
+
         let mut sql = String::new();
 
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         for (k, v) in wheres.iter() {
             let f = field_by_name.get(k);
@@ -704,7 +1339,7 @@ pub trait SqlBuilder: GetBackendKind {
                             "{} {} = {}",
                             if !first.get() { " AND " } else { "" },
                             self.quote(k),
-                            self.put_value_in_sql(&f.data_type, value)?
+                            self.encode_value(&f.data_type, value)?
                         )
                         .as_str(),
                     );
@@ -743,7 +1378,7 @@ pub trait SqlBuilder: GetBackendKind {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
         log::info!("delete sql:{}", sql);
@@ -771,7 +1406,7 @@ pub trait SqlBuilder: GetBackendKind {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         {
             let last = values.len() - 1;
@@ -787,7 +1422,7 @@ pub trait SqlBuilder: GetBackendKind {
                             format!(
                                 "{} = {}",
                                 self.quote(k),
-                                self.put_value_in_sql(&f.data_type, value)?
+                                self.encode_value(&f.data_type, value)?
                             )
                             .as_str(),
                         );
@@ -814,6 +1449,7 @@ pub trait SqlBuilder: GetBackendKind {
         fs: &[Field],
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
+        println!("insert_sql values:{:?}", values);
         let schema = self.get_schema();
         #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
@@ -823,7 +1459,7 @@ pub trait SqlBuilder: GetBackendKind {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         let skip_null_default_value = |f: &Field| {
             values.get(&f.field).map(|x| x.is_none()).unwrap_or(true) && f.default_value.is_some()
@@ -831,7 +1467,7 @@ pub trait SqlBuilder: GetBackendKind {
         //
 
         {
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             for f in fs.iter() {
                 if f.is_auto_increment {
@@ -851,7 +1487,7 @@ pub trait SqlBuilder: GetBackendKind {
         // values
         sql.push_str(" VALUES (");
         {
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             for f in fs.iter() {
                 if f.is_auto_increment {
@@ -867,10 +1503,11 @@ pub trait SqlBuilder: GetBackendKind {
                 let value = values.get(&f.field).cloned().flatten();
 
                 match &value {
-                    Some(value) => {
-                        sql.push_str(self.put_value_in_sql(&f.data_type, &value)?.as_str())
+                    Some(value) => sql.push_str(self.encode_value(&f.data_type, value)?.as_str()),
+                    None => {
+                        log::info!("field '{}' is null", f.field);
+                        sql.push_str("NULL")
                     }
-                    None => sql.push_str("NULL"),
                 };
             }
             sql.push(')');
@@ -936,20 +1573,12 @@ pub trait SqlBuilder: GetBackendKind {
                         // silently differrent from other database
                         format!(
                             "DEFAULT {}",
-                            if self.hit_current_value(value) {
-                                value.clone()
-                            } else {
-                                self.put_value_in_sql(&col.data_type, value.as_str())?
-                            }
+                            self.encode_value_try_predefine(&col.data_type, value.as_str())?
                         )
                     }
                     _ => format!(
                         "DEFAULT({})",
-                        if self.hit_current_value(value) {
-                            value.clone()
-                        } else {
-                            self.put_value_in_sql(&col.data_type, value.as_str())?
-                        }
+                        self.encode_value_try_predefine(&col.data_type, value.as_str())?
                     ),
                 },
                 None => "".to_owned(),
@@ -1007,28 +1636,19 @@ impl std::fmt::Display for CreatedTypeDef {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ColumnType {
     // type string like `varchar`
-    pub(crate) typ: String,
-    pub(crate) nullable: Option<SqlNullAble>,
+    pub typ: String,
+    pub nullable: Option<SqlNullAble>,
     // mysql add column can have this field
-    pub(crate) after: Option<String>,
-    pub(crate) default_value: Option<String>,
+    pub after: Option<String>,
+    pub default_value: Option<String>,
 }
 
 impl BackendKind {
-    pub fn not_support_feature<T>(&self) -> anyhow::Result<T> {
-        anyhow::bail!(format!("'{}' don't support this feature", self))
-    }
-}
-
-#[derive(Debug, serde::Serialize, specta::Type)]
-pub struct ProcedureDetail {
-    // definition of the sql.
-    pub def: String,
-    pub metas: Vec<MetaValue>,
-}
-impl ProcedureDetail {
-    pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
-        Self { metas, def }
+    pub fn not_support_feature<T>(&self, feature: &str) -> anyhow::Result<T> {
+        anyhow::bail!(format!(
+            "'{}' don't support this '{}' feature",
+            self, feature
+        ))
     }
 }
 
@@ -1062,7 +1682,7 @@ pub trait CatalogTrait:
     async fn create_database(
         &self,
         name: &str,
-        extra: Option<CreateDatabaseExtra>,
+        extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()>;
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
 
@@ -1071,16 +1691,16 @@ pub trait CatalogTrait:
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum CreateDatabaseExtra {
+pub enum CreateDatabaseArg {
     Couchbase {
-        // 在 Couchbase 中，ram_quota_mb 是一个重要的配置参数，用于指定一个桶（bucket）分配的内存大小。这个参数的单位是兆字节（MB），它决定了该桶可以使用的内存量。
-        ram_quota_mb: u64,
-        // 是否启用 flush 操作。启用 flush 操作可以清空桶中的所有数据。
+        // In Couchbase, ram_quota_mb specifies the amount of memory allocated to a bucket, in megabytes (MB).
+        ram_quota_mb: u32,
+        // Whether to enable the flush operation, which clears all data in the bucket.
         flush_enabled: bool,
-        // 副本数量，即每个文档的副本数。副本数量必须小于或等于集群中的节点数。
+        // Number of replicas for each document. This must be less than or equal to the number of nodes in the cluster.
         num_replicas: u32,
         // in seconds
-        max_expiry: Option<u64>,
+        max_expiry: Option<u32>,
         bucket_type: CouchBaseBucketType,
     },
 }
@@ -1092,26 +1712,24 @@ pub enum CouchBaseBucketType {
     Ephemeral,
 }
 
-/// named staff maybe used for view udf etc...
+// maybe used for udf etc...
 #[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize, Default)]
-pub struct NamedStaff {
+pub struct NameWithParameter {
     // some backend support reload function like postgres
     pub parameters: Option<String>,
     // cassandra support reload and parameter is a `Vec`
     pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
-    pub rand: String,
 }
 
-impl From<String> for NamedStaff {
+impl From<String> for NameWithParameter {
     fn from(value: String) -> Self {
-        NamedStaff {
+        NameWithParameter {
             name: value,
             metas: vec![],
             parameters: None,
             cassandra_parameters: None,
-            rand: generate_random_string(10),
         }
     }
 }
@@ -1146,18 +1764,15 @@ pub trait DBTrait:
 {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
-    async fn create_schema(
-        &self,
-        name: &str,
-        extra: Option<CreateSchemaExtra>,
-    ) -> anyhow::Result<()>;
+    async fn create_schema(&self, name: &str, extra: Option<CreateSchemaArg>)
+        -> anyhow::Result<()>;
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum CreateSchemaExtra {
+pub enum CreateSchemaArg {
     Cassandra {
         // CREATE KEYSPACE my_keyspace
         // WITH REPLICATION = {
@@ -1184,9 +1799,133 @@ pub struct SequenceDetail {
 
 #[derive(Clone, Debug)]
 pub struct XlsxEdit {
-    pub row: rust_xlsxwriter::RowNum,
-    pub column: rust_xlsxwriter::ColNum,
-    pub content: String,
+    pub row: u32,
+    pub column: u16,
+    pub content: XlsxEditContent,
+}
+pub trait EncodeXlsxDatetime: GetBackendKind {
+    // return a option data is because of https://docs.rs/calamine/latest/src/calamine/datatype.rs.html#791-806
+    //  returns a option datetime
+    fn encode(&self, ty: &str, date: &calamine::ExcelDateTime) -> anyhow::Result<Option<String>> {
+        let date = date.as_datetime();
+        log::trace!("encode excel datetime type ty:{} date:{:?}", ty, date);
+
+        if self.is_datatime(ty)? {
+            return anyhow::Ok(if let Some(x) = date {
+                self.format_datetime(x).into()
+            } else {
+                None
+            });
+        }
+        if self.is_time(ty)? {
+            return anyhow::Ok(if let Some(x) = date {
+                self.format_time(x.time()).into()
+            } else {
+                None
+            });
+        }
+        if self.is_date(ty)? {
+            return anyhow::Ok(if let Some(x) = date {
+                self.format_date(x.date()).into()
+            } else {
+                None
+            });
+        }
+        anyhow::bail!(format!("can't convert datetime to '{}'", ty))
+    }
+
+    fn is_datatime(&self, _ty: &str) -> anyhow::Result<bool> {
+        self.backend_kind()
+            .not_support_feature("check if a type is datetime")
+    }
+
+    fn is_date(&self, _ty: &str) -> anyhow::Result<bool> {
+        self.backend_kind()
+            .not_support_feature("check if a type is date")
+    }
+    fn is_time(&self, _ty: &str) -> anyhow::Result<bool> {
+        self.backend_kind()
+            .not_support_feature("check if a type is time")
+    }
+
+    fn format_datetime(&self, x: chrono::NaiveDateTime) -> String {
+        x.to_string()
+    }
+
+    fn format_time(&self, x: chrono::NaiveTime) -> String {
+        x.to_string()
+    }
+
+    fn format_date(&self, x: chrono::NaiveDate) -> String {
+        x.to_string()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum XlsxEditContent {
+    Time(chrono::NaiveTime),
+    Date(chrono::NaiveDate),
+    DateTime(chrono::NaiveDateTime),
+    String(String),
+    Number(f64),
+    Bool(bool),
+}
+
+impl From<Arc<str>> for XlsxEditContent {
+    fn from(value: Arc<str>) -> Self {
+        Self::String(value.to_string())
+    }
+}
+impl From<i64> for XlsxEditContent {
+    fn from(value: i64) -> Self {
+        Self::number(value as f64)
+    }
+}
+impl From<u64> for XlsxEditContent {
+    fn from(value: u64) -> Self {
+        Self::number(value as f64)
+    }
+}
+
+impl From<String> for XlsxEditContent {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<chrono::NaiveTime> for XlsxEditContent {
+    fn from(value: chrono::NaiveTime) -> Self {
+        Self::Time(value)
+    }
+}
+
+impl From<chrono::NaiveDate> for XlsxEditContent {
+    fn from(value: chrono::NaiveDate) -> Self {
+        Self::Date(value)
+    }
+}
+impl From<chrono::DateTime<chrono::Utc>> for XlsxEditContent {
+    fn from(value: chrono::DateTime<chrono::Utc>) -> Self {
+        Self::DateTime(value.naive_utc())
+    }
+}
+
+impl From<chrono::NaiveDateTime> for XlsxEditContent {
+    fn from(value: chrono::NaiveDateTime) -> Self {
+        Self::DateTime(value)
+    }
+}
+
+impl XlsxEditContent {
+    pub fn number<T: Into<f64>>(value: T) -> Self {
+        Self::Number(value.into())
+    }
+}
+
+impl From<bool> for XlsxEditContent {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
 }
 
 impl std::fmt::Display for XlsxEdit {
@@ -1195,9 +1934,24 @@ impl std::fmt::Display for XlsxEdit {
     }
 }
 
+impl std::fmt::Display for XlsxEditContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            XlsxEditContent::Time(naive_time) => write!(f, "time:{}", naive_time),
+            XlsxEditContent::Date(naive_date) => write!(f, "date:{}", naive_date),
+            XlsxEditContent::DateTime(naive_date_time) => {
+                write!(f, "datetime:{}", naive_date_time)
+            }
+            XlsxEditContent::String(x) => write!(f, "str:{}", x),
+            XlsxEditContent::Number(x) => write!(f, "num:{}", x),
+            XlsxEditContent::Bool(x) => write!(f, "bool:{}", x),
+        }
+    }
+}
+
 pub(crate) async fn export_query_as_xlsx_send_data(
     row_num: &mut u32,
-    data: Vec<Option<String>>,
+    data: Vec<Option<XlsxEditContent>>,
     sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
@@ -1206,7 +1960,7 @@ pub(crate) async fn export_query_as_xlsx_send_data(
                 .send(
                     XlsxEdit {
                         row: *row_num,
-                        column: col as rust_xlsxwriter::ColNum,
+                        column: col as u16,
                         content: d,
                     }
                     .into(),
@@ -1218,9 +1972,9 @@ pub(crate) async fn export_query_as_xlsx_send_data(
     anyhow::Ok(())
 }
 
-pub(crate) fn export_query_as_xlsx_send_blocking_data(
+pub fn export_query_as_xlsx_send_blocking_data(
     row_num: &mut u32,
-    data: Vec<Option<String>>,
+    data: Vec<Option<XlsxEditContent>>,
     sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
@@ -1228,7 +1982,7 @@ pub(crate) fn export_query_as_xlsx_send_blocking_data(
             sender.blocking_send(
                 XlsxEdit {
                     row: *row_num,
-                    column: col as rust_xlsxwriter::ColNum,
+                    column: col as u16,
                     content: d,
                 }
                 .into(),
@@ -1419,7 +2173,7 @@ impl CreateIndexReq {
             .join(",")
     }
 
-    pub(crate) fn common_sql(
+    pub fn common_sql(
         &self,
         table: &str,
         can_have_order: bool,
@@ -1453,7 +2207,7 @@ async fn collect_export_str(
     match kind {
         ExportKind::Json { pretty } => {
             let mut ret = "[".to_string();
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(r) = receiver.recv().await {
                 let value = match r {
@@ -1604,6 +2358,8 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j1 = {
             let x = ExportQueryResult::clone(self);
             let sql = sql.to_string();
+            let kind = kind.clone();
+
             let query_id = query_id.to_string();
             let h1 = tokio::spawn(async move {
                 x.export_query_result(Some(&query_id), &sql, kind, sender)
@@ -1628,6 +2384,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
+            let kind = kind.clone();
             let query_id = query_id.to_string();
             tokio::spawn(async move {
                 x.export_query_result(Some(&query_id), &sql, kind, sender)
@@ -1660,7 +2417,7 @@ pub(crate) async fn write_export_file(
         ExportKind::Json { pretty } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
             file.write_all("[".as_bytes()).await?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(e) = receiver.recv().await {
                 let value = match e {
@@ -1744,7 +2501,10 @@ pub(crate) async fn write_export_file(
             emit(total);
             anyhow::Ok(())
         }
-        ExportKind::Xlsx { .. } => {
+        ExportKind::Xlsx {
+            include_header,
+            datetime_format,
+        } => {
             let filepath = filepath.to_string();
             let emit = emit.clone();
             spawn_blocking(move || {
@@ -1758,12 +2518,71 @@ pub(crate) async fn write_export_file(
                             anyhow::bail!(format!("this should be xlsx edit,but:{:?}", edit))
                         }
                     };
-
-                    total += edit.content.len();
+                    total += 1;
                     if time_elapsed.elapsed() {
                         emit(total)
                     }
-                    worksheet.write_string(edit.row, edit.column, edit.content)?;
+                    if include_header && edit.row == 0 {
+                        let header_format = rust_xlsxwriter::Format::new().set_bold();
+                        worksheet.write_string_with_format(
+                            edit.row,
+                            edit.column,
+                            match edit.content {
+                                XlsxEditContent::String(x) => x,
+                                _ => {
+                                    anyhow::bail!(format!(
+                                        "this is internal error,should be string value but:{:?}",
+                                        edit.content
+                                    ))
+                                }
+                            }, // header must  be  a string data
+                            &header_format,
+                        )?;
+                    } else {
+                        match edit.content {
+                            XlsxEditContent::Time(naive_time) => {
+                                let mut f = rust_xlsxwriter::Format::new();
+                                f = f.set_num_format(&datetime_format.time);
+                                worksheet.write_datetime_with_format(
+                                    edit.row,
+                                    edit.column,
+                                    naive_time,
+                                    &f,
+                                )?;
+                            }
+                            XlsxEditContent::Date(naive_date) => {
+                                let mut f = rust_xlsxwriter::Format::new();
+
+                                f = f.set_num_format(&datetime_format.date);
+                                worksheet.write_date_with_format(
+                                    edit.row,
+                                    edit.column,
+                                    naive_date,
+                                    &f,
+                                )?;
+                            }
+                            XlsxEditContent::DateTime(naive_date_time) => {
+                                let mut f = rust_xlsxwriter::Format::new();
+
+                                f = f.set_num_format(&datetime_format.datatime);
+                                worksheet.write_datetime_with_format(
+                                    edit.row,
+                                    edit.column,
+                                    naive_date_time,
+                                    &f,
+                                )?;
+                            }
+                            XlsxEditContent::String(x) => {
+                                worksheet.write_string(edit.row, edit.column, x)?;
+                            }
+                            XlsxEditContent::Number(f) => {
+                                worksheet.write_number(edit.row, edit.column, f)?;
+                            }
+                            XlsxEditContent::Bool(x) => {
+                                worksheet.write_boolean(edit.row, edit.column, x)?;
+                            }
+                        }
+                    }
                 }
                 workbook.save(filepath)?;
                 emit(total);
@@ -1790,18 +2609,56 @@ pub(crate) async fn write_export_file(
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
 
+    fn clone(&self) -> Box<dyn QuerySql>;
+
+    async fn execute_tx_multi_sql(&self, sql: &[String]) -> anyhow::Result<()> {
+        let query_id = uuid_v4_string();
+
+        self.open_connection(&query_id).await?;
+        let try_rollback = TryRollBack::new();
+
+        let _guard = DropConn {
+            query_id: query_id.clone(),
+            db: QuerySql::clone(self).into(),
+            try_rollback: try_rollback.clone(),
+        };
+        if self.support_tx() {
+            self.set_auto_commit(&query_id, false).await?;
+        }
+
+        for sql in sql.iter() {
+            self.execute_sql(&query_id, sql.as_str())
+                .await?
+                .map_err(anyhow::Error::msg)?;
+        }
+        if self.support_tx() {
+            self.commit(&query_id).await?;
+        }
+        try_rollback.do_not();
+        anyhow::Ok(())
+    }
+
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>>;
+
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
     async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
+
+    fn support_tx(&self) -> bool;
 
     async fn query_sql(
         &self,
@@ -1825,9 +2682,28 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 #[derive(Debug, serde::Serialize, Clone, specta::Type)]
 pub struct ListTable {
     pub name: String,
-    pub size: Option<u64>,
+    pub size: Option<f64>,
     // for frontend tree item id
-    pub rand: String,
+}
+
+impl PartialOrd for ListTable {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for ListTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for ListTable {}
+
+impl Ord for ListTable {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
 }
 
 impl From<String> for ListTable {
@@ -1835,17 +2711,15 @@ impl From<String> for ListTable {
         Self {
             name: value,
             size: None,
-            rand: generate_random_string(10),
         }
     }
 }
 
 impl ListTable {
-    pub(crate) fn new(name: impl Into<String>, size: Option<u64>) -> Self {
+    pub(crate) fn new(name: impl Into<String>, size: Option<f64>) -> Self {
         Self {
             name: name.into(),
             size,
-            rand: generate_random_string(10),
         }
     }
 }
@@ -1855,7 +2729,6 @@ impl From<&str> for ListTable {
         Self {
             name: value.to_string(),
             size: None,
-            rand: generate_random_string(10),
         }
     }
 }
@@ -1919,7 +2792,8 @@ impl QueryResp {
                 ..Default::default()
             }],
             sql: sql.into(),
-            total: 0,
+            total: 0f64,
+            tables: Default::default(),
         }
     }
 
@@ -1936,13 +2810,15 @@ impl QueryResp {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct QueryResp {
     pub fields: Vec<Field>,
     // only pagination need this parameter.
-    pub total: usize,
+    pub total: f64,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
+    // tables we are dealing with.can be extract with lib sql_insight
+    pub tables: Vec<String>,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -1970,7 +2846,7 @@ impl QueryResp {
 impl QueryResp {
     pub fn new(
         fields: Vec<Field>,
-        total: usize,
+        total: f64,
         data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,
     ) -> anyhow::Result<Self> {
@@ -1980,6 +2856,7 @@ impl QueryResp {
             total,
             sql,
             data,
+            tables: Default::default(),
         };
         ret.check()?;
         anyhow::Ok(ret)
@@ -1988,13 +2865,14 @@ impl QueryResp {
     pub fn result(sql: impl Into<Option<String>>, result: Vec<Option<String>>) -> Self {
         let sql = sql.into();
         Self {
-            total: result.len(),
+            total: result.len() as f64,
             sql,
             data: vec![result],
             fields: vec![Field {
                 field: "result".to_string(),
                 ..Default::default()
             }],
+            tables: Default::default(),
         }
     }
 }
@@ -2018,7 +2896,7 @@ pub struct Field {
 
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // 基础列定义: field_name data_type [NOT NULL] [DEFAULT xxx] [PRIMARY KEY] [AUTO_INCREMENT]
+        // Basic column definition: field_name data_type [NOT NULL] [DEFAULT xxx] [PRIMARY KEY] [AUTO_INCREMENT]
         write!(f, "{} {}", self.field, self.data_type)?;
 
         if !self.nullable {
@@ -2095,7 +2973,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, specta::Type)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     Csv {
@@ -2111,11 +2989,30 @@ pub enum ExportKind {
     },
     Xlsx {
         include_header: bool,
+        #[serde(flatten)]
+        datetime_format: ExportKindXlsDatetimeformat,
     },
     Html {
         include_header: bool,
     },
     MarkDown,
+}
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
+
+pub struct ExportKindXlsDatetimeformat {
+    datatime: String,
+    date: String,
+    time: String,
+}
+
+impl Default for ExportKindXlsDatetimeformat {
+    fn default() -> Self {
+        Self {
+            datatime: "yyyy-mm-dd hh:mm:ss".into(),
+            date: "yyyy-mm-dd".into(),
+            time: "hh:mm:ss".into(),
+        }
+    }
 }
 
 impl ExportKind {
@@ -2186,6 +3083,15 @@ pub enum TriggerEvent {
     Delete,
     InsteadOf,
 }
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+pub struct ForeignKeyDef {
+    pub name: Option<String>,
+    pub table: String,
+    pub from: String,
+    pub to: String,
+    pub on_update: String,
+    pub on_delete: String,
+}
 
 impl TryFrom<&str> for TriggerEvent {
     type Error = anyhow::Error;
@@ -2212,6 +3118,11 @@ pub enum TriggerTiming {
     String(String),
 }
 
+pub fn parse_bson_doc(bs: &[u8]) -> anyhow::Result<mongodb::bson::Document> {
+    let r = mongodb::bson::Document::from_reader(std::io::Cursor::new(bs))?;
+    anyhow::Ok(r)
+}
+
 /// meta value can used in various place.
 #[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize)]
 pub struct MetaValue {
@@ -2220,7 +3131,7 @@ pub struct MetaValue {
 }
 
 impl MetaValue {
-    pub(crate) fn new(name: impl Into<String>, value: impl Into<Option<String>>) -> Self {
+    pub fn new(name: impl Into<String>, value: impl Into<Option<String>>) -> Self {
         Self {
             name: name.into(),
             value: value.into(),
@@ -2230,6 +3141,10 @@ impl MetaValue {
 
 pub fn escape_sql_str(s: &str) -> String {
     s.replace("'", "''")
+}
+
+pub fn quote_sql_str(s: &str) -> String {
+    format!("'{}'", escape_sql_str(s))
 }
 
 pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
@@ -2245,7 +3160,7 @@ pub struct AutoCompletionQueryId {
 }
 
 impl AutoCompletionQueryId {
-    pub(crate) fn get(&self) -> String {
+    pub fn get(&self) -> String {
         self.query_id.lock().expect("should lock ok").clone()
     }
 
@@ -2289,7 +3204,7 @@ impl TimeElapsed {
     }
 }
 
-pub(crate) fn create_html_table_header(x: &[String]) -> String {
+pub fn create_html_table_header(x: &[String]) -> String {
     format!(
         r#"
         <tr>
@@ -2297,7 +3212,7 @@ pub(crate) fn create_html_table_header(x: &[String]) -> String {
         </tr>
     "#,
         x.iter()
-            .map(|x| format!("<th>{}</th>", v_htmlescape::escape(x)))
+            .map(|x| format!("<th>{}</th>", html_escape::encode_text(x)))
             .collect::<Vec<_>>()
             .join("")
     )
@@ -2316,7 +3231,7 @@ impl<T> OptionMustBeSomeErr<T> for Option<T> {
     }
 }
 
-pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
+pub fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     let mut ret = "".to_owned();
     for d in data.iter() {
         let x = &format!(
@@ -2329,7 +3244,9 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
                 .map(|x| {
                     format!(
                         "<td>{}</td>",
-                        v_htmlescape::escape(x.as_ref().map(|x| x.as_str()).unwrap_or_default())
+                        html_escape::encode_text(
+                            x.as_ref().map(|x| x.as_str()).unwrap_or_default()
+                        )
                     )
                 })
                 .collect::<Vec<_>>()
@@ -2340,7 +3257,25 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     ret
 }
 
-pub(crate) fn create_markdown_header(header: &[String]) -> String {
+fn escape_markdown(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            // Escape structural Markdown characters with a backslash
+            '\\' | '`' | '*' | '_' | '{' | '}' | '[' | ']' | '(' | ')' | '#' | '+' | '-' | '.'
+            | '!' => {
+                escaped.push('\\');
+                escaped.push(c);
+            }
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
+
+pub fn create_markdown_header(header: &[String]) -> String {
+    let header: Vec<_> = header.iter().map(|x| escape_markdown(x)).collect();
+
     let mut ret = format!("|{}|\n", header.join("|"));
     ret.push_str(
         format!(
@@ -2355,14 +3290,14 @@ pub(crate) fn create_markdown_header(header: &[String]) -> String {
     ret
 }
 
-pub(crate) fn create_markdown_data(header: &[Option<String>]) -> String {
+pub fn create_markdown_data(header: &[Option<String>]) -> String {
     let ret = format!(
         "|{}|\n",
         header
             .iter()
             .map(|x| match x {
-                Some(x) => x.as_str(),
-                None => "",
+                Some(x) => escape_markdown(x.as_str()),
+                None => "".to_owned(),
             })
             .collect::<Vec<_>>()
             .join("|")
@@ -2445,14 +3380,6 @@ impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     }
 }
 
-pub fn need_paid() -> anyhow::Result<()> {
-    if cfg!(feature = "paid") {
-        anyhow::Ok(())
-    } else {
-        anyhow::bail!("this feature is paid")
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct SqlCollect {
     sql: String,
@@ -2471,7 +3398,7 @@ impl From<SqlCollect> for String {
     }
 }
 
-pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
+pub const POOL_MAX_CONNECTIONS: u32 = 200;
 
 #[async_trait::async_trait]
 
@@ -2500,9 +3427,11 @@ pub trait GetTestExportTableKinds: SchemaTrait {
             },
             ExportKind::Xlsx {
                 include_header: true,
+                datetime_format: Default::default(),
             },
             ExportKind::Xlsx {
                 include_header: false,
+                datetime_format: Default::default(),
             },
         ];
         if self.support_table_schema() {
@@ -2520,9 +3449,9 @@ pub trait GetTestExportTableKinds: SchemaTrait {
     async fn test_export(&self, table_name: &str) {
         for kind in self.get_kinds() {
             let str = self
-                .export_table_to_string(table_name, kind)
+                .export_table_to_string(table_name, kind.clone())
                 .await
-                .expect("should export ok");
+                .unwrap_or_else(|_| panic!("should export failed:{:?}", kind));
             println!("export:{:?}\n{}", kind, str)
         }
     }
@@ -2530,23 +3459,48 @@ pub trait GetTestExportTableKinds: SchemaTrait {
 
 #[derive()]
 pub struct FirstTrue {
-    value: AtomicBool,
+    value: bool,
 }
 
 impl Default for FirstTrue {
     fn default() -> Self {
-        Self {
-            value: AtomicBool::new(true),
-        }
+        Self { value: true }
     }
 }
 
 impl FirstTrue {
-    pub fn get(&self) -> bool {
-        let value = self.value.load(Ordering::Relaxed);
+    pub fn get(&mut self) -> bool {
+        let value = self.value;
         if value {
-            self.value.store(false, Ordering::Relaxed);
+            self.value = false;
         }
-        return value;
+
+        value
+    }
+}
+
+pub trait ExtractSqlValeFromJsonValue {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        ty: &str,
+    ) -> anyhow::Result<Option<String>>;
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[serde(transparent)]
+pub struct JsUint8Array(pub Vec<u8>);
+
+impl specta::Type for JsUint8Array {
+    fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
+        specta::datatype::DataType::Reference(specta_typescript::define("Uint8Array"))
+    }
+}
+
+impl Deref for JsUint8Array {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

@@ -1,16 +1,17 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind,
-    BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
-    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
+    BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaArg,
+    CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    NameWithParameter, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
+    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
-use crate::helper::create_csv;
-use crate::language_server::LexerCompletionTrait;
+use crate::helper::{create_csv, extract_bytes_from_serde_values};
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -20,6 +21,7 @@ use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -153,7 +155,6 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
 
             _ if type_is_blob(&ty) => {
                 let string_value = row.try_get::<String, _>(c);
-
                 match (string_value, try_blob_to_str) {
                     (Ok(v), true) => serde_json::Value::from(v),
                     _ => {
@@ -449,17 +450,35 @@ fn schema_is_information_schema(x: &str) -> bool {
 }
 
 impl MysqlDB {
-    pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+    pub(crate) async fn query_row(&self, sql: impl AsRef<str>) -> anyhow::Result<MySqlRow> {
+        let sql = sql.as_ref();
         let mut conn = self.get_conn().await?;
-        let s = format!(
+
+        let row = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        anyhow::Ok(row)
+    }
+    pub(crate) async fn query_rows(&self, sql: impl AsRef<str>) -> anyhow::Result<Vec<MySqlRow>> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        anyhow::Ok(rows)
+    }
+}
+
+impl MysqlDB {
+    pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!(
             r#"SELECT table_name ,data_length
         FROM information_schema.tables
         WHERE table_schema = '{}' AND  table_type = 'BASE TABLE'  ORDER BY  table_name;"#,
             schema
         );
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql.as_str()).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let table_name: String = r.try_get_unchecked(0)?;
@@ -473,7 +492,7 @@ impl MysqlDB {
                     }
                 },
             };
-            ret.push(ListTable::new(table_name, size));
+            ret.push(ListTable::new(table_name, size.map(|x| x as f64)));
         }
         anyhow::Ok(ret)
     }
@@ -504,10 +523,7 @@ impl MysqlDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
@@ -538,10 +554,7 @@ impl MysqlDB {
                 ORDER  BY EVENT_NAME;
         "#
         );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
 
         for r in rows.iter() {
@@ -554,9 +567,7 @@ impl MysqlDB {
 
             let create_sql = {
                 let sql = format!(r#"SHOW CREATE EVENT `{}`.`{}`"#, schema, name);
-                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_one(conn.deref_mut())
-                    .await?;
+                let row = self.query_row(sql).await?;
                 row.try_get::<'_, String, _>(3)?
             };
             ret.push(SqlEvent {
@@ -583,12 +594,89 @@ impl MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // 1. Drop the foreign key constraint.
+        let drop_sql = format!(r#"ALTER TABLE `{}` DROP FOREIGN KEY `{}`"#, table, name);
+        log::info!("sql: {}", drop_sql);
+        self.simple_execute_sql(&drop_sql).await?;
+
+        // 2. Also drop the index with the same name that MySQL automatically created for the foreign key, if it exists.
+        // When MySQL creates a foreign key, it automatically creates an index with the same name on the local column.
+        // This index remains after the foreign key is dropped; removing it avoids wasting space and leaving a redundant index.
+        let drop_index_sql = format!(r#"ALTER TABLE `{}` DROP INDEX `{}`"#, table, name);
+
+        // Since dropping a missing index causes an error, check for it manually or ignore the error.
+        // Execute the statement and ignore errors such as "index does not exist."
+        if let Err(e) = self.simple_execute_sql(drop_index_sql.as_str()).await {
+            log::warn!("删除外键索引失败（索引可能已被手动删除）: {:?}", e);
+        }
+
+        anyhow::Ok(())
+    }
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let sql = format!(
+            r#"
+        SELECT 
+            kcu.CONSTRAINT_NAME AS constraint_name,
+            kcu.REFERENCED_TABLE_NAME AS referenced_table_name,
+            kcu.COLUMN_NAME AS column_name,
+            kcu.REFERENCED_COLUMN_NAME AS referenced_column_name,
+            rc.UPDATE_RULE AS update_rule,
+            rc.DELETE_RULE AS delete_rule
+        FROM 
+            INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+        JOIN 
+            INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+        ON 
+            kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME 
+            AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+        WHERE 
+            kcu.TABLE_SCHEMA = '{}'
+            AND kcu.TABLE_NAME = '{table}'
+            AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+        "#,
+            self.config.schema_str(),
+        );
+
+        let rows = self.query_rows(&sql).await?;
+
+        log::info!("sql:{}", sql);
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            // Extract the foreign key name (column 0).
+            let constraint_name: Option<String> = r.try_get(0)?;
+            // Extract the referenced table (column 1).
+            let referenced_table: String = r.try_get(1)?;
+            // Extract the local column name (column 2), corresponding to SQLite's "from".
+            let from: String = r.try_get(2)?;
+            // Extract the referenced column name (column 3), corresponding to SQLite's "to".
+            let to: String = r.try_get(3)?;
+            // Update rule (column 4).
+            let on_update: String = r.try_get(4)?;
+            // Delete rule (column 5).
+            let on_delete: String = r.try_get(5)?;
+
+            ret.push(ForeignKeyDef {
+                // Note: Your ForeignKeyDef struct may not yet have a constraint_name field; add it, or print/discard the value here.
+                // To keep it in the result, update the struct definition.
+                name: constraint_name, // Assumes you added this field to the struct.
+                table: referenced_table,
+                from,
+                to,
+                on_update,
+                on_delete,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
             BackendKindMysql::Mariadb => {
                 self.mariadb_list_sequences(self.config.schema_str()).await
             }
-            _ => self.backend_kind().not_support_feature(),
+            _ => self.backend_kind().not_support_feature("list sequence"),
         }
     }
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
@@ -598,7 +686,7 @@ impl SchemaTrait for MysqlDB {
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
-            _ => self.backend_kind().not_support_feature(),
+            _ => self.backend_kind().not_support_feature("rename sequence"),
         }
     }
 
@@ -609,7 +697,7 @@ impl SchemaTrait for MysqlDB {
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
-            _ => self.backend_kind().not_support_feature(),
+            _ => self.backend_kind().not_support_feature("drop sequence"),
         }
     }
 
@@ -622,8 +710,8 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(sql)
     }
 
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
@@ -652,11 +740,7 @@ impl SchemaTrait for MysqlDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -692,16 +776,12 @@ impl SchemaTrait for MysqlDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"ALTER TABLE `{table}` MODIFY COLUMN `{new_name}` {} {} {}"#,
-                &typ.typ,
+                typ.typ,
                 typ.nullable.unwrap_or_default(),
                 if let Some(dv) = typ.default_value.as_ref() {
                     format!(
                         "DEFAULT {}",
-                        if self.hit_current_value(dv) {
-                            dv.clone()
-                        } else {
-                            self.put_value_in_sql(&typ.typ, dv.as_str())?
-                        }
+                        self.encode_value_try_predefine(&typ.typ, dv.as_str())?
                     )
                 } else {
                     "".to_string()
@@ -727,43 +807,19 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let mut conn = self.get_conn().await?;
         let ret = FunctionOrProcedure::Procedure
             .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
-        let mut conn = self.get_conn().await?;
-
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!("SHOW CREATE PROCEDURE {};", name.name);
 
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
-        let sql_mode: Option<String> = row.try_get(1)?;
-        let sql: String = row.try_get(2)?;
-        anyhow::Ok(ProcedureDetail::new(
-            sql,
-            vec![MetaValue::new("sql_mode", sql_mode)],
-        ))
-    }
+        let row = self.query_row(sql).await?;
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
-        let sql = format!("DROP PROCEDURE `{}`", name.name);
-        log::info!("sql:{}", sql);
-        self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
-    }
-
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
-        let mut conn = self.get_conn().await?;
-        let sql = format!("SHOW CREATE FUNCTION {};", name.name);
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
         let sql_mode: Option<String> = row.try_get(1)?;
         let sql: String = row.try_get(2)?;
         anyhow::Ok(DefAndMetas::new(
@@ -772,21 +828,40 @@ impl SchemaTrait for MysqlDB {
         ))
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
+        let sql = format!("DROP PROCEDURE `{}`", name.name);
+        log::info!("sql:{}", sql);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
+    }
+
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
+        let sql = format!("SHOW CREATE FUNCTION {};", name.name);
+        let row = self.query_row(&sql).await?;
+
+        let sql_mode: Option<String> = row.try_get(1)?;
+        let sql: String = row.try_get(2)?;
+        anyhow::Ok(DefAndMetas::new(
+            sql,
+            vec![MetaValue::new("sql_mode", sql_mode)],
+        ))
+    }
+
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{}`", name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
             .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
 
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -824,10 +899,7 @@ impl SchemaTrait for MysqlDB {
 
         let create_stmt = {
             let sql = format!("show CREATE TRIGGER `{}`", name);
-            let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_one(conn.deref_mut())
-                .await?;
-
+            let row = self.query_row(&sql).await?;
             row.try_get::<String, _>(2)?
         };
 
@@ -848,7 +920,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT TRIGGER_NAME
@@ -859,17 +931,13 @@ impl SchemaTrait for MysqlDB {
             self.config.schema_str()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn export_table_or_view(
@@ -898,30 +966,20 @@ impl SchemaTrait for MysqlDB {
         &self,
         table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(
-            format!("SHOW CREATE TABLE `{table_name}`;").as_str(),
-        ))
-        .fetch_one(conn.deref_mut())
-        .await?;
-
-        let s: String = row.try_get(1)?;
-
+        let sql = format!("SHOW CREATE TABLE `{table_name}`;");
+        let row = self.query_row(&sql).await?;
+        let def: String = row.try_get(1)?;
         anyhow::Ok(CreateTableAndIndexSql {
-            create_table: s,
+            create_table: def,
             indexes: vec![],
         })
     }
 
     async fn show_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(
-            format!("SHOW CREATE VIEW `{view_name}`;").as_str(),
-        ))
-        .fetch_one(conn.deref_mut())
-        .await?;
-        let s: String = row.try_get(1)?;
-        anyhow::Ok(s)
+        let sql = format!("SHOW CREATE VIEW `{view_name}`;");
+        let row = self.query_row(sql.as_str()).await?;
+        let def: String = row.try_get(1)?;
+        anyhow::Ok(def)
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -943,19 +1001,17 @@ impl SchemaTrait for MysqlDB {
         emit.send("trying to get connection...".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(view_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(view_name, para.filter.as_deref()).await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         while let Some(row) = stream.next().await {
             let row = row?;
             if first.get() {
                 emit.send(
                     QueryResp {
-                        total,
+                        total: total as f64,
                         fields: get_row_type(&row),
                         sql: sql.clone().into(),
                         ..Default::default()
@@ -1015,15 +1071,15 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        // 执行 DESCRIBE users; 或 DESC users;
-        // 命令将返回描述表结构的结果集。结果集包含以下列信息：
+        // Run DESCRIBE users; or DESC users;.
+        // The command returns a result set describing the table structure, with the following columns:
         //
-        // Field：列的名称。
-        // Type：列的数据类型。
-        // Null：指示列是否允许为空值（YES 或 NO）。
-        // Key：指示列是否是索引列，以及索引的类型。
-        // Default：列的默认值。
-        // Extra：显示附加信息，如是否自增、是否使用了自定义规则等。
+        // Field: The column name.
+        // Type: The column data type.
+        // Null: Indicates whether the column allows NULL values (YES or NO).
+        // Key: Indicates whether the column is indexed and, if so, the index type.
+        // Default: The column's default value.
+        // Extra: Shows additional information, such as whether the column is auto-incrementing or uses a custom rule.
 
         // +----------+--------------+------+-----+-------------------+-----------------------------+
         // | Field    | Type         | Null | Key | Default           | Extra                       |
@@ -1033,11 +1089,9 @@ impl SchemaTrait for MysqlDB {
         // | password | varchar(100) | NO   |     | NULL              |                             |
         // +----------+--------------+------+-----+-------------------+-----------------------------+
 
-        let s = format!("describe `{}`", table_name);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let sql = format!("describe `{}`", table_name);
+        let rows = self.query_rows(sql.as_str()).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
@@ -1078,15 +1132,13 @@ impl SchemaTrait for MysqlDB {
         emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to query total amount".into())?;
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         log::info!("sql:{}", sql);
         emit.send(
             QueryResp {
                 fields,
-                total,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -1107,11 +1159,8 @@ impl SchemaTrait for MysqlDB {
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!("SHOW INDEX FROM `{table_name}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
         let mut map: HashMap<String, Index> = HashMap::new();
+        let rows = self.query_rows(sql.as_str()).await?;
         for r in rows.iter() {
             let non_unique: Option<i32> = r.get(1);
             let name: String = r.get(2);
@@ -1159,17 +1208,17 @@ impl SchemaTrait for MysqlDB {
     async fn table_insert_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
+        let sql = SqlBuilder::insert_sql(self, table_name, &fs, values)?;
         anyhow::Ok(sql)
     }
 
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
         let r = self.simple_execute_sql(&sql).await?;
@@ -1179,19 +1228,19 @@ impl SchemaTrait for MysqlDB {
     async fn table_update_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
+        let sql = SqlBuilder::update_sql(self, table_name, &fs, values, wheres)?;
         anyhow::Ok(sql)
     }
 
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_update_sql(table_name, values, wheres).await?;
         self.simple_execute_sql(&sql).await
@@ -1200,29 +1249,31 @@ impl SchemaTrait for MysqlDB {
     async fn table_delete_sql(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
+        SqlBuilder::delete_sql(self, table_name, &fs, wheres)
     }
 
     async fn table_delete(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
+        let sql = SqlBuilder::delete_sql(self, table_name, &fs, wheres)?;
         let ret = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(ret)
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list materialized view")
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("drop materialized view")
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -1235,12 +1286,146 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<crate::db::CreatedTypeDef>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list created type")
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop create type")
     }
+}
+
+fn encode_bytes(bs: &[u8]) -> String {
+    format!("0x{}", hex::encode_upper(bs))
+}
+
+impl EncodeXlsxDatetime for MysqlDB {
+    /*
+    timestamp_column TIMESTAMP,
+    datetime_column DATETIME,
+    date_column DATE,
+    time_column TIME,
+    */
+
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(
+            ["TIMESTAMP", "DATETIME"]
+                .iter()
+                .any(|x| x.eq_ignore_ascii_case(ty)),
+        )
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
+
+fn encode_row_as_xlsx(
+    r: &MySqlRow,
+    try_blob_to_str: bool,
+) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = Vec::with_capacity(r.len());
+    for c in 0..r.len() {
+        let col = r.column(c);
+        let ty = col.type_info().name();
+        let ty = ty.to_uppercase();
+        let v: Option<XlsxEditContent> = match ty.as_str() {
+            "BOOLEAN" | "BOOL" => {
+                let value: Option<bool> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "TINYINT" => {
+                let value: Option<i8> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "SMALLINT" => {
+                let value: Option<i16> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "INT" => {
+                let value: Option<i32> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "BIGINT" => {
+                let value: Option<i64> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "TINYINT UNSIGNED" => {
+                let value: Option<u8> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "SMALLINT UNSIGNED" => {
+                let value: Option<u16> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "INT UNSIGNED" => {
+                let value: Option<u32> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "BIGINT UNSIGNED" => {
+                let value: Option<u64> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "FLOAT" => {
+                let value: Option<f32> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+            "DOUBLE" => {
+                let value: Option<f64> = r.try_get(c)?;
+                value.map(XlsxEditContent::number)
+            }
+
+            _ if type_is_string(&ty) => {
+                let value: Option<String> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "ENUM" => {
+                let value: Option<String> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            _ if type_is_blob(&ty) => {
+                let x: Option<Vec<u8>> = r.try_get(c)?;
+                let str_value: sqlx::Result<Option<String>> = r.try_get(c);
+                let str_value = str_value.ok().flatten();
+                x.map(|x| match (str_value, try_blob_to_str) {
+                    (Some(value), true) => value.into(),
+                    _ => encode_bytes(&x).into(),
+                })
+            }
+            "TIMESTAMP" => {
+                let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
+                value.map(|x| x.naive_utc().into())
+            }
+            "DATETIME" => {
+                let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "DATE" => {
+                let value: Option<chrono::NaiveDate> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "TIME" => {
+                let value: Option<chrono::NaiveTime> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "DECIMAL" => {
+                let value: Option<BigDecimal> = r.try_get(c)?;
+                value.map(|x| x.to_string().into())
+            }
+            "JSON" => {
+                let value: Option<serde_json::Value> = r.try_get(c)?;
+                value.map(|x| x.to_string().into())
+            }
+            "NULL" => None,
+
+            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+        };
+        values.push(v);
+    }
+    anyhow::Ok(values)
 }
 
 fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<String>>> {
@@ -1309,9 +1494,7 @@ fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<
                 let str_value = str_value.ok().flatten();
                 x.map(|x| match (str_value, try_blob_to_str) {
                     (Some(value), true) => value,
-                    _ => {
-                        format!("0x{}", hex::encode_upper(x.as_slice()))
-                    }
+                    _ => encode_bytes(&x),
                 })
             }
             "TIMESTAMP" => {
@@ -1354,12 +1537,12 @@ impl MysqlDB {
             .host(&config.host)
             .port(config.port)
             .username(&config.username);
-        println!("ssl:{:?}", config.ssl);
 
-        match config.ssl.ssl_mode {
-            crate::datasource_config::MySqlSslMode::Disabled => {}
+        let ssl_model: sqlx::mysql::MySqlSslMode = FromStr::from_str(&config.ssl.ssl_mode)?;
+        match ssl_model {
+            sqlx::mysql::MySqlSslMode::Disabled => {}
             _ => {
-                opts = opts.ssl_mode(config.ssl.ssl_mode.into());
+                opts = opts.ssl_mode(ssl_model);
                 if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
                     opts = opts.ssl_ca(ca);
                 }
@@ -1377,6 +1560,7 @@ impl MysqlDB {
         if let Some(db) = &config.db {
             opts = opts.database(db);
         }
+        opts = opts.charset(&config.charset.0);
         let mut pool_options = PoolOptions::new();
         if let Some(x) = config.conn_timeout {
             pool_options = pool_options.acquire_timeout(x.into());
@@ -1393,14 +1577,11 @@ impl MysqlDB {
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut conn = self.get_conn().await?;
-        let mut s = format!("SELECT count(1) FROM `{name}` ");
+        let mut sql = format!("SELECT count(1) FROM `{name}` ");
         if let Some(where_str) = where_str {
-            s.push_str(format!(" where {where_str}").as_str());
+            sql.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(&sql).await?;
         let count: i64 = row.get(0);
         anyhow::Ok(count as usize)
     }
@@ -1458,7 +1639,7 @@ impl DBTrait for MysqlDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE `{name}`");
         log::info!("sql:{}", sql);
@@ -1499,7 +1680,7 @@ impl ExportQueryResult for MysqlDB {
         };
         let mut conn = conn.lock().await;
         let mut conn = conn.deref_mut();
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
@@ -1529,7 +1710,7 @@ impl ExportQueryResult for MysqlDB {
                 ExportKind::Sql { .. } => {
                     anyhow::bail!("can't export query result as sql")
                 }
-                ExportKind::Xlsx { include_header } => {
+                ExportKind::Xlsx { include_header, .. } => {
                     if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             let col = col.name();
@@ -1537,8 +1718,8 @@ impl ExportQueryResult for MysqlDB {
                                 .send(
                                     XlsxEdit {
                                         row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
-                                        content: col.to_owned(),
+                                        column: index as u16,
+                                        content: col.to_owned().into(),
                                     }
                                     .into(),
                                 )
@@ -1547,7 +1728,7 @@ impl ExportQueryResult for MysqlDB {
                         row_num += 1;
                     }
 
-                    let data = encode_row(&row, true)?;
+                    let data = encode_row_as_xlsx(&row, true)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
@@ -1582,6 +1763,20 @@ impl ExportQueryResult for MysqlDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MysqlDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
         let conn = self.query_connection.get(&query_id.to_string());
@@ -1641,7 +1836,6 @@ impl QuerySql for MysqlDB {
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?.detach();
-
         self.query_connection
             .insert(id.to_string(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
@@ -1718,6 +1912,11 @@ impl QuerySql for MysqlDB {
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
+                                sql: Some(sql.to_owned()),
+                                tables: crate::language_server::LangServerCommon::extract_tables(
+                                    self, sql,
+                                )
+                                .unwrap_or_default(),
                                 ..Default::default()
                             }
                             .into(),
@@ -1755,8 +1954,8 @@ impl QuerySql for MysqlDB {
     }
 }
 
-/// mysql有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
-/// MySQL 里可以直接写在 SQL 语句中的 CURRENT_* 字面量
+/// Provide a complete Rust list of MySQL values that can be written directly in SQL statements, such as CURRENT_TIMESTAMP.
+/// CURRENT_* literals that can be written directly in MySQL SQL statements.
 pub const MYSQL_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_DATE",      //  2025-08-25
     "CURRENT_TIME",      //  14:36:07
@@ -1769,12 +1968,12 @@ impl SqlBuilder for MysqlDB {
         self.config.db.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         MYSQL_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, f: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, f: &str, value: &str) -> anyhow::Result<String> {
         let default_str = value.to_string();
-        let single_quote_str = format!("'{}'", escape_sql_str(value));
+        let single_quote_str = quote_sql_str(value);
         let ty = f.to_uppercase();
 
         let v = match ty.as_str() {
@@ -1802,6 +2001,7 @@ impl SqlBuilder for MysqlDB {
             "DATE" => single_quote_str,
             "TIME" => single_quote_str,
             "JSON" => single_quote_str,
+            "INET4" | "INET6" => single_quote_str,
             _ if ty.starts_with("ENUM") => single_quote_str,
             _ => {
                 log::error!("mysql type '{}' not handled", ty);
@@ -1824,12 +2024,10 @@ impl SqlBuilder for MysqlDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
+                filter: where_str,
+                sort: order_by,
                 ..
-            } = para;
+            } = &para;
 
             if let Some(where_str) = where_str {
                 sql.push_str(format!(" WHERE {where_str} ").as_str());
@@ -1837,8 +2035,12 @@ impl SqlBuilder for MysqlDB {
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
-            let offset = (page - 1) * page_size;
-            sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+            let offset = para.offset();
+            if let Some(offset) = offset {
+                sql.push_str(
+                    format!(" LIMIT {} OFFSET {} ", offset.page_size, offset.offset).as_str(),
+                );
+            }
         }
 
         sql
@@ -1846,6 +2048,25 @@ impl SqlBuilder for MysqlDB {
 }
 
 impl GetTestExportTableKinds for MysqlDB {}
+impl ExtractSqlValeFromJsonValue for MysqlDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let r = match value {
+            serde_json::Value::Null => return anyhow::Ok(None),
+            serde_json::Value::Bool(x) => x.to_string(),
+            serde_json::Value::Number(number) => number.to_string(),
+            serde_json::Value::String(x) => x.clone(),
+            serde_json::Value::Array(values) => {
+                encode_bytes(&extract_bytes_from_serde_values(values)?)
+            }
+            serde_json::Value::Object(x) => serde_json::to_string(x)?,
+        };
+        anyhow::Ok(Some(r))
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod test_fns {
@@ -1901,7 +2122,7 @@ pub(crate) mod test_fns {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -1941,7 +2162,7 @@ pub(crate) mod test_fns {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
         db.execute_sql(
@@ -1960,7 +2181,7 @@ pub(crate) mod test_fns {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 
@@ -1970,7 +2191,7 @@ pub(crate) mod test_fns {
         let f = "test_procedure";
 
         let _ = db
-            .drop_procedure(&NamedStaff {
+            .drop_procedure(&NameWithParameter {
                 name: f.to_string(),
                 ..Default::default()
             })
@@ -1981,7 +2202,7 @@ pub(crate) mod test_fns {
             r#" 
             CREATE PROCEDURE test_procedure()
             BEGIN
-                -- 这个存储过程什么都不做
+                -- This stored procedure does nothing.
             END;
         "#,
         )
@@ -2002,7 +2223,7 @@ pub(crate) mod test_fns {
         let f = "test_function";
 
         let _ = db
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: f.to_string(),
                 ..Default::default()
             })
@@ -2384,7 +2605,7 @@ pub(crate) mod test_fns {
         values.insert("int_col".to_string(), Some("4".to_string()));
         values.insert("bigint_col".to_string(), Some("5".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2396,6 +2617,10 @@ pub(crate) mod test_fns {
         println!("{:?}", cols);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["tinyint_col"]) // 1 and true is confusing, so we ignore tinyint_col in equal test
+            .await;
     }
 
     pub(crate) async fn test_types2(db: MysqlDB) {
@@ -2432,7 +2657,7 @@ pub(crate) mod test_fns {
         values.insert("f32_col".to_string(), Some("4".to_string()));
         values.insert("f64_col".to_string(), Some("5".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2444,6 +2669,8 @@ pub(crate) mod test_fns {
         println!("{:?}", cols);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub(crate) async fn test_types3(db: MysqlDB) {
@@ -2481,7 +2708,7 @@ pub(crate) mod test_fns {
         values.insert("binary_col".to_string(), Some("0x0102030405".to_string()));
         values.insert("blob_col".to_string(), Some("0x01020304".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2492,6 +2719,7 @@ pub(crate) mod test_fns {
             .unwrap();
         println!("{:?}", cols);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub(crate) async fn test_types4(db: MysqlDB) {
@@ -2534,10 +2762,10 @@ pub(crate) mod test_fns {
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert(
             "json_column".to_string(),
-            Some(r#"{"key": "value"}"#.to_string()),
+            Some(r#"{"key":"value"}"#.to_string()),
         );
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2548,6 +2776,8 @@ pub(crate) mod test_fns {
             .unwrap();
         println!("{:?}", cols);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub(crate) async fn test_list_database(db: MysqlDB) {
@@ -2632,7 +2862,7 @@ pub(crate) mod test_fns {
             STARTS CURRENT_TIMESTAMP
             DO
             BEGIN
-                /* 空语句块，可永久存在 */
+                /* Empty statement block; may exist indefinitely. */
             END;
         "#,
         )
@@ -2644,15 +2874,85 @@ pub(crate) mod test_fns {
             println!("event:{:?}", d);
         }
     }
+
+    pub(crate) async fn test_foreign_key(db: MysqlDB) {
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "test_comments_ibfk_1", // this name generate every time
+            )
+            .await;
+        if let Err(_err) = _err {
+            println!("drop foreign key failed,err:{}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. Create the parent table test_posts.
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_posts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. Create the child table test_comments (correcting the original spelling error).
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_comments (
+            comment_id INT AUTO_INCREMENT PRIMARY KEY, -- 修正了原代码的拼写
+            author_name VARCHAR(255),
+            post_id INT,
+            FOREIGN KEY (post_id) REFERENCES test_posts(id) 
+            ON DELETE CASCADE 
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. List and print the foreign keys.
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key:{:?}", f);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::{MysqlDBConfig, SSLFiles, SslFilesWithStrModel};
+    use crate::db::{BackendKindMysql, CheckConn};
+    use crate::helper::{cert_files_dir, start_docker_container, DockerContainerDropper};
+    use crate::language_server::get_update_sql_from_result_set_impl;
+    use crate::mysql::MysqlDB;
     use crate::TEST_HOST;
     use sqlx::Executor;
     use std::ops::DerefMut;
+    use std::process::Command;
+    use std::time::Duration;
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2663,7 +2963,8 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::mysql_default(),
+            charset: Default::default(),
         }
     }
 
@@ -2736,10 +3037,33 @@ mod tests {
         test_fns::test_udf(make_test_object(make_config()).await).await;
     }
 
+    #[ignore = "run by hand"]
+    #[tokio::test]
+
+    async fn test_get_update_sql() {
+        let db = make_test_object(make_config()).await;
+
+        {
+            let x = get_update_sql_from_result_set_impl(
+                &db,
+                "select id,name from test_index",
+                &[Some(1.to_string()), Some("haha".to_string())],
+                &[Some(1.to_string()), Some("yuyang".to_string())],
+            )
+            .await
+            .unwrap();
+
+            for y in x.iter() {
+                println!("sql:{}", y);
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_types1() {
         test_fns::test_types1(make_test_object(make_config()).await).await;
     }
+
     #[tokio::test]
     async fn test_types2() {
         test_fns::test_types2(make_test_object(make_config()).await).await;
@@ -2773,5 +3097,129 @@ mod tests {
     #[tokio::test]
     async fn test_event() {
         test_fns::test_event(make_test_object(make_config()).await).await;
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object(make_config()).await;
+
+        test_fns::test_foreign_key(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_ssl_mysql() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // Create an initialization script to create an SSL user.
+        let init_script_content = r#"
+CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpass';
+GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION;
+ALTER USER 'testuser'@'%' REQUIRE SSL;
+FLUSH PRIVILEGES;
+"#;
+
+        // Create a temporary initialization script file.
+        let init_script_path = format!("{}/init-mysql.sql", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+
+        let ca_volume = format!("{}/ca.crt:/etc/mysql/ssl/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/mysql/ssl/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/mysql/ssl/server.key", cert_dir);
+        let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.sql", init_script_path);
+
+        // Start the MySQL container with SSL enabled and required.
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "mysql-ssl-test"])
+            .args(["-p", format!("{}:3306", port).as_str()])
+            .args(["-e", "MYSQL_ROOT_PASSWORD=rootpass"])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .args(["-v", &init_volume])
+            .arg("mysql")
+            // MySQL SSL configuration options.
+            .args(["--ssl-ca=/etc/mysql/ssl/ca.crt"])
+            .args(["--ssl-cert=/etc/mysql/ssl/server.crt"])
+            .args(["--ssl-key=/etc/mysql/ssl/server.key"])
+            .args(["--require_secure_transport=ON"]) // Require SSL.
+            .args(["--log-error-verbosity=3"])
+            .args(["--performance-schema=OFF"]) // Reduce startup time.
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("MySQL 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // MySQL takes longer to start; wait for initialization to complete.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        start_docker_container(&container_id).unwrap();
+
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        // Test 1: Connect without SSL.
+        let config = MysqlDBConfig {
+            host: "127.0.0.1".to_string(),
+            port,
+            username: "root".to_string(),
+            password: "rootpass".to_string().into(),
+            db: None,
+            charset: Default::default(),
+            read_only: true,
+            ssl: SslFilesWithStrModel {
+                ssl_mode: "disabled".to_string(),
+                ssl_files: SSLFiles {
+                    ssl_ca: None,
+                    ssl_cert: None,
+                    ssl_key: None,
+                },
+            },
+            conn_timeout: Some(8000.into()),
+        };
+        let kind = BackendKindMysql::Mysql;
+
+        // The connection should succeed without SSL.
+        {
+            let db = MysqlDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+            println!("✅ 非SSL连接成功");
+        }
+
+        // Test 2: Use SSL with mode set to required.
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "required".to_string();
+            let db = MysqlDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+            println!("✅ required SSL连接成功");
+        }
+
+        // Test 3: Use SSL with verify_ca.
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "verify_ca".to_string();
+            config.ssl.ssl_files = SSLFiles {
+                ssl_ca: Some(format!("{}/ca.crt", cert_dir)),
+                ssl_cert: Some(format!("{}/client.crt", cert_dir)),
+                ssl_key: Some(format!("{}/client.key", cert_dir)),
+            };
+            println!("config:{:?}", config);
+
+            let db = MysqlDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+            println!("✅ verify_ca SSL连接成功");
+        }
     }
 }

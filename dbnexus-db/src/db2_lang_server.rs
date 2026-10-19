@@ -132,12 +132,12 @@ impl AstCompletionHelper for Db2Db {
     }
 }
 
-// 给我db2的所有关键字 rust数组格式
+// Provide all DB2 keywords in Rust array format.
 
-/// DB2 关键字和保留字列表
-/// 来源：IBM DB2 官方文档
+/// DB2 keywords and reserved words.
+/// Source: official IBM DB2 documentation.
 /// https://www.ibm.com/docs/zh/db2/11.5.x?topic=sql-reserved-schema-names-reserved-words
-/// 注：此列表包含 DB2 for LUW 的主要关键字，实际使用时可能需要根据具体版本调整
+/// Note: This list contains the main keywords for DB2 for LUW and may need to be adjusted for specific versions.
 pub const DB2_KEYWORDS: &[&str] = &[
     "ABS",
     "ACTIVATE",

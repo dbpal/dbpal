@@ -23,8 +23,12 @@ async function testCol() {
         longValue: new BSON.BSON.Long(456),
     });
     console.info('insert ret is:', insertRet);
-    const count = await collection.cuntDocuments();
+    let count = await collection.countDocuments();
     console.info('count document is :', count);
+
+    count = await collection.countDocuments({ a: 100 });
+    console.info('count document is with condition :', count);
+
     const createIndexRet = await collection.createIndex({ a: 1 });
     console.info('create index ret:', createIndexRet);
     const deleteManyResult = await collection.deleteMany({ c: 2 });
@@ -72,7 +76,7 @@ async function testCol() {
     } catch (e) {
         console.info('@@@@@@@@@@@@@@@@@@@', e);
     }
-    let findManyResult = await collection.find({}).limit(100).find();
+    let findManyResult = await collection.find({}).limit(100).findCollect();
     console.info('find many result:', findManyResult);
     let findOneResult = await collection.findOne({}).max({}).find();
     console.info('find one result:', findOneResult);
@@ -90,7 +94,11 @@ async function testLimitOffsetPara() {
     }
     // we have 10 record in database
     try {
-        let r = await col.find({ a: 1 }).limit(10).projection({ a: 1 }).find();
+        let r = await col
+            .find({ a: 1 })
+            .limit(10)
+            .projection({ a: 1 })
+            .findCollect();
         console.info('@@@@@@@@@@@@', r);
         console.assert(r[0]['a'] == 1);
         r = await col
@@ -99,31 +107,28 @@ async function testLimitOffsetPara() {
             .limit(10)
             .min({ a: 1 })
             .hint({ a: 1 })
-            .find();
+            .findCollect();
         console.assert(r.length == 4);
         console.assert(r[0]['a'] == 1);
-        r = await col.find({}).limit(3).sort({ a: 1 }).skip(2).find();
+        r = await col.find({}).limit(3).sort({ a: 1 }).skip(2).findCollect();
         console.assert(r.length == 3, r);
         console.assert(r[0]['a'] == 2);
     } catch (e) {
         console.error('test failed', e);
     }
-    try {
-        let r = await col.findOne({ a: 1 }).projection({ a: 1 }).find();
-        console.info('@@@@@@@@@@@@', r);
-        console.assert(r['a'] == 1);
-        r = await col
-            .findOne({}, 10)
-            .max({ a: 5 })
-            .min({ a: 1 })
-            .hint({ a: 1 })
-            .find();
-        console.assert(r['a'] == 1);
-        r = await col.findOne({}, 3).sort({ a: 1 }).skip(2).find();
-        console.assert(r['a'] == 2);
-    } catch (e) {
-        console.error('test failed', e);
-    }
+
+    let r = await col.findOne({ a: 1 }).projection({ a: 1 }).find();
+    console.info('@@@@@@@@@@@@', r);
+    console.assert(r['a'] == 1);
+    r = await col
+        .findOne({}, 10)
+        .max({ a: 5 })
+        .min({ a: 1 })
+        .hint({ a: 1 })
+        .find();
+    console.assert(r['a'] == 1);
+    r = await col.findOne({}, 3).sort({ a: 1 }).skip(2).find();
+    console.assert(r['a'] == 2);
 }
 
 async function testFs() {

@@ -8,6 +8,7 @@ import {
   MouseEvent,
   ReactElement,
   ReactNode,
+  RefObject,
   SetStateAction,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
@@ -16,9 +17,10 @@ import { BSON } from "bson";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import prettyMilliseconds from "pretty-ms";
-import { CompletionItem, CompletionKind, MuiDataGridData } from "./bindings";
+import { CompletionItem, CompletionKind, Field, MuiDataGridData } from "./bindings";
 import { NotificationParams } from "./store";
-import { extractBaseName, uuidv4 } from "./Common";
+import { extractBaseName, keyNotInTable, uuidv4 } from "./Common";
+import { GridApi } from "@mui/x-data-grid";
 
 const pageSizeOptions = [10, 20, 50, 100];
 function prettyMs(x: number) {
@@ -60,16 +62,16 @@ async function secondConfirm({
   });
 }
 
-// redis的数据存储的时候都是二进制 有时候包含的是有效的
-// utf8字符前台的处理的最好当成utf8来处理
-// 不然当成二进制数据来处理呢
-// 后台放回数据的时候都是 hex string模式
+// Redis stores data as binary, which sometimes contains valid UTF-8 characters.
+// It is best to handle these as UTF-8 on the frontend,
+// rather than treating them as binary data.
+// The backend returns data as a hex string.
 
 function hexTryToString(hex: string): string | null {
   if (!hex) {
     return "";
   }
-  // 将十六进制字符串转换为字节数组
+  // Convert a hexadecimal string to a byte array.
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
     bytes.push(parseInt(hex.substr(i, 2), 16));
@@ -85,7 +87,7 @@ function hexToString(hex: string): string {
   if (!hex) {
     return "";
   }
-  // 将十六进制字符串转换为字节数组
+  // Convert a hexadecimal string to a byte array.
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
     bytes.push(parseInt(hex.substr(i, 2), 16));
@@ -94,15 +96,15 @@ function hexToString(hex: string): string {
 }
 
 function stringToHexArray(str: string): Uint8Array {
-  // 创建一个 Uint8Array 来存储字节
+  // Create a Uint8Array to store the bytes.
   const bytes = new TextEncoder().encode(str);
   return bytes;
 }
 
 function arrayToHex(uint8Array: Uint8Array | number[]) {
-  return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
-    .map((byte) => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
-    .join(""); // 连接为一个字符串
+  return Array.from(uint8Array) // Convert the Uint8Array to a regular array.
+    .map((byte) => byte.toString(16).padStart(2, "0")) // Convert each byte to hexadecimal and pad it.
+    .join(""); // Join the values into a string.
 }
 
 function stringToHex(str: string): string {
@@ -189,11 +191,11 @@ function backendCompletionItemToEditor(xs: CompletionItem[]): languages.Completi
   };
 }
 
-function extractConfigNameFromUuid(uuid: string): string {
-  if (uuid.includes("/")) {
-    return uuid.substring(0, uuid.indexOf("/"));
+function extractConfigNameFromUuid(dbName: string): string {
+  if (dbName.includes("/")) {
+    return dbName.substring(0, dbName.indexOf("/"));
   } else {
-    return uuid;
+    return dbName;
   }
 }
 
@@ -260,10 +262,15 @@ const handleCopyToClipboard = async (
   showNotification: (_: NotificationParams) => void,
   okCallBack?: () => void,
 ) => {
-  if ((await readText()) == text) {
-    showNotification({ severity: "info", title: "Already copied to clipboard." });
-    return;
+  try {
+    if ((await readText()) == text) {
+      showNotification({ severity: "info", title: "Already copied to clipboard." });
+      return;
+    }
+  } catch (e) {
+    console.error("read clipboard failed", e);
   }
+
   writeText(text)
     .then(() => {
       if (showNotification) {
@@ -289,14 +296,16 @@ class TabContent {
     public header: string,
     public content: ReactNode,
     public icon: ReactElement,
+    public dbName?: string,
+    public kind?: DataSourceKind,
     public id: string = uuidv4(),
   ) {}
 }
 
 const TabContext = createContext<{ id: string }>(null);
 
-const UuidContext = createContext<{
-  uuid: string;
+const DbnameContext = createContext<{
+  dbName: string;
   kind: DataSourceKind;
 }>(null);
 
@@ -339,53 +348,41 @@ function getEditorText(
   return text;
 }
 
-class ColorFn {
-  static hexToRgb(hex) {
-    hex = hex.replace("#", "");
-    if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
-    const num = parseInt(hex, 16);
-    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
-  }
-  static isLightHex(hex) {
-    const [r, g, b] = ColorFn.hexToRgb(hex);
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return lum > 0.5;
-  }
-  static isColor = (str) => {
-    const o = new Option().style;
-    o.color = str;
-    return o.color !== "";
-  };
-}
-
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
+  let r = [];
   switch (kind) {
     case DataSourceKind.Mongo:
     case DataSourceKind.CouchBase:
-      return ["json", "jsonline"];
+      r = ["json", "jsonline"];
+      break;
     default:
-      return isTable
+      r = isTable
         ? ["csv", "sql", "json", "jsonline", "xlsx", "html", "markdown"]
         : ["csv", "json", "jsonline", "xlsx", "html", "markdown"];
+      break;
   }
+  if (-1 != r.indexOf("csv")) {
+    r = ["tsv", ...r];
+  }
+  return r;
 }
 
 function generateDefaultFilename(name: string, extension: string) {
   if (extension == "jsonline") {
     /*
-      统一用 .jsonl（全小写，无空格）最好。
-      这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
+      Prefer using .jsonl consistently (lowercase, with no spaces).
+      It is a de facto community standard: ecosystems such as GitHub, Git LFS, Apache Spark, BigQuery, and Hugging Face recognize .jsonl, and tools such as grep, jq, ripgrep, and VS Code extensions support it by default.
     */
     extension = "jsonl";
   }
   if (extension == "markdown") {
     extension = "md";
   }
-  // 获取当前时间
+  // Get the current time.
   const now = new Date();
-  // 格式化时间为字符串
+  // Format the time as a string.
   const timestamp = now.toISOString().replace(/[:.-]/g, "").slice(0, 15);
-  // 生成文件名
+  // Generate the file name.
   const filename = `${name}_${timestamp}.${extension}`;
   return filename;
 }
@@ -416,7 +413,7 @@ function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
   const model = editor.getModel();
   const lastLine = model.getLineCount();
   const lastColumn = model.getLineMaxColumn(lastLine);
-  // 设置光标位置到最后一行最后一列
+  // Set the cursor position to the last column of the last line.
   editor.setPosition({ lineNumber: lastLine, column: lastColumn });
 }
 
@@ -473,7 +470,8 @@ const dataGridStyle: CSSProperties = {
   flexGrow: 1,
   height: "100px",
   flexShrink: 1,
-  // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
+  // Using 0% for this value also seems problematic on Windows and can make the DataGrid very tall.
+  // 0 works, but 0% does not. However, flex: 1 sets the value to 0%, which may be a compatibility issue.
   flexBasis: "0",
 };
 
@@ -491,7 +489,7 @@ async function setUpEditorThemes() {
     });
 
     Object.entries(modules).forEach(([path, module]) => {
-      // 1. 提取文件名并清理非法字符（去掉空格）
+      // 1. Extract the file name and remove invalid characters (including spaces).
       let themeName = extractBaseName(path).slice(0, -5);
 
       if (themeName == "themelist") {
@@ -500,9 +498,10 @@ async function setUpEditorThemes() {
       themeName = themeName
         .replaceAll(" ", "-")
         .replaceAll("(", "")
-        .replaceAll(")", "");
+        .replaceAll(")", "")
+        .replaceAll("_", "");
 
-      // 2. 确保传入的是对象内容，而不是整个 module
+      // 2. Ensure the contents of the object are passed in, rather than the entire module.
       const themeData = (module as any).default;
       try {
         monaco.editor.defineTheme(themeName, themeData);
@@ -510,7 +509,7 @@ async function setUpEditorThemes() {
         // if (import.meta.env.DEV) console.log(`define theme successfully: ${themeName}`);
       } catch (e) {
         if (import.meta.env.DEV) {
-          console.error(`define theme ${themeName} failed:`, e);
+          console.error(`define theme '${themeName}' failed:`, e);
         }
       }
     });
@@ -560,7 +559,7 @@ const QueryIDEditorChatCtx = createContext<{
   setEditor: Dispatch<SetStateAction<editor.IStandaloneCodeEditor>>;
 }>(null);
 
-export type AppCodeExtraButtons = (_: { code: string; language: string }) => ReactNode;
+export type AppCodeExtraUI = (_: { code: string; language: string }) => ReactNode;
 export type AppCodeHanleEdit = (_: { code: string }) => void;
 
 /**
@@ -605,7 +604,7 @@ export function jumpToEditorText(
   }
 }
 
-export function getDefaultLanguage(kind: DataSourceKind) {
+export function getDatabaseKindLanguage(kind: DataSourceKind) {
   switch (kind) {
     case DataSourceKind.Mongo:
       return "typescript";
@@ -616,21 +615,320 @@ export function getDefaultLanguage(kind: DataSourceKind) {
   }
 }
 
-interface StupidIMarker {
-  owner: string;
-  severity: number;
-  message: string;
-  startLineNumber: number;
-  startColumn: number;
-  endLineNumber: number;
-  endColumn: number;
-  resource?: any;
+function clickDataGridColumn(
+  api: RefObject<GridApi>,
+  event: MouseEvent,
+  field: string,
+  set: Dispatch<SetStateAction<Set<string>>>,
+) {
+  const isControl = isMacOs() ? event.metaKey : event.ctrlKey;
+
+  if (!isControl) {
+    allGridHeaderTitle(api, (dom) => {
+      dom.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }
+
+  api.current
+    .getColumnHeaderElement(field)
+    .children[0].children[0].children[0].classList.add(gridColumnHeaderSelectClassName);
+
+  set((old) => {
+    if (isControl) {
+      const c = new Set(old);
+      c.add(field);
+      return c;
+    } else {
+      return new Set([field]);
+    }
+  });
 }
+
+class DatabaseOperation {
+  public constructor(
+    public op: DatabaseOpKind,
+    public sql: string,
+    public tableId: string,
+    public newValue: object | null,
+  ) {}
+}
+
+export enum DatabaseOpKind {
+  Update,
+  Delete,
+}
+
+const SqlOpContext = createContext<{
+  ops: DatabaseOperation[];
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
+  fields: Field[];
+  handleReload: () => void;
+}>(null);
+
+const AppColumnMenuCtx = createContext<{
+  selectColumns: string[];
+}>(null);
+
+export const gridColumnHeaderSelectClassName = "grid-cell-select-highlight";
+
+// State variables are not suitable for some use cases.
+// This imperative approach is currently
+// used to manage some CSS.
+function allGridHeaderTitle(
+  api: RefObject<GridApi>,
+  callback: (_: HTMLDivElement) => void,
+) {
+  api.current.getAllColumns().forEach((x) => {
+    let title = api.current.getColumnHeaderElement(x.field).children[0].children[0]
+      .children[0] as HTMLDivElement;
+    if (title) {
+      callback(title);
+    } else {
+      console.error("should be able to find title,but null");
+    }
+  });
+}
+
+function escapeTSV(x: string): string {
+  if (!x) {
+    return;
+  }
+  // If the string contains quotes, tabs, or newlines, it must be escaped and wrapped
+  if (x.includes('"') || x.includes("\t") || x.includes("\n") || x.includes("\r")) {
+    return `"${x.replaceAll('"', '""')}"`;
+  }
+  return x;
+}
+
+function parseCellType(cell: string): string | number | null {
+  if (!cell) {
+    return null;
+  }
+  // 1. Remove leading and trailing whitespace.
+  let value = cell.trim();
+
+  // 2. Convert an empty field directly to null.
+  if (value === "") {
+    return null;
+  }
+
+  // 3. Handle TSV double-quote wrapping and escaped double quotes.
+  // For example: "Jane""" -> Jane" / "35" -> 35
+  if (value.startsWith('"') && value.endsWith('"')) {
+    // Remove the outermost double quotes and restore internal "" to ".
+    value = value.slice(1, -1).replaceAll('""', '"');
+
+    // If the value is empty after removing the outer quotes, it was originally empty.
+    if (value === "") return null;
+  }
+
+  // 4. Try to convert to a number (Int / Float).
+  // Exclude invalid number formats (such as empty strings or extra symbols).
+  const num = Number(value);
+  if (!isNaN(num) && value !== "") {
+    return num;
+  }
+
+  // 5. Return all other cases as-is as strings (including "true", "false", and "00123").
+  // To prevent values such as "00123" (an ID or code with leading zeros) from becoming numbers,
+  // add a check such as: if (!isNaN(num) && !value.startsWith('0')) { return num; }
+  return value;
+}
+
+function arrayToMarkdownTable(data: string[][]): string {
+  if (!data || data.length === 0) return "";
+
+  // 1. Data-cleaning helper: handle TSV outer quotes and escaped quotes, and safely handle newlines.
+  const cleanCell = (cell: string): string => {
+    let val = (cell || "").trim();
+
+    // Remove the outer TSV double quotes and restore internal "" to ".
+    if (val.startsWith('"') && val.endsWith('"')) {
+      val = val.slice(1, -1).replaceAll('""', '"');
+    }
+
+    // Markdown table rows cannot contain newlines without becoming misaligned; convert them to HTML line breaks.
+    return val.replace(/\r?\n/g, "<br>");
+  };
+
+  // 2. Extract and process the first line as the header (Title).
+  const headers = data[0].map(cleanCell);
+
+  // 3. Generate the Markdown alignment separator (---|---|---).
+  const separator = headers.map(() => "---");
+
+  // 4. Process the remaining data rows.
+  const rows = data.slice(1).map((row) => row.map(cleanCell));
+
+  // 5. Assemble the standard Markdown format.
+  const markdownLines = [
+    `| ${headers.join(" | ")} |`,
+    `| ${separator.join(" | ")} |`,
+    ...rows.map((row) => `| ${row.join(" | ")} |`),
+  ];
+
+  return markdownLines.join("\n");
+}
+
+interface EscapeOptions {
+  /** Use strict escaping for platforms like Telegram MarkdownV2 */
+  strict?: boolean;
+}
+
+/**
+ * Escapes special characters to prevent Markdown formatting.
+ * @param text The raw input string to escape.
+ * @param options Configuration for escaping behavior.
+ * @returns The escaped safe string.
+ */
+function escapeMarkdown(text: string, options: EscapeOptions = {}): string {
+  if (!text) return "";
+
+  // Standard Markdown characters
+  // eslint-disable-next-line no-useless-escape
+  let pattern = /([\\*_`\[\](){}#\+\-\.!\|>])/g;
+
+  // Strict mode: includes extra characters like symbols, equals signs, and tildes (~=+=^|, etc.).
+  if (options.strict) {
+    // eslint-disable-next-line no-useless-escape
+    pattern = /([\\*_`\[\](){}#\+\-\.!\|>#=~^])/g;
+  }
+
+  return text.replace(pattern, "\\$1");
+}
+
+const columnHeaderStyle: CSSProperties = {
+  minWidth: "5rem",
+  border: "2px dashed gray",
+  borderRadius: "4px",
+  padding: "4px",
+  cursor: "default",
+};
+
+/**
+ * Converts a string array into a standard CSV format (one column).
+ * @param data - Array of strings or primitive values to format.
+ * @returns The formatted CSV string.
+ */
+function createCSV(data: string[]): string {
+  if (!data || data.length === 0) {
+    return "";
+  }
+
+  return (
+    data
+      .map((item) => {
+        // Convert to string (handles numbers, booleans, etc.)
+        let cell = String(item ?? "");
+
+        // RFC 4180: If the field contains a comma, quote, or newline,
+        // it must be enclosed in double quotes
+        const needsQuotes = /[",\n\r]/.test(cell);
+
+        if (needsQuotes) {
+          // Escape existing double quotes by doubling them
+          cell = cell.replace(/"/g, '""');
+          cell = `"${cell}"`;
+        }
+
+        return cell;
+      })
+      .join(",") + "\n"
+  );
+}
+
+/**
+ * Check whether the file extension indicates an Excel format.
+ * @param fileName - File name or file path.
+ * @returns Whether the file is an Excel file.
+ */
+function isExcelFile(fileName: string): boolean {
+  // Define all supported Excel extensions.
+  const excelExtensions = [
+    ".xls", // Excel 97-2003
+    ".xlsx", // Excel 2007+
+    ".xlsm", // Excel macro-enabled workbook.
+    ".xlsb", // Excel binary workbook.
+    ".xlam", // Excel add-in.
+    ".xltx", // Excel template.
+    ".xltm", // Excel macro-enabled template.
+  ];
+
+  // Get the file extension (convert to lowercase for case-insensitive matching).
+  const extension = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
+
+  // Check whether the extension is in the list.
+  return excelExtensions.includes(extension);
+}
+
+function isCsvFile(file: string, includeTsv: boolean) {
+  let f = file.toLowerCase();
+  return f.endsWith(".csv") || (includeTsv && f.endsWith(".tsv"));
+}
+
+let modelCounter = 0;
+
+function createMongoModel(code = "") {
+  modelCounter++;
+  const uri = monaco.Uri.parse(`file:///model_${modelCounter}.ts`);
+
+  return monaco.editor.createModel(code, "typescript", uri);
+}
+function setDifference<T>(a: Set<T>, b: Set<T>): Set<T> {
+  const result = new Set<T>();
+  for (const item of a) {
+    if (!b.has(item)) {
+      result.add(item);
+    }
+  }
+  return result;
+}
+
+function tabsHasID(tabs: TabContent[], id: string) {
+  return tabs.findIndex((e) => e.id == id);
+}
+function getViewportSize() {
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
+function calVirtualRollHeight(length: number, fontSize: number) {
+  const rowHeight = Math.ceil(fontSize * 1.7);
+  let ret = Math.ceil(length * rowHeight);
+  let max = Math.ceil(getViewportSize().height * 0.4);
+  if (ret > max) {
+    ret = max;
+  }
+  return { height: ret, rowHeight };
+}
+const getRowIdOnKeyNotInTable = (e) => e[keyNotInTable];
+
+const TreeIdent = createContext(0);
+
 export {
+  TreeIdent,
+  getRowIdOnKeyNotInTable,
+  calVirtualRollHeight,
+  getViewportSize,
+  tabsHasID,
+  setDifference,
+  createMongoModel,
+  isCsvFile,
+  isExcelFile,
+  escapeMarkdown,
+  createCSV,
+  SqlOpContext,
+  columnHeaderStyle,
+  parseCellType,
+  arrayToMarkdownTable,
+  escapeTSV,
+  allGridHeaderTitle,
+  clickDataGridColumn,
   saveQueryKey,
   backendCompletionItemToEditor,
   ChatShowContext,
-  ColorFn,
   connTypeToDataSourceKind,
   dataGridheaderFontSize,
   dataGridStyle,
@@ -666,13 +964,21 @@ export {
   TabActiveContext,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
   ViewKind,
   MonacoEditor,
   QueryIDEditorChatCtx,
+  AppColumnMenuCtx,
+  DatabaseOperation,
+  arrayToHex,
 };
 
-export type { StupidIMarker };
+declare module "@mui/x-data-grid" {
+  interface ToolbarPropsOverrides {
+    dbpal: any; // Or use the specific type you expect, such as string, boolean, or a function signature.
+  }
+}
+
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
   if (["windows", "linux"].includes(platform())) {

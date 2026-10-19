@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -20,8 +20,8 @@ impl GetKeyWords for ClickHouseDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = "select * from system.keywords";
-        let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
-        *lock = ret;
+        *lock = self.client.query(sql).fetch_all().await?;
+
         return anyhow::Ok(lock.clone());
     }
 }
@@ -53,7 +53,7 @@ impl LanguageServer for ClickHouseDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         // self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -85,7 +85,6 @@ impl LangServerCommon for ClickHouseDB {
             cluster 
         FROM
             system.clusters
-
         "#;
 
         let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
@@ -95,7 +94,7 @@ impl LangServerCommon for ClickHouseDB {
         CLICKHOUSE_FORMATS.iter().map(|x| x.to_string()).collect()
     }
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        // clickhouse 不支持索引
+        // ClickHouse does not support indexes.
         anyhow::Ok(vec![])
     }
     async fn list_column(
@@ -104,25 +103,12 @@ impl LangServerCommon for ClickHouseDB {
         name: &str,
         is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let schema = self.not_allow_none_schema(schema)?;
+        let schema_dot = format!("\"{}\".", schema);
         let sql = if let Some(is_call) = is_call {
-            format!(
-                r#"select {}{}({})"#,
-                match schema {
-                    Some(x) => format!("\"{}\".", x),
-                    None => "".to_string(),
-                },
-                name,
-                is_call.join(",")
-            )
+            format!(r#"select {}{}({})"#, schema_dot, name, is_call.join(","))
         } else {
-            format!(
-                r#"select * from {}"{}""#,
-                match schema {
-                    Some(x) => format!("\"{}\".", x),
-                    None => "".to_string(),
-                },
-                name
-            )
+            format!(r#"select * from {}"{}""#, schema_dot, name)
         };
         self.get_query_columns(&sql).await
     }
@@ -136,8 +122,8 @@ impl LangServerCommon for ClickHouseDB {
         _schema: Option<&str>,
         _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
-        // 看起来clickhouse 都有全局的作用域
+        // In ClickHouse, use the following query to view all functions, including table functions:
+        // It appears that ClickHouse functions all have global scope.
         let sql = "select name , description from system.functions";
 
         let result: Vec<(String, String)> = self.client.query(sql).fetch_all().await?;
@@ -199,6 +185,7 @@ impl AstCompletionHelper for ClickHouseDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!("select * from({}) limit 1", sql);
         let mut stream = self.query_row(&sql).await?;
+        log::info!("get query columns:{}", sql);
 
         while let Some(x) = stream.next().await {
             match x? {
@@ -225,12 +212,12 @@ impl AstCompletionHelper for ClickHouseDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
-        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
-        anyhow::Ok(r)
+        anyhow::Ok(CLICKHOUSE_TYPES.iter().map(|x| x.to_string()).collect())
     }
 
     async fn get_text(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(CLICKHOUSE_TYPES.iter().map(|x| x.to_string()).collect())
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
     }
 }
 
@@ -346,7 +333,8 @@ pub const CLICKHOUSE_FORMATS: &[&str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::clickhouse::{make_test_object, test_lock};
+    use crate::clickhouse::{make_test_object, test_lock, ClickHouseDB};
+    use crate::datasource_config::ClickHouseConfig;
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
@@ -410,7 +398,18 @@ mod tests {
     #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
-        let db = make_test_object();
+        let db = ClickHouseDB::new(ClickHouseConfig {
+            conn_timeout: Some(5000.into()),
+            host: "127.0.0.1".to_string(),
+            port: 8123,
+            read_only: false,
+            db: Some("information_schema".to_string()),
+            username: "default".to_string(),
+            password: Some("root".to_string()),
+            https: false,
+        })
+        .unwrap();
+
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
 }

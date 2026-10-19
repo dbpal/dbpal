@@ -1,5 +1,9 @@
 #[cfg(test)]
-use crate::{datasource_config::PGDBConfig, db::BackendKindPostGres, pg::PostGresDB};
+use crate::{
+    datasource_config::{PGDBConfig, SslFilesWithStrModel},
+    db::BackendKindPostGres,
+    pg::PostGresDB,
+};
 
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> PostGresDB {
@@ -11,8 +15,9 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         db: Some("test".into()),
         schema: Some("xxx".to_string()),
         read_only: false,
-        ssl: Default::default(),
+        ssl: SslFilesWithStrModel::pg_default(),
         conn_timeout: Some(5000.into()),
+        options: Default::default(),
     };
     let pg = PostGresDB::new(r, BackendKindPostGres::CockRoach)
         .await
@@ -69,7 +74,7 @@ mod tests {
     use super::*;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, IndexKind,
-        NamedStaff, QuerySql, SchemaTrait, ServerMetas, SqlNullAble,
+        NameWithParameter, QuerySql, SchemaTrait, ServerMetas, SqlNullAble,
     };
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
@@ -162,7 +167,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
 
@@ -182,7 +187,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 
@@ -390,7 +395,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
-            .drop_procedure(&NamedStaff {
+            .drop_procedure(&NameWithParameter {
                 name: "test_procedure".to_string(),
                 parameters: Some("".to_string()),
                 ..Default::default()
@@ -518,7 +523,7 @@ mod tests {
         pg.open_connection(query_id).await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: udf_name.to_string(),
                 parameters: Some("a integer, b integer".to_string()),
                 ..Default::default()
@@ -591,7 +596,7 @@ mod tests {
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
         values.insert("rowid".to_string(), Some("unique_rowid()".to_string()));
-        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let mut wheres = values.clone();
         wheres.insert("id".to_string(), Some("1".to_string()));
         let json = db

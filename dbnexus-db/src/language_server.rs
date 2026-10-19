@@ -1,12 +1,15 @@
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-use sqlparser::ast::{SetExpr, Statement, Update};
+use sqlparser::ast::{DataType, SetExpr, Statement, Update};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 
-use crate::db::{CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent};
+use crate::db::{
+    CreatedTypeDef, DBTrait, Field, GetBackendKind, SchemaTrait, SequenceDetail, SqlBuilder,
+    SqlEvent,
+};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 
@@ -30,7 +33,7 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
 
-    // extract `a=`` from `select * from where a =1`
+    // extract `a=` from `select * from where a =1`
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>>;
     // extrat name asc from a select statement.
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
@@ -166,12 +169,12 @@ pub trait LexerCompletionTrait: LangServerCommon {
             .tokenize_with_location()
             .unwrap_or_default();
         if self.backend_kind().support_at() {
-            // 试图去匹配 @@
+            // Try to match @@.
             for t in tokens.iter() {
                 if let Token::Word(x) = &t.token {
                     if x.value.starts_with("@@") && in_pos(pos, t.span.start, x.value.len() as u64)
                     {
-                        // 词法匹配到了@@
+                        // The lexer matched @@.
                         return anyhow::Ok(self.list_variable_completion().await.into());
                     }
                 }
@@ -184,14 +187,14 @@ pub trait LexerCompletionTrait: LangServerCommon {
             all_item.extend(self.list_variable_completion().await);
         }
 
-        // 推送词法部分
+        // Push the lexical segment.
         for t in tokens.iter() {
             if let Token::Word(x) = &t.token {
                 if x.keyword == sqlparser::keywords::Keyword::NoKeyword
                     && !in_pos(pos, t.span.start, x.value.len() as u64)
                 {
                     let mut value = x.value.clone();
-                    //@my_var 会被sqlparser解析成一个标识符
+                    //@my_var is parsed by sqlparser as an identifier.
                     if self.backend_kind().support_at() {
                         value = try_remove_one_at(value);
                     }
@@ -424,8 +427,236 @@ impl From<SqlEvent> for CompletionItem {
 #[async_trait::async_trait]
 pub trait GetKeyWords: GetBackendKind {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("get key words")
     }
+}
+
+pub struct MakeUpdateSqlFromResultsetSqlBuilder<'a, T: SchemaTrait> {
+    schema: Option<String>,
+    backend: &'a T,
+}
+
+impl<'a, T: SchemaTrait> GetBackendKind for MakeUpdateSqlFromResultsetSqlBuilder<'a, T> {
+    fn backend_kind(&self) -> crate::db::BackendKind {
+        self.backend.backend_kind()
+    }
+}
+
+impl<'a, T: SchemaTrait> SqlBuilder for MakeUpdateSqlFromResultsetSqlBuilder<'a, T> {
+    fn gen_show_sql(
+        &self,
+        _table_name: &str,
+        _fields: Option<&[Field]>,
+        _para: Option<&crate::db::ShowTableParameter>,
+    ) -> String {
+        unreachable!("I only use this the build insert sql ")
+    }
+
+    fn get_schema(&self) -> Option<&str> {
+        // this only method I need reimpl is this.
+        self.schema.as_deref()
+    }
+
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        SqlBuilder::encode_value(self.backend, typ, value)
+    }
+}
+
+pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerCommon + DBTrait>(
+    backend: &T,
+    sql: &str,
+    old_values: &[Option<String>],
+    new_values: &[Option<String>],
+) -> anyhow::Result<Vec<String>> {
+    let d = backend.dialect();
+    // First, extract the tables.
+    let extract_tables = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
+    let mut cols_map: Vec<(sql_insight::TableReference, Vec<Field>)> = Default::default();
+
+    let mut catalog = sql_insight::catalog::Catalog::new();
+    {
+        // This mainly retrieves the database table structure and
+        let mut table_entered: HashSet<sql_insight::TableReference> = HashSet::new();
+        for e in extract_tables {
+            let e = e?;
+            for r in e.reads.iter() {
+                if table_entered.contains(&r.reference) {
+                    continue;
+                }
+                if r.reference.catalog.is_some() {
+                    anyhow::bail!("dbpal can't handle catalog is some,this is design choice");
+                }
+                table_entered.insert(r.reference.clone());
+
+                let fs = if let Some(schema) = r.reference.schema.as_ref() {
+                    // open database if need.
+                    let x = backend.open_schema(&schema.value).await?;
+                    x.show_table_columns(&r.reference.name.value).await?
+                } else {
+                    backend.show_table_columns(&r.reference.name.value).await?
+                };
+
+                if !fs.iter().any(|x| x.is_primary) {
+                    anyhow::bail!(format!("table {} have no primary key", r.reference))
+                }
+
+                // add to catalog
+                catalog = catalog.table({
+                    let mut table = if let Some(x) = &r.reference.schema {
+                        sql_insight::catalog::CatalogTable::new(
+                            x.value.clone(),
+                            r.reference.name.value.clone(),
+                        )
+                    } else {
+                        sql_insight::catalog::CatalogTable::unqualified(
+                            r.reference.name.value.clone(),
+                        )
+                    };
+                    let cols = fs.iter().map(|x| x.field.clone()).collect::<Vec<_>>();
+                    log::trace!("enter table {} {:?}", table, cols);
+                    table = table.columns(cols);
+                    table
+                });
+                cols_map.push((r.reference.clone(), fs));
+            }
+        }
+    }
+    let find_fs = |table: &sql_insight::TableReference| -> Option<&Vec<Field>> {
+        cols_map
+            .iter()
+            .find(|x| {
+                x.0.same_table(
+                    table,
+                    &sql_insight::IdentifierCasing {
+                        table: backend.backend_kind().case_rule(),
+                        table_alias: backend.backend_kind().case_rule(),
+                        column: backend.backend_kind().case_rule(),
+                    },
+                )
+            })
+            .map(|x| &x.1)
+    };
+
+    let column_reads = {
+        let mut op = sql_insight::extractor::ExtractorOptions::new();
+        op = op.with_catalog(&catalog);
+
+        let vec_column_reads =
+            sql_insight::extractor::extract_column_operations_with_options(d.as_ref(), sql, op)?;
+
+        let mut column_reads = vec![];
+        for x in vec_column_reads {
+            let x = x?;
+            for r in x.reads.iter() {
+                column_reads.push(r.clone());
+            }
+        }
+        column_reads
+    };
+
+    // make change to every table
+
+    let mut table_value_changed: HashMap<
+        sql_insight::TableReference,
+        Vec<(&str, &Option<String>)>,
+    > = HashMap::new();
+
+    let mut old_table_values: HashMap<sql_insight::TableReference, Vec<_>> = HashMap::new();
+
+    for (index, (old_value, new_value)) in old_values.iter().zip(new_values.iter()).enumerate() {
+        let column = match column_reads.get(index) {
+            Some(x) => x,
+            None => anyhow::bail!(format!(
+                "#{} not found column,col_reads:{:?}",
+                index, column_reads
+            )),
+        };
+
+        /*
+            -- Assume both tables have a column named 'id'.
+            SELECT id FROM users JOIN orders ON users.id = orders.user_id;
+            --      ^^
+            -- Is this 'id' users.id or orders.id? It is ambiguous!
+        */
+        let table = match &column.reference.table {
+            Some(x) => x,
+            None => anyhow::bail!(format!(
+                "column '{}' have no table,don't know whick table to update.",
+                column.reference.name.value
+            )),
+        };
+        let col_name = column.reference.name.value.as_str();
+
+        {
+            let v = (col_name, old_value);
+            match old_table_values.get_mut(table) {
+                Some(x) => {
+                    x.push(v);
+                }
+                None => {
+                    old_table_values.insert(table.clone(), vec![v]);
+                }
+            };
+        }
+
+        if old_value != new_value {
+            let v = (col_name, new_value);
+            match table_value_changed.get_mut(table) {
+                Some(x) => {
+                    x.push(v);
+                }
+                None => {
+                    table_value_changed.insert(table.clone(), vec![v]);
+                }
+            }
+        }
+    }
+    // Construct the return value.
+
+    let mut ret = vec![];
+    for (table, v) in table_value_changed.iter() {
+        // get fs
+
+        println!("xxxxx:{:?}", cols_map);
+        let fs = match find_fs(table) {
+            Some(x) => x,
+            None => anyhow::bail!("don't find fs for table :{:?}", table),
+        };
+
+        let sql_builder = MakeUpdateSqlFromResultsetSqlBuilder {
+            backend,
+            schema: table.schema.as_ref().map(|x| x.value.clone()),
+        };
+
+        let mut values = HashMap::new();
+        for (col_name, value) in v.iter() {
+            values.insert((*col_name).to_owned(), (*value).clone());
+        }
+        let mut wheres = HashMap::new();
+
+        {
+            let old_values = old_table_values.get(table).map(|x| &x[..]).unwrap_or(&[]);
+            if !old_values.is_empty() {
+                for (col_name, value) in old_values.iter() {
+                    wheres.insert((*col_name).to_owned(), (*value).clone());
+                }
+            } else {
+                anyhow::bail!("no old values found???")
+            }
+            // check all primay
+            for f in fs.iter() {
+                if !f.is_primary {
+                    continue;
+                }
+                if !wheres.contains_key(&f.field) {
+                    anyhow::bail!(format!("table:{} field:'{}' have one value in this query,and this is primary key,we need this to update the value", table, f.field))
+                }
+            }
+        }
+        let sql = SqlBuilder::update_sql(&sql_builder, &table.name.value, fs, &values, &wheres)?;
+        ret.push(sql);
+    }
+    anyhow::Ok(ret)
 }
 
 #[async_trait::async_trait]
@@ -435,6 +666,31 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         anyhow::Ok(vec![])
+    }
+
+    fn extract_tables(&self, sql: &str) -> anyhow::Result<Vec<String>> {
+        let d = self.dialect();
+        let xxx = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
+
+        let mut set = HashSet::new();
+        for x in xxx {
+            let x = x?;
+            for r in x.reads.iter() {
+                set.insert(r.reference.name.to_string());
+            }
+            for w in x.writes.iter() {
+                set.insert(w.reference.name.to_string());
+            }
+        }
+        anyhow::Ok(set.into_iter().collect())
+    }
+
+    fn parse_type(&self, typ: &str) -> anyhow::Result<DataType> {
+        let d = self.dialect();
+        let mut p = sqlparser::parser::Parser::new(d.as_ref());
+        p = p.try_with_sql(typ)?;
+        let ret = p.parse_data_type()?;
+        anyhow::Ok(ret)
     }
 
     async fn postgres_list_extension_completion(
@@ -462,13 +718,14 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     // mysql use `show variables`
     // to query all variables
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list variable")
     }
     async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("sqlite module name")
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
@@ -503,20 +760,20 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         remove_duplicate(ret)
     }
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list role")
     }
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list user")
     }
-    // -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
+    // -- Standard SQL (supported by PostgreSQL, Oracle, and DB2; not available in MySQL)
     // CREATE DOMAIN us_postal_code AS CHAR(5)
     // CHECK (
-    // VALUE ~ '^[0-9]{5}$'          -- 必须是 5 位数字
+    // VALUE ~ '^[0-9]{5}$'          -- Must be 5 digits.
     // );
     //
-    // -- 以后任何表都能直接用
+    // -- Any table can use this directly afterward.
     // CREATE TABLE addr (
-    // zip us_postal_code              -- 复用约束
+    // zip us_postal_code              -- Reuse the constraint.
     // );
     async fn list_domain(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
@@ -611,7 +868,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
             .collect()
     }
 
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync>;
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync + 'static>;
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
     // list view or materialized view
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
@@ -622,7 +879,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list function")
     }
     async fn list_procedure_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
         self.list_procedure(schema)
@@ -679,17 +936,34 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
             if index == 0 {
                 continue;
             }
-            if let (Token::Period, Some(Token::Word(x))) =
-                (&t.token, tokens.get(index - 1).map(|x| &x.token))
-            {
-                if !in_pos(loc, t.span.start, 1u64) {
-                    continue;
-                }
-                // hit position
-                // matched a `aaa.`
-                let schema = &x.value;
-                let mut ret = vec![];
 
+            let mut schema_name = None;
+
+            //  try matched a `aaa.`
+            if let (Some(Token::Word(x)), Token::Period) =
+                (tokens.get(index - 1).map(|x| &x.token), &t.token)
+            {
+                // hit position
+                if in_pos(loc, t.span.start, 1u64) {
+                    schema_name = Some(x.value.as_str());
+                }
+            }
+            // try match aaa.bb  right now we can trying to match `bb`
+            if index >= 2 {
+                if let (Some(Token::Word(schema)), Some(Token::Period), Token::Word(x)) = (
+                    tokens.get(index - 2).map(|x| &x.token),
+                    tokens.get(index - 1).map(|x| &x.token),
+                    &t.token,
+                ) {
+                    // hit position
+                    if in_pos(loc, t.span.start, x.value.len() as u64) {
+                        schema_name = Some(schema.value.as_str());
+                    }
+                }
+            }
+
+            if let Some(schema) = schema_name {
+                let mut ret = vec![];
                 if self.hit_schema(schema).await {
                     // try completion on schema.xxx syntax
                     ret.extend(
@@ -720,8 +994,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
                         self.list_function(Some(schema), false)
                             .await
                             .map_err(|e| log::error!("list function failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter(),
+                            .unwrap_or_default(),
                     );
                     ret.extend(
                         self.list_procedure(Some(schema))
@@ -1068,7 +1341,8 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list clickhouse projects")
     }
 
     async fn mysql_show_create_trigger(
@@ -1083,14 +1357,14 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list partition")
     }
     async fn table_policy(
         &self,
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("table policy")
     }
     async fn table_policy_completion(
         &self,
@@ -1115,28 +1389,30 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list postgres role")
     }
     async fn list_constraint(
         &self,
         _schema: Option<&str>,
         _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list constraint")
     }
     async fn list_table_trigger(
         &self,
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list table trigger")
     }
 }
 
 /// first try parser first
 /// then a syntax like schema... table...
 /// then lexer   
-pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
+pub async fn parser_dot_lexer_completion<T: LexerCompletionTrait + AstCompletionHelper>(
     backend: &T,
     sql: &str,
     line: u32,
@@ -1154,9 +1430,9 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     })?;
     match r {
         Ok(mut xs) => {
-            // xxx. 有可能和后面的元素结合产生不同寻常的结果
-            // 有时候是关键字也会结合 这点一般的解析程序不太一样呢
-            // 自动完成更多的给出可能性 但是有可能是错误的 问题不大
+            // xxx. may combine with the following element to produce an unusual result.
+            // Sometimes keywords are combined too, unlike in typical parsers.
+            // Autocomplete offers more possibilities, some of which may be incorrect; this is acceptable.
             xs.extend(dot.unwrap_or_default().items.clone());
             return Ok(remove_duplicate(xs).into());
         }
@@ -1230,8 +1506,7 @@ pub(crate) async fn try_parser_completion(
     anyhow::bail!("can't find completion.")
 }
 
-#[cfg(test)]
-pub(crate) mod completion_test {
+pub mod completion_test {
 
     use std::ops::Deref;
 
@@ -1282,6 +1557,7 @@ pub(crate) mod completion_test {
         pub(crate) line: usize,
     }
 
+    #[allow(clippy::unwrap_used)]
     pub(crate) fn parse_auto_completion_test_file(s: &str) -> Vec<CompletionOneTest> {
         let x: Vec<_> = s.lines().collect();
         x.chunks(2)
@@ -1342,7 +1618,8 @@ select xxxx
         );
     }
 
-    pub(crate) async fn test_file_auto_completion(
+    #[allow(clippy::unwrap_used)]
+    pub async fn test_file_auto_completion(
         content: &str,
         db: &dyn LanguageServer,
         query_id: Option<&str>,
@@ -1368,5 +1645,4 @@ select xxxx
             }
         }
     }
-    //
 }

@@ -3,6 +3,7 @@ import {
   RefObject,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -26,11 +27,15 @@ import {
   Divider,
 } from "@mui/material";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { ContentCopyIcon, DeleteForeverIcon } from "./icons";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ClearableTextField, FetchTimeDataGrid, RefreshButton } from "./CommonComp2";
+import {
+  ClearableTextField,
+  ExportQueryResultToFile,
+  FetchTimeDataGrid,
+  RefreshButton,
+} from "./CommonComp2";
 import {
   handleCopyToClipboard,
   hexToString,
@@ -43,8 +48,19 @@ import {
   newEmptyResp,
   secondConfirm,
   DataSourceKind,
+  AppColumnMenuCtx,
+  columnHeaderStyle,
+  clickDataGridColumn,
+  allGridHeaderTitle,
+  gridColumnHeaderSelectClassName,
+  DbnameContext,
 } from "./helper.ts";
-import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
+import {
+  AppColumnMenu,
+  ExportTableOnTheFilterSort,
+  ModalHeader,
+  ResetColumnWidth,
+} from "./CommonComp.tsx";
 import { editor } from "monaco-editor";
 import {
   SliderSize,
@@ -75,6 +91,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiRef,
 } from "./datagridExport.ts";
 import { useDebounce } from "use-debounce";
 
@@ -112,14 +129,12 @@ interface SetToolBarDbpalProps {
   setKey: string;
   loading: boolean;
   setKeyMatch: Dispatch<SetStateAction<string>>;
-  uuid: string;
 }
 
 interface ListToolBarDbpalProps {
   handleReload: (showOk: boolean) => void;
   listKey: string;
   loading: boolean;
-  uuid: string;
 }
 
 interface ZSetToolBarDbpalProps {
@@ -135,27 +150,26 @@ interface ZSetToolBarDbpalProps {
   setMin: Dispatch<SetStateAction<string>>;
   setMaxErr: Dispatch<SetStateAction<boolean>>;
   setMax: Dispatch<SetStateAction<string>>;
-  uuid: string;
   zsetKey: string;
 }
 
 interface HashToolBarDbpalProps {
   keyMatch: string;
   setKeyMatch: Dispatch<SetStateAction<string>>;
-  uuid: string;
   hashKey: string;
   loading: boolean;
   handleReload: (showOk: boolean) => void;
 }
 
-function RedisAddList(props: { uuid: string; listKey: string }) {
-  const { uuid, listKey } = props;
+function RedisAddList(props: { listKey: string }) {
+  const { listKey } = props;
+  const { dbName } = useContext(DbnameContext);
 
   const lpushOP = async (value) => {
-    return await commands.redisListLpush(uuid, listKey, value);
+    return await commands.redisListLpush(dbName, listKey, value);
   };
   const rpushOP = async (value) => {
-    return await commands.redisListRpush(uuid, listKey, value);
+    return await commands.redisListRpush(dbName, listKey, value);
   };
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<ListPushDirection>("left");
@@ -205,10 +219,11 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
   );
 }
 
-function RedisStringTable(props: { uuid: string; stringKey: string }) {
-  const { uuid, stringKey } = props;
+function RedisStringTable(props: { stringKey: string }) {
+  const { stringKey } = props;
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (value) => {
-    return await commands.redisStringSet(uuid, stringKey, value);
+    return await commands.redisStringSet(dbName, stringKey, value);
   };
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -217,7 +232,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
   const [queryStatus, setQueryStatus] = useState("");
   useEffect(() => {
     showTable({
-      uuid,
+      dbName,
       name: stringKey,
       showNotification,
       handleResult: (resp) => {
@@ -226,7 +241,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
       setStatus: setQueryStatus,
       setLoading,
     });
-  }, [showNotification, stringKey, uuid]);
+  }, [showNotification, stringKey, dbName]);
 
   const handleModify = async () => {
     const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -269,11 +284,12 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
   );
 }
 
-function RedisAddSet(props: { uuid: string; setKey: string }) {
-  const { uuid, setKey } = props;
+function RedisAddSet(props: { setKey: string }) {
+  const { setKey } = props;
+  const { dbName } = useContext(DbnameContext);
 
   const addOP = async (member) => {
-    return await commands.redisSetAdd(uuid, setKey, member);
+    return await commands.redisSetAdd(dbName, setKey, member);
   };
   const [loading, setLoading] = useState(false);
   const valueRef = useRef(new EditorAndMode());
@@ -309,11 +325,11 @@ function RedisAddSet(props: { uuid: string; setKey: string }) {
   );
 }
 
-function RedisAddHash(props: { uuid: string; hashKey: string }) {
-  const { uuid, hashKey } = props;
-
+function RedisAddHash(props: { hashKey: string }) {
+  const { hashKey } = props;
+  const { dbName } = useContext(DbnameContext);
   const addOP = async (member, value) => {
-    return await commands.redisHashAdd(uuid, hashKey, member, value);
+    return await commands.redisHashAdd(dbName, hashKey, member, value);
   };
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
@@ -350,11 +366,11 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
     </Stack>
   );
 }
-function RedisAddZset(props: { uuid: string; zsetKey: string }) {
-  const { uuid, zsetKey } = props;
-
+function RedisAddZset(props: { zsetKey: string }) {
+  const { zsetKey } = props;
+  const { dbName } = useContext(DbnameContext);
   const addOP = async (member: string, value: number) => {
-    return await commands.redisZsetAdd(uuid, zsetKey, member, value);
+    return await commands.redisZsetAdd(dbName, zsetKey, member, value);
   };
 
   const [loading, setLoading] = useState(false);
@@ -770,7 +786,7 @@ type SetToolBarParameterProps = GridSlotProps["toolbar"] & {
 };
 
 function SetToolBar({
-  dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch, uuid },
+  dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch },
 }: SetToolBarParameterProps) {
   return (
     <AppDataGridToolBar
@@ -795,26 +811,30 @@ function SetToolBar({
         </Tooltip>
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
           tableName={setKey}
           redisType={RedisTableType.Set}
         />
       </>
-      title={setKey}
+      titleName={setKey}
     />
   );
 }
 
-function RedisSetTable(props: { setKey: string; uuid: string }) {
-  const { setKey, uuid } = props;
+function RedisSetTable(props: { setKey: string }) {
+  const { setKey } = props;
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (old, newValue) => {
-    return await commands.redisSetReplace(uuid, setKey, old, newValue);
+    return await commands.redisSetReplace(dbName, setKey, old, newValue);
   };
+  const apiRef = useGridApiRef();
+
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+
   const delOP = useCallback(
     async (member: string) => {
-      return await commands.redisSetDel(uuid, setKey, member);
+      return await commands.redisSetDel(dbName, setKey, member);
     },
-    [setKey, uuid],
+    [setKey, dbName],
   );
   const [keyMatch, setKeyMatch] = useState("");
   const [keyMatchDelay] = useDebounce(keyMatch, 1000);
@@ -829,12 +849,12 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     (showOK: boolean) => {
       setLoading(true);
       showTable({
-        uuid,
+        dbName,
         name: setKey,
         setLoading,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
-          where_str: keyMatchDelay ? keyMatchDelay : null,
+          filter: keyMatchDelay ? keyMatchDelay : null,
         },
         showNotification,
         okCallBack: () => {
@@ -849,11 +869,26 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           });
           resp.fields[0]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
+
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
         },
       });
     },
-    [getSize, keyMatchDelay, setKey, showNotification, uuid],
+    [apiRef, getSize, keyMatchDelay, setKey, showNotification, dbName],
   );
 
   useEffect(() => {
@@ -882,7 +917,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -906,14 +941,18 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { dbpal: { showLimit: true } },
-      toolbar: {
-        dbpal: (function (): SetToolBarParameterProps["dbpal"] {
-          return { keyMatch, handleReload, setKey, loading, uuid, setKeyMatch };
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: true, tableName: setKey, keyMatch: keyMatch };
         })(),
       },
-    } as GridSlotsComponentsProps;
-  }, [setUpMenu, handleDel, keyMatch, handleReload, setKey, loading, uuid]);
+      toolbar: {
+        dbpal: (function (): SetToolBarParameterProps["dbpal"] {
+          return { keyMatch, handleReload, setKey, loading, setKeyMatch };
+        })(),
+      },
+    };
+  }, [setUpMenu, handleDel, keyMatch, handleReload, setKey, loading]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
   const slots = useMemo(() => {
@@ -927,28 +966,62 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, setKey),
+    [getColumnVisibility, dbName, setKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, setKey, model);
+    },
+    [setColumnVisibility, dbName, setKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
 
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, setKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, setKey, e);
-          }}
-          slots={slots}
-          slotProps={slotProps}
-          rows={resp.data}
-          editMode="row"
-          checkboxSelection={false}
-          onRowDoubleClick={onRowDoubleClick}
-          columns={resp.fields}
-          paginationMode="client"
-          disableColumnFilter
-          style={dataGridStyle}
-          loading={loading}
-        />
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+          }}>
+          <DataGrid
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
+            apiRef={apiRef}
+            slots={slots}
+            slotProps={slotProps}
+            rows={resp.data}
+            editMode="row"
+            checkboxSelection={false}
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.fields}
+            paginationMode="client"
+            disableColumnFilter
+            style={dataGridStyle}
+            loading={loading}
+          />
+        </AppColumnMenuCtx>
       )}
 
       <ListenElementSize dom={modifyModalBox} set="both" name="modify-set-table" />
@@ -1084,9 +1157,7 @@ type ListToolBarProps = {
   dbpal: ListToolBarDbpalProps;
 } & GridSlotProps["toolbar"];
 
-function ListToolBar({
-  dbpal: { handleReload, listKey, loading, uuid },
-}: ListToolBarProps) {
+function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarProps) {
   return (
     <AppDataGridToolBar
       left=<>
@@ -1099,31 +1170,33 @@ function ListToolBar({
         />
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
           tableName={listKey}
           redisType={RedisTableType.List}
         />
       </>
-      title={listKey}
+      titleName={listKey}
     />
   );
 }
-function RedisListTable(props: { listKey: string; uuid: string }) {
-  const { listKey, uuid } = props;
+function RedisListTable(props: { listKey: string }) {
+  const { listKey } = props;
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (index, value) => {
-    return await commands.redisListSet(uuid, listKey, value, index);
+    return await commands.redisListSet(dbName, listKey, value, index);
   };
   const delOP = useCallback(
     async (count, value) => {
-      return await commands.redisListRemove(uuid, listKey, value, count);
+      return await commands.redisListRemove(dbName, listKey, value, count);
     },
-    [listKey, uuid],
+    [listKey, dbName],
   );
+  const apiRef = useGridApiRef();
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useNotification();
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const { sql: sqlPageSize, setPageSize } = usePageSize();
 
   const [page, setPage] = useState(0);
@@ -1132,7 +1205,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const handleReload = useCallback(
     (showOk: boolean) => {
       showTable({
-        uuid,
+        dbName,
         name: listKey,
         setLoading,
         showNotification,
@@ -1153,13 +1226,27 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           resp.fields[1]["sortable"] = false;
           resp.fields[1]["flex"] = 1;
           resp.fields[1]["valueGetter"] = valueGetter;
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
           setRespOrigin(resp);
         },
         setStatus: setQueryStatus,
       });
     },
-    [uuid, listKey, showNotification, getColumnWidth],
+    [dbName, listKey, showNotification, getColumnWidth, apiRef],
   );
 
   useEffect(() => {
@@ -1228,7 +1315,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   );
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1252,22 +1339,18 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        dbpal: (function (): ListToolBarProps["dbpal"] {
-          return { handleReload, listKey, loading, uuid };
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: false, tableName: listKey, keyMatch: "" };
         })(),
       },
-    } as GridSlotsComponentsProps;
-  }, [handleDel, handleReload, listKey, loading, setUpMenu, uuid]);
-
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      if (colDef.field == "seq") {
-        setColumnWidth(colDef.field, width);
-      }
-    },
-    [setColumnWidth],
-  );
+      toolbar: {
+        dbpal: (function (): ListToolBarProps["dbpal"] {
+          return { handleReload, listKey, loading };
+        })(),
+      },
+    };
+  }, [handleDel, handleReload, listKey, loading, setUpMenu]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
@@ -1281,33 +1364,68 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, listKey),
+    [getColumnVisibility, dbName, listKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, listKey, model);
+    },
+    [setColumnVisibility, dbName, listKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
+
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
       {resp && (
-        <DataGrid
-          slots={slots}
-          loading={loading}
-          slotProps={slotProps}
-          checkboxSelection={false}
-          disableMultipleRowSelection
-          disableColumnFilter
-          rows={resp.data}
-          onColumnResize={onColumnResize}
-          columns={resp.fields}
-          paginationModel={paginationModel}
-          onRowDoubleClick={onRowDoubleClick}
-          pageSizeOptions={pageSizeOptions}
-          onPaginationModelChange={onPaginationModelChange}
-          sortingMode="server"
-          paginationMode="client"
-          style={dataGridStyle}
-          columnVisibilityModel={getColumnVisibility(uuid, listKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, listKey, e);
-          }}
-          onSortModelChange={onSortModelChange}
-        />
+        <AppColumnMenuCtx value={columnMenuValue}>
+          <DataGrid
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
+            apiRef={apiRef}
+            slots={slots}
+            loading={loading}
+            slotProps={slotProps}
+            checkboxSelection={false}
+            disableMultipleRowSelection
+            disableColumnFilter
+            rows={resp.data}
+            columns={resp.fields}
+            paginationModel={paginationModel}
+            onRowDoubleClick={onRowDoubleClick}
+            pageSizeOptions={pageSizeOptions}
+            onPaginationModelChange={onPaginationModelChange}
+            sortingMode="server"
+            paginationMode="client"
+            style={dataGridStyle}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            onSortModelChange={onSortModelChange}
+          />
+        </AppColumnMenuCtx>
       )}
 
       <ListenElementSize dom={modifyModalBox} name="redis-modify-list" set="both" />
@@ -1405,7 +1523,6 @@ function ZSetToolBar({
     setMin,
     setMaxErr,
     setMax,
-    uuid,
     zsetKey,
   },
 }: ZSetToolBarProps) {
@@ -1464,28 +1581,37 @@ function ZSetToolBar({
         />
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
           tableName={zsetKey}
           redisType={RedisTableType.Zset}
         />
       </>
-      title={zsetKey}
+      titleName={zsetKey}
     />
   );
 }
 
-function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
-  const { uuid, zsetKey } = props;
+function RedisZsetTable(props: { zsetKey: string }) {
+  const { zsetKey } = props;
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
-    return await commands.redisZsetReplace(uuid, zsetKey, oldMember, newKey, newValue);
+    return await commands.redisZsetReplace(
+      dbName,
+      zsetKey,
+      oldMember,
+      newKey,
+      newValue,
+    );
   };
+
+  const apiRef = useGridApiRef();
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const delOP = useCallback(
     async (member) => {
-      return await commands.redisZsetDel(uuid, zsetKey, member);
+      return await commands.redisZsetDel(dbName, zsetKey, member);
     },
-    [uuid, zsetKey],
+    [dbName, zsetKey],
   );
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [keyMatch, setKeyMatch] = useState("");
   const [keyMatchDelay] = useDebounce(keyMatch, 1000);
 
@@ -1513,13 +1639,13 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       setLoading(true);
       showTable({
         setStatus: setQueryStatus,
-        uuid,
+        dbName,
         name: zsetKey,
         setLoading,
         para: {
           min: minValue,
           max: maxValue,
-          where_str: keyMatchDelay ? keyMatchDelay : null,
+          filter: keyMatchDelay ? keyMatchDelay : null,
           limit: getSize(UseSizeConfig.queryLimit),
         },
 
@@ -1540,6 +1666,20 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           }
 
           resp.fields[1]["valueGetter"] = valueGetter;
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
         },
       });
@@ -1549,12 +1689,13 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       maxErr,
       minDelay,
       maxDelay,
-      uuid,
+      dbName,
       zsetKey,
       keyMatchDelay,
       getSize,
       showNotification,
       getColumnWidth,
+      apiRef,
     ],
   );
 
@@ -1584,7 +1725,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1608,7 +1749,11 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { dbpal: { showLimit: true } },
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: true, tableName: zsetKey, keyMatch };
+        })(),
+      },
       toolbar: {
         dbpal: (function (): ZSetToolBarProps["dbpal"] {
           return {
@@ -1621,7 +1766,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             setMinErr,
             setMaxErr,
             setKeyMatch,
-            uuid,
             zsetKey,
             keyMatch,
             loading,
@@ -1629,7 +1773,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [
     handleDel,
     handleReload,
@@ -1640,20 +1784,10 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     min,
     minErr,
     setUpMenu,
-    uuid,
     zsetKey,
   ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
-
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      if (colDef.field == "score") {
-        setColumnWidth(colDef.field, width);
-      }
-    },
-    [setColumnWidth],
-  );
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
@@ -1666,6 +1800,40 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, zsetKey),
+    [getColumnVisibility, dbName, zsetKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, zsetKey, model);
+    },
+    [setColumnVisibility, dbName, zsetKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
+  const gridRows = useMemo(() => resp.data, [resp]);
+  const gridColumns = useMemo(() => resp.fields, [resp]);
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -1673,24 +1841,26 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       <ListenElementSize dom={modifyModalBox} name="redis-modify-zset" set="both" />
 
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, zsetKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, zsetKey, e);
-          }}
-          slots={slots}
-          onColumnResize={onColumnResize}
-          loading={loading}
-          slotProps={slotProps}
-          rows={resp.data}
-          checkboxSelection={false}
-          editMode="row"
-          onRowDoubleClick={onRowDoubleClick}
-          columns={resp.fields}
-          disableColumnFilter
-          style={dataGridStyle}
-          paginationMode="client"
-        />
+        <AppColumnMenuCtx value={columnMenuValue}>
+          <DataGrid
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
+            apiRef={apiRef}
+            slots={slots}
+            loading={loading}
+            slotProps={slotProps}
+            rows={gridRows}
+            checkboxSelection={false}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
+            columns={gridColumns}
+            disableColumnFilter
+            style={dataGridStyle}
+            paginationMode="client"
+          />
+        </AppColumnMenuCtx>
       )}
       {selectRow && (
         <Modal
@@ -1728,8 +1898,13 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   );
 }
 
-function RedisPagination(props: { dbpal?: { showLimit: boolean } }) {
-  const showLimit = props.dbpal?.showLimit ?? false;
+type RedisPaginationDbPal = {
+  showLimit: boolean;
+  tableName: string;
+  keyMatch: string | null;
+};
+function RedisPagination(props: { dbpal: RedisPaginationDbPal }) {
+  const { showLimit, tableName, keyMatch } = props.dbpal;
 
   return (
     <Stack
@@ -1744,7 +1919,18 @@ function RedisPagination(props: { dbpal?: { showLimit: boolean } }) {
         <FetchTimeDataGrid />
         {showLimit && <SliderSize config={UseSizeConfig.queryLimit} />}
         <ResetColumnWidth />
+        <ExportQueryResultToFile />
         <DoubleClickToModify />
+        <ExportTableOnTheFilterSort
+          isTable
+          tableName={tableName}
+          para={{ filter: keyMatch ? keyMatch : null }}
+          extraUI=<>
+            {keyMatch && (
+              <Typography> export key to result file base on the key match </Typography>
+            )}
+          </>
+        />
       </StackRowCenter>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -1799,7 +1985,7 @@ type HashToolBarProps = {
 } & GridSlotProps["toolbar"];
 
 function HashToolBar({
-  dbpal: { keyMatch, setKeyMatch, uuid, hashKey, loading, handleReload },
+  dbpal: { keyMatch, setKeyMatch, hashKey, loading, handleReload },
 }: HashToolBarProps) {
   return (
     <AppDataGridToolBar
@@ -1808,7 +1994,7 @@ function HashToolBar({
           color="primary"
           onClick={() => {
             handleReload(true);
-          }} // 点击事件处理
+          }} // Click event handler.
           loading={loading}
         />
 
@@ -1825,35 +2011,38 @@ function HashToolBar({
         </Tooltip>
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
           tableName={hashKey}
           redisType={RedisTableType.Hash}
         />
       </>
-      title={hashKey}
+      titleName={hashKey}
     />
   );
 }
 
-function RedisHashTable(props: { hashKey: string; uuid: string }) {
-  const { uuid, hashKey } = props;
+function RedisHashTable(props: { hashKey: string }) {
+  const { hashKey } = props;
+  const { dbName } = useContext(DbnameContext);
+  const apiRef = useGridApiRef();
+
   const delOP = useCallback(
     async (member) => {
-      return await commands.redisHashDel(uuid, hashKey, member);
+      return await commands.redisHashDel(dbName, hashKey, member);
     },
-    [hashKey, uuid],
+    [hashKey, dbName],
   );
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
 
   const modifyOP = async (oldMember, newMember, newValue) => {
     return await commands.redisHashReplace(
-      uuid,
+      dbName,
       hashKey,
       oldMember,
       newMember,
       newValue,
     );
   };
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
 
   const [keyMatch, setKeyMatch] = useState("");
   const [keyMatchDelay] = useDebounce(keyMatch, 1000);
@@ -1867,7 +2056,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const handleReload = useCallback(
     (showOK) => {
       showTable({
-        uuid,
+        dbName,
         name: hashKey,
         okCallBack: showOK
           ? () => {
@@ -1878,7 +2067,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         setStatus: setQueryStatus,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
-          where_str: keyMatchDelay ? keyMatchDelay : null,
+          filter: keyMatchDelay ? keyMatchDelay : null,
         },
         setLoading,
         showNotification,
@@ -1891,11 +2080,26 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           resp.fields[1]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
           resp.fields[1]["valueGetter"] = valueGetter;
+
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
         },
       });
     },
-    [getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, uuid],
+    [apiRef, getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, dbName],
   );
   useEffect(() => {
     handleReload(false);
@@ -1924,7 +2128,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1948,25 +2152,21 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { dbpal: { showLimit: true } },
-      toolbar: {
-        dbpal: (function (): HashToolBarProps["dbpal"] {
-          return { keyMatch, setKeyMatch, uuid, loading, handleReload, hashKey };
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: true, tableName: hashKey, keyMatch };
         })(),
       },
-    } as GridSlotsComponentsProps;
-  }, [handleDel, handleReload, hashKey, keyMatch, loading, setUpMenu, uuid]);
+      toolbar: {
+        dbpal: (function (): HashToolBarProps["dbpal"] {
+          return { keyMatch, setKeyMatch, loading, handleReload, hashKey };
+        })(),
+      },
+    };
+  }, [handleDel, handleReload, hashKey, keyMatch, loading, setUpMenu]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      if (colDef.field == "key") {
-        setColumnWidth(colDef.field, width);
-      }
-    },
-    [setColumnWidth],
-  );
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
@@ -1977,32 +2177,64 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       pagination: RedisPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, hashKey),
+    [getColumnVisibility, dbName, hashKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, hashKey, model);
+    },
+    [setColumnVisibility, dbName, hashKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
 
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-
       <ListenElementSize dom={modifyModalBox} name="redis-modify-hash" set="both" />
-
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, hashKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, hashKey, e);
-          }}
-          slots={slots}
-          onColumnResize={onColumnResize}
-          loading={loading}
-          slotProps={slotProps}
-          rows={resp.data}
-          checkboxSelection={false}
-          editMode="row"
-          onRowDoubleClick={onRowDoubleClick}
-          columns={resp.fields}
-          paginationMode="client"
-          disableColumnFilter
-          style={dataGridStyle}
-        />
+        <AppColumnMenuCtx value={columnMenuValue}>
+          <DataGrid
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
+            apiRef={apiRef}
+            slots={slots}
+            loading={loading}
+            slotProps={slotProps}
+            rows={resp.data}
+            checkboxSelection={false}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.fields}
+            paginationMode="client"
+            disableColumnFilter
+            style={dataGridStyle}
+          />
+        </AppColumnMenuCtx>
       )}
 
       {selectRow && (
@@ -2056,6 +2288,7 @@ export {
   RedisHashTable,
   RedisZsetTable,
   RedisSetTable,
+  // value editor
   RedisValueEditor,
   // add
   RedisAddSet,

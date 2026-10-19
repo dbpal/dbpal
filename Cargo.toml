@@ -9,16 +9,17 @@ repository = "https://github.com/dbnexus/dbnexus"
 license = "Unlicense"
 
 [workspace]
-members = ["dbnexus-db", "dbnexus-app/src-tauri"]
+members = ["dbnexus-db", "dbnexus-app/src-tauri", "dbnexus-db2"]
 resolver = "2"
 
 [workspace.dependencies]
 # workspace dependencies
 dbnexus-core = { path = "dbnexus-core" }
 dbnexus-db = { path = "dbnexus-db" }
+dbnexus-db2 = { path = "dbnexus-db2" }
 
 # crates.io dependencies
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 async-trait = "0.1"
 dashmap = "6.1.0"
 tokio = { version = "1", features = ["full"] }
@@ -30,7 +31,7 @@ lazy_static = "1.5.0"
 log = { version = "0.4.22", features = ["std"] }
 futures-util = "*"
 futures-core = "*"
-mongodb = { version = "3.3", features = ["rustls-tls"] }
+mongodb = { version = "3.3", features = ["openssl-tls"] }
 rand = "0.10"
 tokio-util = "*"
 uuid = { version = "*", features = ["v4"] }
@@ -39,11 +40,20 @@ base64 = "*"
 redis = { version = "1", features = [
     "tokio-comp",
     "aio",
-    "tls-rustls",
     "connection-manager",
-    "tokio-rustls-comp",
+    "tokio-native-tls-comp",
 
 ] }
-specta = { version = "2.0.0-rc.24", features = ["derive"] }
-
-reqwest = { version = "0.13", features = ["json", "rustls", "stream"] }
+# this sqlparser must match the version of sql insight
+sqlparser = { version = "0.62", features = ["serde", "visitor"] }
+sql-insight = "0.5.0"
+specta-typescript = "0.0.11"
+csv_processor = "0.1.10"
+csv = "*"
+rust_xlsxwriter = { version = "0.99", features = ["constant_memory", "chrono"] }
+specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
+calamine = { version = "*", features = ["chrono"] }
+reqwest = { version = "0.13", features = ["json", "native-tls", "stream"] }
+tempfile = "3.27.0"
+tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
+r2d2 = "*"

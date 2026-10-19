@@ -4,11 +4,10 @@ import {
   extractConfigNameFromUuid,
   QueryIDEditorChatCtx,
   secondConfirm,
+  DbnameContext,
 } from "./helper.ts";
-import CloseIcon from "@mui/icons-material/Close";
-import SaveIcon from "@mui/icons-material/Save";
-import { TbPrompt } from "react-icons/tb";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
+import { CloseIcon, SaveIcon } from "./icons";
+import { TbPrompt, UploadFileIcon } from "./icons";
 import {
   Chip,
   CircularProgress,
@@ -40,8 +39,7 @@ import {
   ClearableTextField,
   AppMarkDown,
 } from "./CommonComp2.tsx";
-import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
-import EventNoteIcon from "@mui/icons-material/EventNote";
+import { ArrowCircleUpIcon, EventNoteIcon } from "./icons";
 import {
   convertPathToDataUrl,
   editorAppendContent,
@@ -52,9 +50,7 @@ import {
   uuidv4,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import NavigateNextIcon from "@mui/icons-material/NavigateNext";
-import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
+import { DeleteForeverIcon, NavigateNextIcon, NavigateBeforeIcon } from "./icons";
 
 import {
   useBoolSwitch,
@@ -66,7 +62,7 @@ import {
   useSizeStore,
 } from "./store.tsx";
 
-import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
+import { AddPhotoAlternateIcon } from "./icons";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { useDebounce } from "use-debounce";
@@ -74,60 +70,34 @@ import { SqlQuery } from "./SqlQuery.tsx";
 import { RedisQuery } from "./RedisQuery.tsx";
 import { MongoQuery } from "./MongoQuery.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
-import { MdCleaningServices } from "react-icons/md";
+import { MdCleaningServices } from "./icons";
 import { openPath } from "@tauri-apps/plugin-opener";
 
-function AllKindQuery(props: {
-  kind: DataSourceKind;
-  uuid: string;
-  value?: string;
-  favoriteName?: string;
-}) {
-  const { kind, uuid, value, favoriteName } = props;
+function AllKindQuery(props: { value?: string; favoriteName?: string }) {
+  const { value, favoriteName } = props;
+  const { kind } = useContext(DbnameContext);
   let content: ReactNode;
   switch (kind) {
-    case DataSourceKind.SqlServer:
-    case DataSourceKind.Sqlite:
-    case DataSourceKind.Mysql:
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Oracle:
-    case DataSourceKind.TiDB:
-    case DataSourceKind.Cassandra:
-    case DataSourceKind.ClickHouse:
-    case DataSourceKind.LibSql:
-    case DataSourceKind.FireBird:
-    case DataSourceKind.DuckDB:
-    case DataSourceKind.Cockroach:
-    case DataSourceKind.Db2:
-      content = (
-        <SqlQuery uuid={uuid} value={value} kind={kind} favoriteName={favoriteName} />
-      );
-      break;
     case DataSourceKind.Redis:
-      content = <RedisQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      content = <RedisQuery value={value} favoriteName={favoriteName} />;
       break;
-
     case DataSourceKind.Mongo:
-      content = <MongoQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      content = <MongoQuery value={value} favoriteName={favoriteName} />;
       break;
     case DataSourceKind.CouchBase:
-      return <CouchBaseQuery uuid={uuid} value={value} />;
+      return <CouchBaseQuery value={value} />;
     default:
-      console.error(`impl this ${kind}`);
+      content = <SqlQuery value={value} favoriteName={favoriteName} />;
+      break;
   }
   return <div style={{ height: "100%" }}> {content}</div>;
 }
 
-function AllKindChat(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  value?: string;
-  favoriteName?: string;
-}) {
-  const { uuid, kind, favoriteName, value } = props;
+function AllKindChat(props: { value?: string; favoriteName?: string }) {
+  const { dbName } = useContext(DbnameContext);
+  const { favoriteName, value } = props;
   const llm = useLLM();
-  const showChatKey = "chat-show-" + uuid;
+  const showChatKey = "chat-show-" + dbName;
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [show, setShow] = useState(getSwitch(showChatKey));
 
@@ -151,13 +121,8 @@ function AllKindChat(props: {
             show,
             setShow,
           }}>
-          <AllKindQuery
-            uuid={uuid}
-            kind={kind}
-            favoriteName={favoriteName}
-            value={value}
-          />
-          {llm && editor && <SqlChatTextInput uuid={uuid} />}
+          <AllKindQuery favoriteName={favoriteName} value={value} />
+          {llm && editor && <SqlChatTextInput />}
         </ChatShowContext.Provider>
       </Stack>
     </QueryIDEditorChatCtx.Provider>
@@ -166,8 +131,8 @@ function AllKindChat(props: {
 
 const cleanEditorKey = "clean-editor-key";
 
-function SqlChatTextInput(props: { uuid: string }) {
-  const { uuid } = props;
+function SqlChatTextInput() {
+  const { dbName } = useContext(DbnameContext);
   const { editor } = useContext(QueryIDEditorChatCtx);
   const llm = useLLM();
   const [question, setQuestion] = useState("");
@@ -182,7 +147,7 @@ function SqlChatTextInput(props: { uuid: string }) {
   const [documents, setDocuments] = useState<string[]>([]);
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
-  const connName = extractConfigNameFromUuid(uuid);
+  const connName = extractConfigNameFromUuid(dbName);
   const { prompts: userDefinePrompts } = useUserSystemPromptStore();
   const cleanEditor = getSwitch(cleanEditorKey);
   useEffect(() => {
@@ -194,11 +159,11 @@ function SqlChatTextInput(props: { uuid: string }) {
 
   const handleChat = async () => {
     try {
-      // 清空内容，同时保留在 Undo 栈里
+      // Clear the content while keeping it in the Undo stack.
       if (cleanEditor) {
         editor.executeEdits("my-source", [
           {
-            range: editor.getModel().getFullModelRange(), // 全选
+            range: editor.getModel().getFullModelRange(), // Select all.
             text: "",
           },
         ]);
@@ -254,7 +219,7 @@ function SqlChatTextInput(props: { uuid: string }) {
         },
         (f) => {
           setCancelFN(() => {
-            // 这里必须写一个callback不然会被直接执行
+            // This must be written as a callback; otherwise, it will execute immediately.
             return f;
           });
         },
@@ -682,13 +647,13 @@ function ChatHistory(props: {
               label="search in history"
               style={{ width: "13rem" }}
             />
-            {history && history.length ? (
+            {history && history.length > 0 && (
               <Typography>
                 {!matchStr
                   ? `${history.length} history`
                   : `showing ${length} of ${history.length}`}
               </Typography>
-            ) : undefined}
+            )}
           </>
         }
         handleClose={handleClose}

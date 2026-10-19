@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Bson, Document};
 use mongodb::options::Hint;
@@ -6,7 +8,7 @@ use mongodb::results::{
 };
 use mongodb::{IndexModel, SearchIndexModel};
 
-use crate::db::{GetBackendKind, ReadOnlyTrait, SchemaTrait, SqlBuilder};
+use crate::db::{EncodeXlsxDatetime, GetBackendKind, ReadOnlyTrait, SchemaTrait, SqlBuilder};
 use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
 use crate::mongo::{MongoDB, MongoFindParameter};
 impl SqlBuilder for MongoDB {
@@ -14,8 +16,8 @@ impl SqlBuilder for MongoDB {
         None
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+    fn encode_value(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature("encode value")
     }
 
     fn gen_show_sql(
@@ -27,6 +29,8 @@ impl SqlBuilder for MongoDB {
         "".into()
     }
 }
+
+impl EncodeXlsxDatetime for MongoDB {}
 
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
@@ -57,11 +61,13 @@ impl LanguageServer for MongoDB {
     }
 
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("extract table select selection")
     }
 
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("extract table select sort")
     }
 
     async fn auto_completion(
@@ -72,11 +78,11 @@ impl LanguageServer for MongoDB {
         _col: u32,
         _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("auto completion")
     }
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("is dangerous sql")
     }
 }
 
@@ -102,11 +108,15 @@ impl MongoDB {
 }
 // collection apis
 impl MongoDB {
-    pub async fn query_collection_count_docs(&self, col: &str) -> anyhow::Result<u64> {
+    pub async fn query_collection_count_docs(
+        &self,
+        col: &str,
+        filter: Option<Document>,
+    ) -> anyhow::Result<u64> {
         let db = self.get_db().await?;
         let c = db
             .collection::<Document>(col)
-            .count_documents(doc! {})
+            .count_documents(filter.unwrap_or_else(|| doc! {}))
             .await?;
         anyhow::Ok(c)
     }
@@ -219,7 +229,8 @@ impl MongoDB {
         &self,
         col: &str,
         para: MongoFindParameter,
-    ) -> anyhow::Result<Vec<Document>> {
+        handle_data: Arc<dyn Fn(Document) -> anyhow::Result<()> + Send + Sync>,
+    ) -> anyhow::Result<()> {
         let MongoFindParameter {
             filter,
             hint,
@@ -267,12 +278,11 @@ impl MongoDB {
             f = f.skip(skip);
         }
         let mut cursor = f.await?;
-        let mut ret = Vec::new();
         while let Some(doc) = cursor.next().await {
             let doc = doc?;
-            ret.push(doc);
+            handle_data(doc)?;
         }
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     pub async fn query_collection_find_one(
@@ -361,7 +371,7 @@ impl MongoDB {
         self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
-        let f = col.insert_many(docs.into_iter());
+        let f = col.insert_many(docs);
         let ret = f.await?;
         anyhow::Ok(ret)
     }

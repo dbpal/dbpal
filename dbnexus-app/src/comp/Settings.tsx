@@ -1,9 +1,18 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { FaFolderOpen } from "react-icons/fa";
+import {
+  CSSProperties,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { fetch } from "@tauri-apps/plugin-http";
+import { FaFolderOpen } from "./icons";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
 import type {} from "@mui/x-data-grid/themeAugmentation";
 import {
+  Alert,
   Autocomplete,
   Button,
   Checkbox,
@@ -29,15 +38,9 @@ import {
 } from "@mui/material";
 import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import {
-  registeredThemes,
-  dataGridheaderFontSize,
-  shrinkAble,
-  prettyMs,
-  MonacoEditor,
-} from "./helper";
+import { registeredThemes, shrinkAble, prettyMs, MonacoEditor } from "./helper";
 
-import EditIcon from "@mui/icons-material/Edit";
+import { EditIcon } from "./icons";
 import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
 import { ClearableTextField } from "./CommonComp2";
 import {
@@ -51,6 +54,7 @@ import { LogLevelSelection } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 import {
   makeLLMCallable,
+  useColumnWidthStore,
   useDatagridHeight,
   useLLM,
   useLLMConfig,
@@ -62,10 +66,12 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import "@mui/material/Chip";
 import { AiOnlineSearch, commands } from "./bindings";
+import { isNumber } from "@mui/x-data-grid/internals";
+import { CustomToolbar } from "./CustomToolBar";
 
 declare module "@mui/material/Chip" {
   interface ChipPropsSizeOverrides {
-    largeSmall: true; //
+    largeSmall: true;
   }
 }
 
@@ -143,10 +149,9 @@ function AppearanceSetting() {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }} style={{ fontSize }}>
+        <Typography sx={{ ...settingTextStyle }} style={{ fontSize }}>
           font size
         </Typography>
-        <Chip label={fontSize} style={{ fontSize }} />
         <Slider
           style={{ width: "12rem" }}
           value={fontSize}
@@ -158,7 +163,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }} style={{ fontWeight }}>
+        <Typography sx={{ ...settingTextStyle }} style={{ fontWeight }}>
           font weight
         </Typography>
         <ClearableTextField
@@ -170,7 +175,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-end" }}>
-        <Typography sx={{ width: headerSize }} style={{ fontFamily }}>
+        <Typography sx={{ ...settingTextStyle }} style={{ fontFamily }}>
           font
         </Typography>
         <TextField
@@ -195,25 +200,23 @@ function AppearanceSetting() {
         </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>table row height factor </Typography>
-        <Typography> {datagridRowHeightFactor} </Typography>
-        <Slider
-          min={2}
-          max={5}
-          step={0.1}
-          value={datagridRowHeightFactor}
-          onChange={(_e, value) => {
-            setDatagridRowHeightFactor(value);
-          }}
-          style={{ width: "12rem" }}
-        />
+        <Typography sx={{ ...settingTextStyle }}>table row height factor </Typography>
         <Tooltip title="a float value,this parameter multiply font size as the table row height">
-          <Typography> ?? </Typography>
+          <Slider
+            min={2}
+            max={5}
+            step={0.1}
+            value={datagridRowHeightFactor}
+            onChange={(_e, value) => {
+              setDatagridRowHeightFactor(value);
+            }}
+            style={{ width: "12rem" }}
+          />
         </Tooltip>
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>theme </Typography>
+        <Typography sx={{ ...settingTextStyle }}>theme </Typography>
         <Autocomplete
           options={["light", "dark", "system"]}
           style={{ width: "12rem" }}
@@ -228,8 +231,7 @@ function AppearanceSetting() {
       <SetBgColor theme="dark" bgColor={darkBgColor} setBgColor={setDarkBgColor} />
       <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>zoom</Typography>
-
+        <Typography sx={{ ...settingTextStyle }}>zoom</Typography>
         {zoom != 1 && (
           <Button
             variant="text"
@@ -239,7 +241,6 @@ function AppearanceSetting() {
             reset
           </Button>
         )}
-        <Typography color="info"> {zoom} </Typography>
         <Slider
           color="info"
           value={zoom}
@@ -248,7 +249,7 @@ function AppearanceSetting() {
           onChange={(_e, value) => {
             setZoom(value);
           }}
-          step={0.01}
+          step={0.05}
           style={{ width: "18rem" }}
         />
       </Stack>
@@ -266,7 +267,7 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
   const [showEditBgColor, setShowEditBgColor] = useState(false);
   return (
     <Stack direction="row" sx={{ alignItems: "center" }}>
-      <Typography sx={{ width: headerSize }}> {theme} background color </Typography>
+      <Typography sx={{ ...settingTextStyle }}> {theme} background color </Typography>
       <div style={{ position: "relative" }}>
         <IconButton
           color={showEditBgColor ? "success" : "primary"}
@@ -335,7 +336,7 @@ function EditorSetting() {
       <Stack>
         <Stack direction="row" style={{ alignItems: "flex-start" }}>
           <Tooltip title="dbpal use monaco editor as build in editor" placement="top">
-            <Typography sx={{ width: headerSize }}>monaco editor options</Typography>
+            <Typography sx={{ ...settingTextStyle }}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
             <StackRowCenter>
@@ -359,7 +360,7 @@ function EditorSetting() {
         </Stack>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> editor theme </Typography>
+        <Typography sx={{ ...settingTextStyle }}> editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
           <Autocomplete
             options={registeredThemes}
@@ -389,7 +390,10 @@ function EditorSetting() {
   );
 }
 
-const headerSize = "16rem";
+const settingTextStyle: CSSProperties = {
+  width: "19rem",
+  textAlign: "right",
+};
 
 interface ModelDef {
   id: string;
@@ -402,7 +406,7 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
     headers: { Authorization: `Bearer ${apiKey}` },
   });
   if (!res.ok) {
-    // 404、401 等会进这里
+    // Status codes such as 404 and 401 are handled here.
     throw new Error(`HTTP ${res.status}`);
   }
   const resp = await res.json();
@@ -410,7 +414,7 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
     console.log("models response:", resp);
   }
   // data.object === "list"
-  // data.data 是一个数组，每个元素有 id, object, owned_by, context_length 等字段
+  // data.data is an array; each element has fields such as id, object, owned_by, and context_length.
   return resp.data as ModelDef[];
 }
 
@@ -418,9 +422,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const { config: oldSetting, setConfig } = useLLMConfig();
   const { handleClose } = props;
   const [baseUrl, setBaseUrl] = useState(oldSetting.baseUrl);
-  const [temperature, setTemperature] = useState(
-    oldSetting.temperature ? oldSetting.temperature + "" : "",
-  );
+  const [temperature, setTemperature] = useState(oldSetting.temperature);
   const [model, setModel] = useState(oldSetting.model);
   const [apiKey, setApiKey] = useState(oldSetting.apiKey);
   const { showNotification } = useNotification();
@@ -439,7 +441,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     const config = {
       baseUrl,
       apiKey,
-      temperature: temperature ? parseFloat(temperature) : null,
+      temperature: temperature,
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
       topP: topP ? parseFloat(topP) : 0,
@@ -511,6 +513,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       setModdelCan(ms);
       showNotification({ severity: "success", title: "load model candidates ok" });
     } catch (e) {
+      console.error(e);
       showNotification({
         severity: "error",
         title: "load model can failed",
@@ -521,8 +524,11 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
   return (
     <Stack>
+      <Alert severity="info">
+        # OpenAI-compatible endpoint with tool call (function calling) support is needed
+      </Alert>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>base url</Typography>
+        <Typography sx={{ ...settingTextStyle }}>base url</Typography>
         <ClearableTextField
           style={{ width: "25rem" }}
           value={baseUrl}
@@ -537,7 +543,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>api key</Typography>
+        <Typography sx={{ ...settingTextStyle }}>api key</Typography>
         <ClearableTextField
           value={apiKey}
           style={{ width: "40rem" }}
@@ -547,9 +553,9 @@ function LLMSetting(props: { handleClose?: () => void }) {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>model </Typography>
+        <Typography sx={{ ...settingTextStyle }}>model </Typography>
         <Button variant="outlined" onClick={loadModelCan}>
-          load candidates
+          load models
         </Button>
         <Autocomplete
           style={{ flex: 1, maxWidth: "32rem" }}
@@ -596,17 +602,20 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>temperature</Typography>
-        <TextField
-          helperText="only accept number"
+        <Typography sx={{ ...settingTextStyle }}>temperature</Typography>
+        <Slider
+          min={0}
+          max={2}
+          valueLabelDisplay="auto"
+          style={{ width: "12rem" }}
+          step={0.1}
           value={temperature}
-          error={temperature ? isNaN(parseFloat(temperature)) : false}
-          onChange={(e) => setTemperature(e.target.value)}
+          onChange={(_e, value) => setTemperature(value)}
         />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}> max token </Typography>
+        <Typography sx={{ ...settingTextStyle }}> max token </Typography>
         <ClearableTextField
           error={maxToken ? isNaN(parseInt(maxToken)) : false}
           value={maxToken}
@@ -616,7 +625,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}> topP </Typography>
+        <Typography sx={{ ...settingTextStyle }}> topP </Typography>
         <ClearableTextField
           error={topP ? isNaN(parseFloat(topP)) : false}
           value={topP}
@@ -626,7 +635,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}> search engine </Typography>
+        <Typography sx={{ ...settingTextStyle }}> search engine </Typography>
         <Checkbox
           checked={searchEngine.enable}
           onChange={(e) => {
@@ -642,10 +651,12 @@ function LLMSetting(props: { handleClose?: () => void }) {
           onChange={(_, value) => {
             setSearchEngine({ ...searchEngine, provider: value });
           }}
+          disabled={!searchEngine.enable}
         />
 
         {["serpapi", "tavily", "google"].includes(searchEngine.provider) && (
           <ClearableTextField
+            disabled={!searchEngine.enable}
             value={searchEngine.api_key}
             onChange={(e) => {
               setSearchEngine({ ...searchEngine, api_key: e.target.value });
@@ -702,7 +713,7 @@ function MiscSetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>auto start</Typography>
+        <Typography sx={{ ...settingTextStyle }}>auto start</Typography>
         <Checkbox
           checked={autoStart}
           onChange={(e) => {
@@ -711,7 +722,7 @@ function MiscSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>logger level</Typography>
+        <Typography sx={{ ...settingTextStyle }}>logger level</Typography>
         <LogLevelSelection
           level={logLevel}
           handleChange={(level) => {
@@ -777,21 +788,21 @@ function ProxySetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> http proxy</Typography>
+        <Typography sx={{ ...settingTextStyle }}> http proxy</Typography>
         <ProxyValue value={http} setValue={setHttp} />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> https proxy</Typography>
+        <Typography sx={{ ...settingTextStyle }}> https proxy</Typography>
         <ProxyValue value={https} setValue={setHttps} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> all proxy</Typography>
+        <Typography sx={{ ...settingTextStyle }}> all proxy</Typography>
         <ProxyValue value={all} setValue={setAll} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> no proxy </Typography>
+        <Typography sx={{ ...settingTextStyle }}> no proxy </Typography>
         <ProxyValue value={no} setValue={setNo} />
       </Stack>
       <Divider />
@@ -944,7 +955,12 @@ function EditorOptions(props: { handleClose; showEditOption }) {
   );
 }
 
-function makeComponents(fontWeight: string | number, dataGridRowHeight: number) {
+function makeComponents(
+  isDarkTheme: boolean,
+  fontWeight: string | number,
+  dataGridRowHeight: number,
+  setColumnWidth,
+) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
       defaultProps: { size: "1.2rem" },
@@ -1000,29 +1016,29 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
       defaultProps: { variant: "dense" },
     },
     MuiSlider: {
-      defaultProps: { size: "small" },
+      defaultProps: { size: "small", valueLabelDisplay: "auto" },
     },
     MuiDivider: {
       styleOverrides: {
         root: {
-          borderBottomWidth: "3px", // 横向
+          borderBottomWidth: "3px", // Horizontal.
         },
         vertical: {
-          borderRightWidth: "3px", // 竖向
+          borderRightWidth: "3px", // Vertical.
         },
       },
     },
     MuiDialog: {
       styleOverrides: {
         paper: {
-          padding: "6px", // 增加内边距
+          padding: "6px", // Increase the inner padding.
           margin: 0,
         },
       },
     },
     MuiModal: {
       defaultProps: {
-        // 让 Modal 里的 Backdrop 默认就有动画时长
+        // Give the Modal backdrop a default animation duration.
         slotProps: {
           backdrop: {
             timeout: 500,
@@ -1040,39 +1056,58 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
     MuiDataGrid: {
       styleOverrides: {
         root: {
-          "& .MuiDataGrid-columnHeaderTitle": {
-            fontWeight,
+          // 1. Alternating Row Colors Config
+          "& .MuiDataGrid-row--even": {
+            backgroundColor: isDarkTheme ? "rgb(20, 20, 20)" : "rgb(230, 230, 230)", // Adjust your background color here
           },
-          "& .MuiDataGrid-cell": {
-            padding: "0 2px",
-          },
-          // 如果你也想去掉表头的内边距
-          "& .MuiDataGrid-columnHeader": {
-            padding: "0 2px",
-            border: "1.5px solid #b7b3b3",
+
+          "& .MuiDataGrid-menu": {
+            "& .MuiPaper-root": {
+              padding: "4px 0",
+              minWidth: 160,
+            },
+            "& .MuiList-root": {
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
+            },
+            "& .MuiMenuItem-root": {
+              padding: "4px 12px",
+              fontSize: "0.875rem",
+            },
+            "& .MuiListItemIcon-root": {
+              minWidth: "24px",
+            },
           },
         },
-        cell: {
-          fontSize: "1rem",
-          border: "1.5px solid #7c7c7c",
-        },
+
         columnHeaders: {
-          fontSize: dataGridheaderFontSize,
           boxShadow: "0 1px 3px",
         },
       },
+
       defaultProps: {
         density: "compact",
-        disableRowSelectionOnClick: true,
-        showCellVerticalBorder: true,
-        showColumnVerticalBorder: true,
         rowHeight: dataGridRowHeight,
-        columnHeaderHeight: dataGridRowHeight * 0.9,
+        columnHeaderHeight: dataGridRowHeight * 1.5,
         showToolbar: true,
+        slotProps: {},
+        slots: { toolbar: CustomToolbar },
+        getRowClassName: ({ id }) => {
+          const x = typeof id == "number" ? id : parseInt(id);
+          if (isNumber(x) && x % 2 == 1) {
+            return "MuiDataGrid-row--even";
+          }
+          return "";
+        },
+        onColumnWidthChange: ({ colDef, width }) => {
+          setColumnWidth(colDef.field, width);
+        },
       },
     },
     MuiStack: {
-      defaultProps: { spacing: 0.7 },
+      defaultProps: { spacing: 0.3 },
     },
     MuiPagination: {
       defaultProps: {
@@ -1084,10 +1119,10 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
     MuiMenu: {
       styleOverrides: {
         paper: {
-          padding: 0,
+          padding: "0px",
         },
         list: {
-          paddingTop: "2px", // 原生默认通常是 8px
+          paddingTop: "2px", // The native default is usually 8px.
           paddingBottom: "2px",
         },
       },
@@ -1105,18 +1140,14 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          height: "1.6rem",
-          fontSize: "1rem",
+          padding: "2px 6px",
+          minHeight: "1.2rem",
         },
       },
     },
     MuiTextField: {
       styleOverrides: {
-        root: {
-          "& .MuiInputBase-input": {
-            fontWeight,
-          },
-        },
+        root: {},
       },
       defaultProps: {
         size: "small",
@@ -1146,7 +1177,7 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
           style: {
             height: "1.75rem",
             fontSize: "1rem",
-            // 可以根据需要调整圆角或边距
+            // Adjust the corner radius or margins as needed.
           },
         },
       ],
@@ -1169,6 +1200,7 @@ const makeTheme = (
   appearance: Partial<UserSettings["appearance"]>,
   isDarkTheme: boolean,
   datagridRowHeightXXX: number,
+  setColumnWidth: (_: string, _x: number) => void,
 ) => {
   let color: string;
   if (isDarkTheme) {
@@ -1176,7 +1208,15 @@ const makeTheme = (
   } else {
     color = appearance.lightBgColor ? appearance.lightBgColor : "#fff";
   }
+
   const { fontWeight, fontFamily } = appearance;
+  const components = makeComponents(
+    isDarkTheme,
+    fontWeight,
+    datagridRowHeightXXX,
+    setColumnWidth,
+  );
+
   return createTheme({
     typography: {
       allVariants: {
@@ -1191,7 +1231,7 @@ const makeTheme = (
         paper: color,
       },
     },
-    components: makeComponents(fontWeight, datagridRowHeightXXX),
+    components,
   });
 };
 
@@ -1201,8 +1241,8 @@ const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
 function SettingProvider({ children }) {
   const { appearance, editor, misc, updateAppearance, proxy } = useUserSettings();
   const [osTheme, setOsTheme] = useState("light");
-
   const { showNotification } = useNotification();
+  const { setColumnWidth } = useColumnWidthStore();
 
   useEffect(() => {
     document.documentElement.style.fontSize = appearance.fontSize + "px";
@@ -1305,10 +1345,18 @@ function SettingProvider({ children }) {
   }, [appearance, updateAppearance]);
   const datagridHeightXXX = useDatagridHeight();
 
+  const theme = useMemo(() => {
+    return makeTheme(
+      appearance,
+      isDark(appearance, osTheme),
+      datagridHeightXXX,
+      setColumnWidth,
+    );
+  }, [appearance, datagridHeightXXX, osTheme, setColumnWidth]);
+
   return (
     appearance && (
-      <ThemeProvider
-        theme={makeTheme(appearance, isDark(appearance, osTheme), datagridHeightXXX)}>
+      <ThemeProvider theme={theme}>
         <CssBaseline />
         {children}
       </ThemeProvider>

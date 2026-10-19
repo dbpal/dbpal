@@ -1,0 +1,27 @@
+[package]
+name = "dbnexus-db2"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+dbnexus-db.workspace = true
+duckdb = { version = "=1.4.4", features = [
+    "bundled",
+    "r2d2",
+    "extensions-full",
+] }
+log.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+r2d2.workspace = true
+anyhow.workspace = true
+dashmap.workspace = true
+sqlparser.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+hex.workspace = true
+specta.workspace = true

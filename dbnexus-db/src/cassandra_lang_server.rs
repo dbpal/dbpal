@@ -8,8 +8,6 @@ use crate::sqlparser_completion::TempTableColumn;
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
 use futures_util::StreamExt;
-use scylla::client::session::Session;
-use std::sync::Arc;
 #[async_trait::async_trait]
 impl GetKeyWords for CassandraDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
@@ -48,7 +46,7 @@ impl LanguageServer for CassandraDB {
         match dot {
             Ok(x) => return anyhow::Ok(x),
             Err(err) => {
-                log::error!("try dot failed: {:?}", err);
+                log::error!("try dot failed: {}", err);
             }
         }
         return LexerCompletionTrait::do_auto_completion(self, sql, line, col).await;
@@ -57,7 +55,7 @@ impl LanguageServer for CassandraDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         let ast = CassandraAST::new(sql);
         for stmt in ast.statements.iter() {
-            let x = match &stmt.statement {
+            let danger = match &stmt.statement {
                 CassandraStatement::AlterKeyspace(..) => true,
                 CassandraStatement::AlterMaterializedView(..) => true,
                 CassandraStatement::AlterRole(..) => true,
@@ -97,8 +95,8 @@ impl LanguageServer for CassandraDB {
                 CassandraStatement::Use(..) => false,
                 CassandraStatement::Unknown(_) => false,
             };
-            if x {
-                return anyhow::Ok(x);
+            if danger {
+                return anyhow::Ok(danger);
             }
         }
         anyhow::Ok(false)
@@ -113,15 +111,6 @@ impl LexerCompletionTrait for CassandraDB {
     async fn get_text(&self) -> anyhow::Result<Vec<String>> {
         let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
         anyhow::Ok(r)
-    }
-}
-
-impl CassandraDB {
-    fn get_query_session(&self) -> anyhow::Result<Arc<Session>> {
-        match self.query_connection.get(&self.completion_id.get()) {
-            Some(x) => anyhow::Ok(x.clone()),
-            None => anyhow::bail!("connection closed???"),
-        }
     }
 }
 
@@ -162,13 +151,12 @@ impl LangServerCommon for CassandraDB {
             key_space, table_name,
         );
         log::info!("sql:{}", sql);
-        let session = self.get_query_session()?;
-        let pager = session.query_iter(sql, &[]).await?;
-        let mut stram = pager.rows_stream::<(String, String)>()?;
-        let mut result = Vec::new();
-        while let Some(x) = stram.next().await {
-            let (name, data_type) = x?;
 
+        let pager = self.session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String, String)>()?;
+        let mut result = Vec::new();
+        while let Some(x) = stream.next().await {
+            let (name, data_type) = x?;
             result.push(TempTableColumn {
                 name,
                 data_type: Some(data_type), // Cassandra does not provide data type in this query
@@ -217,7 +205,7 @@ impl LangServerCommon for CassandraDB {
     }
     async fn list_table(&self, key_space: Option<&str>) -> anyhow::Result<Vec<String>> {
         let key_space = self.need_key_space(key_space).await?;
-        // log::trace!("cassandra list table by space name:{}", key_space);
+        println!("cassandra list table by space name:{}", key_space);
         CassandraDB::list_table_impl(self, &key_space)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
@@ -253,8 +241,7 @@ impl CassandraDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let session = self.get_query_session()?;
-        let rows = session.query_iter(sql, &[]).await?;
+        let rows = self.session.query_iter(sql, &[]).await?;
         let mut stream = rows.rows_stream::<(String,)>()?;
         let mut ret = Vec::new();
         while let Some(row) = stream.next().await {
@@ -267,16 +254,18 @@ impl CassandraDB {
 }
 
 impl CassandraDB {
-    async fn need_key_space(&self, key_space: Option<&str>) -> anyhow::Result<String> {
+    pub(crate) async fn need_key_space(&self, key_space: Option<&str>) -> anyhow::Result<String> {
         if let Some(key_space) = key_space {
             return anyhow::Ok(key_space.to_string());
         }
-        let session = self.get_query_session()?;
-        if let Some(x) = session.get_keyspace() {
-            return anyhow::Ok(x.as_str().to_string());
+        if let Some(session) = self.query_connection.get(&self.completion_id.get()) {
+            if let Some(key_space) = session.get_keyspace() {
+                return anyhow::Ok(key_space.as_str().to_string());
+            }
         }
+
         match &self.config.db {
-            Some(x) => anyhow::Ok(x.clone()),
+            Some(key_space) => anyhow::Ok(key_space.clone()),
             None => Err(anyhow::Error::msg("need provide key space")),
         }
     }
@@ -310,7 +299,7 @@ const CASSANDRA_TYPES: &[&str] = &[
     "UDT",
     "TUPLE",
 ];
-/// Apache Cassandra 官方 CQL 关键字（CQL 3.4）
+/// Official Apache Cassandra CQL keywords (CQL 3.4).
 pub const CASSANDRA_KEYWORDS: &[&str] = &[
     "ADD",
     "AGGREGATE",
@@ -424,9 +413,9 @@ pub const CASSANDRA_KEYWORDS: &[&str] = &[
     "WITH",
     "WRITETIME",
 ];
-/// Apache Cassandra 官方内置函数清单（CQL 3.4+）
+/// Official Apache Cassandra built-in functions (CQL 3.4+).
 pub const CASSANDRA_FUNCTIONS: &[&str] = &[
-    // 日期/时间
+    // Date/time
     "current_timestamp",
     "current_date",
     "current_time",
@@ -436,7 +425,7 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "to_unix_timestamp",
     "dateof",
     "unix_timestamp_of",
-    // 转换
+    // Conversion
     "cast",
     "type_as_blob",
     "blob_as_bigint",
@@ -452,7 +441,7 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "blob_as_tinyint",
     "blob_as_uuid",
     "blob_as_varint",
-    // 数学
+    // Math
     "abs",
     "acos",
     "asin",
@@ -469,13 +458,13 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "sin",
     "sqrt",
     "tan",
-    // 聚合
+    // Aggregate
     "avg",
     "count",
     "min",
     "max",
     "sum",
-    // 字符串
+    // String
     "length",
     "char_length",
     "character_length",
@@ -488,20 +477,20 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "reverse",
     "substr",
     "substring",
-    // 集合
+    // Collection
     "collection_count",
     "collection_size",
-    // 标识
+    // Identifier
     "uuid",
     "now",
-    // token 计算
+    // Token calculation
     "token",
-    // 类型检查
+    // Type checking
     "typeof",
-    // 其他辅助
+    // Other helpers
     "ttl",
     "writetime",
-    // 二进制
+    // Binary
     "bigint_as_blob",
     "boolean_as_blob",
     "date_as_blob",
@@ -527,7 +516,7 @@ mod tests {
 
     #[ignore = "run manually"]
     #[tokio::test]
-    async fn xxx() {
+    async fn test_something() {
         enable_test_log();
         let db = make_test_object(Some("system".to_string())).await;
         db.completion_id.set("".to_string());
@@ -546,5 +535,30 @@ mod tests {
             println!("{}", name.item)
         }
         assert!(x.from_dot);
+    }
+
+    #[ignore = "run manually"]
+    #[tokio::test]
+    async fn xxx_2() {
+        enable_test_log();
+        let db = make_test_object(Some("test".to_string())).await;
+
+        let x = LanguageServer::auto_completion(
+            &db,
+            Some("".to_string()),
+            include_str!("./xxx.sql"),
+            1,
+            40,
+            true,
+        )
+        .await
+        .unwrap();
+        for name in x.items.iter() {
+            if name.item.contains("int_value") {
+                println!("{:?}", name);
+                return;
+            }
+        }
+        println!("no int value found...");
     }
 }

@@ -1,17 +1,18 @@
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
-    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    export_query_as_xlsx_send_data, format_data_time_fix_offset, quote_sql_str, BackendKind,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
+    DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NameWithParameter, QueryEvent,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
-use crate::helper::create_csv;
-use crate::language_server::LexerCompletionTrait;
+use crate::helper::{create_csv, extract_bytes_from_serde_values};
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -20,7 +21,7 @@ use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
-use tiberius::{Client, ColumnData, FromSql, Row};
+use tiberius::{Client, ColumnData, EncryptionLevel, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
@@ -195,8 +196,9 @@ fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
     if c.trust_cert {
         config.trust_cert(); // on production, it is not a good idea to do this
     }
-    if let Some(x) = &c.cert_ca {
-        config.trust_cert_ca(x);
+    if let Some(path) = &c.cert_ca {
+        config.trust_cert_ca(path);
+        config.encryption(EncryptionLevel::Required);
     }
     anyhow::Ok(config)
 }
@@ -220,6 +222,9 @@ pub struct ConvertColumnDataToString {
     pub(crate) value: String,
 }
 
+fn encode_bytes(x: &[u8]) -> String {
+    format!("0X{}", hex::encode_upper(x))
+}
 impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     fn from_sql(value: &'a tiberius::ColumnData<'static>) -> tiberius::Result<Option<Self>> {
         let value = match value {
@@ -232,9 +237,7 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Bit(x) => x.as_ref().map(|x| if *x { 1 } else { 0 }.to_string()),
             tiberius::ColumnData::String(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::Guid(x) => x.as_ref().map(|x| x.to_string()),
-            tiberius::ColumnData::Binary(x) => {
-                x.as_ref().map(|x| format!("0X{}", hex::encode_upper(x)))
-            }
+            tiberius::ColumnData::Binary(x) => x.as_ref().map(|x| encode_bytes(x)),
             tiberius::ColumnData::Numeric(x) => x.as_ref().map(|x| x.to_string()),
 
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
@@ -245,7 +248,7 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
                 .flatten()
                 .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+            tiberius::ColumnData::Date(_x) => chrono::NaiveDate::from_sql(value)
                 .ok()
                 .flatten()
                 .map(|x| x.to_string()),
@@ -266,10 +269,92 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     }
 }
 
+pub struct ConvertColumnDataToXlsxContent {
+    pub(crate) value: XlsxEditContent,
+}
+impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToXlsxContent {
+    fn from_sql(value: &'a ColumnData<'static>) -> tiberius::Result<Option<Self>> {
+        let value = match value {
+            tiberius::ColumnData::U8(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::I16(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::I32(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::I64(x) => x.as_ref().map(|x| (*x).into()),
+            tiberius::ColumnData::F32(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::F64(x) => x.as_ref().map(|x| XlsxEditContent::Number(*x)),
+            tiberius::ColumnData::Bit(x) => x.as_ref().map(|x| XlsxEditContent::number(*x as u8)),
+            tiberius::ColumnData::String(x) => x.as_ref().map(|x| x.to_string().into()),
+            tiberius::ColumnData::Guid(x) => x.as_ref().map(|x| x.to_string().into()),
+            tiberius::ColumnData::Binary(x) => x.as_ref().map(|x| encode_bytes(x).into()),
+            tiberius::ColumnData::Numeric(x) => x.as_ref().map(|x| x.to_string().into()),
+
+            tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string().into()),
+            tiberius::ColumnData::DateTime(_)
+            | tiberius::ColumnData::DateTime2(_)
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.into()),
+
+            tiberius::ColumnData::Date(_) => chrono::NaiveDate::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.into()),
+
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.into()),
+
+            tiberius::ColumnData::DateTimeOffset(_) => {
+                chrono::DateTime::<FixedOffset>::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.naive_utc().into())
+            }
+        };
+        Ok(value.map(|x| Self { value: x }))
+    }
+}
 fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
     let mut values: Vec<Option<String>> = Vec::new();
     for index in 0..row.columns().len() {
         let v: Option<ConvertColumnDataToString> = row.try_get(index)?;
+        values.push(v.map(|x| x.value));
+    }
+    anyhow::Ok(values)
+}
+
+impl EncodeXlsxDatetime for SqlServerDB {
+    /*
+            all date time types
+            DateTimeData DATETIME,
+            DateTime2Data DATETIME2,
+            SmallDateTimeData SMALLDATETIME,
+            DateData1 DATE,
+            TimeData TIME,
+            DateTimeOffsetData DATETIMEOFFSET
+    */
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(
+            ["DATETIME", "DATETIME2", "SMALLDATETIME", "DATETIMEOFFSET"]
+                .iter()
+                .any(|x| x.eq_ignore_ascii_case(ty)),
+        )
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
+
+fn encode_row_as_xlsx(row: &tiberius::Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = Vec::new();
+    for index in 0..row.columns().len() {
+        let v: Option<ConvertColumnDataToXlsxContent> = row.try_get(index)?;
         values.push(v.map(|x| x.value));
     }
     anyhow::Ok(values)
@@ -316,7 +401,7 @@ impl SqlServerDB {
         schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         if schema.eq_ignore_ascii_case(Self::SYS_SCHEMA) {
-            //  这里没有找到可以查询的语句 所以让AI帮我做成一个列表
+            // No query was found here, so have AI generate a list.
             return anyhow::Ok(
                 SYS_OBJECTS
                     .iter()
@@ -369,7 +454,7 @@ impl SqlServerDB {
     pub(crate) async fn list_procedure_impl(
         &self,
         schema: &str,
-    ) -> anyhow::Result<Vec<NamedStaff>> {
+    ) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
                 SELECT  name
@@ -389,7 +474,9 @@ impl SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
-                    ret.push(NamedStaff::from(name.unwrap_or_default().to_string()));
+                    ret.push(NameWithParameter::from(
+                        name.unwrap_or_default().to_string(),
+                    ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -405,7 +492,10 @@ impl GetBackendKind for SqlServerDB {
 }
 
 impl SqlServerDB {
-    pub(crate) async fn list_udf_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_udf_impl(
+        &self,
+        schema: &str,
+    ) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT 
@@ -429,7 +519,7 @@ impl SqlServerDB {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
                     if let Some(name) = name {
-                        ret.push(NamedStaff::from(name.to_owned()));
+                        ret.push(NameWithParameter::from(name.to_owned()));
                     }
                 }
                 tiberius::QueryItem::Metadata(..) => {}
@@ -470,8 +560,88 @@ impl SqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // 1. Drop the foreign key constraint (SQL Server uses DROP CONSTRAINT; the index does not need to be dropped).
+        // Note: SQL Server recommends enclosing table and constraint names in square brackets [].
+        let sql = format!(r#"ALTER TABLE [{}] DROP CONSTRAINT [{}]"#, table, name);
+        self.simple_execute_sql(&sql).await?;
+
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let mut conn = self.get_conn().await?;
+
+        // Query SQL Server foreign keys using sys.foreign_keys and sys.foreign_key_columns.
+        // Note: Do not use format to interpolate table names into SQL strings with tiberius (to prevent injection); use the @P1 placeholder.
+        let sql = r#"
+        SELECT
+            fk.name AS constraint_name,
+            OBJECT_SCHEMA_NAME(fk.referenced_object_id) + '.' + OBJECT_NAME(fk.referenced_object_id) AS referenced_table_name,
+            c.name AS column_name,
+            pc.name AS referenced_column_name,
+            CASE fk.update_referential_action_desc 
+                WHEN 'CASCADE' THEN 'CASCADE' 
+                WHEN 'SET_NULL' THEN 'SET NULL' 
+                WHEN 'SET_DEFAULT' THEN 'SET DEFAULT' 
+                ELSE 'NO ACTION' 
+            END AS update_rule,
+            CASE fk.delete_referential_action_desc 
+                WHEN 'CASCADE' THEN 'CASCADE' 
+                WHEN 'SET_NULL' THEN 'SET NULL' 
+                WHEN 'SET_DEFAULT' THEN 'SET DEFAULT' 
+                ELSE 'NO ACTION' 
+            END AS delete_rule
+        FROM
+            sys.foreign_keys fk
+        JOIN
+            sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+        JOIN
+            sys.columns c ON fkc.parent_object_id = c.object_id AND fkc.parent_column_id = c.column_id
+        JOIN
+            sys.columns pc ON fkc.referenced_object_id = pc.object_id AND fkc.referenced_column_id = pc.column_id
+        WHERE
+            OBJECT_NAME(fk.parent_object_id) = @P1
+    "#;
+
+        log::info!("sql:{}", sql);
+
+        // tiberius queries require parameters (@P1 corresponds to the first parameter).
+        let mut rows = conn.query(sql, &[&table]).await?;
+
+        let mut ret = Vec::new();
+
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    // Note: tiberius's get method differs from sqlx; Option types require special handling.
+                    let constraint_name: Option<&str> = row.get(0);
+                    let referenced_table: &str = row.get(1).unwrap_or_default();
+                    let from: &str = row.get(2).unwrap_or_default();
+                    let to: &str = row.get(3).unwrap_or_default();
+                    let on_update: &str = row.get(4).unwrap_or_default();
+                    let on_delete: &str = row.get(5).unwrap_or_default();
+
+                    ret.push(ForeignKeyDef {
+                        name: constraint_name.map(|x| x.to_owned()),
+                        table: referenced_table.to_string(),
+                        from: from.to_owned(),
+                        to: to.to_owned(),
+                        on_update: on_update.to_owned(),
+                        on_delete: on_delete.to_owned(),
+                    });
+                }
+
+                tiberius::QueryItem::Metadata(..) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         self.can_write()?;
@@ -516,11 +686,7 @@ impl SchemaTrait for SqlServerDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -612,7 +778,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql.into())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT 
@@ -639,7 +805,7 @@ impl SchemaTrait for SqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -751,7 +917,7 @@ impl SchemaTrait for SqlServerDB {
             conn,
             self.config.schema_str()?,
             view_name,
-            para.where_str.as_deref(),
+            para.filter.as_deref(),
         )
         .await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
@@ -770,7 +936,7 @@ impl SchemaTrait for SqlServerDB {
                         QueryResp {
                             fields: get_fields_from_meta(&m),
                             sql: sql.clone().into(),
-                            total: total as usize,
+                            total: total as f64,
                             ..Default::default()
                         }
                         .into(),
@@ -878,7 +1044,7 @@ impl SchemaTrait for SqlServerDB {
             conn,
             self.config.schema_str()?,
             table_name,
-            para.where_str.as_deref(),
+            para.filter.as_deref(),
         )
         .await?;
         let fields = self.show_table_columns(table_name).await?;
@@ -886,7 +1052,7 @@ impl SchemaTrait for SqlServerDB {
         emit.send(
             QueryResp {
                 fields,
-                total: total as usize,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -991,11 +1157,11 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_udf_impl(self.config.schema_str()?).await
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
         SELECT 
@@ -1064,7 +1230,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::bail!("query udf definition failed, no result.")
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP FUNCTION "{}"."{1}""#, Self::DBO_SCHEMA, name.name);
         log::info!("sql:{}", sql);
@@ -1072,12 +1238,12 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_procedure_impl(self.config.schema_str()?.as_str())
             .await
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
             SELECT 
@@ -1105,13 +1271,13 @@ impl SchemaTrait for SqlServerDB {
                     let create_date: Option<chrono::NaiveDateTime> = row.try_get(0)?;
                     let modify_date: Option<chrono::NaiveDateTime> = row.try_get(1)?;
                     let def: Option<&str> = row.try_get(2)?;
-                    return anyhow::Ok(ProcedureDetail::new(
-                        def.unwrap_or_default().to_string(),
-                        vec![
+                    return anyhow::Ok(DefAndMetas {
+                        def: def.unwrap_or_default().to_string(),
+                        metas: vec![
                             MetaValue::new("create_date", create_date.map(|x| x.to_string())),
                             MetaValue::new("modify_date", modify_date.map(|x| x.to_string())),
                         ],
-                    ));
+                    });
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -1119,7 +1285,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::bail!("query procedure failed, no result.")
     }
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP PROCEDURE dbo."{}""#, name.name);
         log::info!("sql:{}", sql);
@@ -1127,11 +1293,11 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 }
-/// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
+/// CURRENT_* / no-parentheses literals that can be written directly in SQL Server statements.
 pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123
-    "CURRENT_DATE",      //  2025-08-25   （SQL Server 2022+ 支持）
-    "CURRENT_TIME",      //  14:36:07.123 （SQL Server 2022+ 支持）
+    "CURRENT_DATE",      //  2025-08-25 (supported in SQL Server 2022+).
+    "CURRENT_TIME",      //  14:36:07.123 (supported in SQL Server 2022+).
     "CURRENT_USER",      //  dbo
 ];
 impl SqlBuilder for SqlServerDB {
@@ -1139,14 +1305,14 @@ impl SqlBuilder for SqlServerDB {
         self.config.schema.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         SQLSERVER_CURRENT_LITERALS
     }
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let default_value = value.to_string();
-        let single_quote = format!("'{}'", escape_sql_str(value));
+        let single_quote = quote_sql_str(value);
 
         let v = match typ.to_uppercase().as_str() {
             "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
@@ -1155,7 +1321,7 @@ impl SqlBuilder for SqlServerDB {
             "BIT" | "BITN" | "BIGVARBIN" => default_value,
             "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
             | "BIGCHAR" => single_quote,
-            "UNIQUEIDENTIFIER" => default_value,
+            "UNIQUEIDENTIFIER" => single_quote,
             "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
             "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
             | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
@@ -1181,28 +1347,61 @@ impl SqlBuilder for SqlServerDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
+                filter: where_str,
+                sort: order_by,
                 ..
-            } = para;
+            } = &para;
             if let Some(where_str) = where_str {
                 sql.push_str(format!(" WHERE {where_str} ").as_str());
             }
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-            } else {
-                // sql server 的offset子句只能和order by一起使用
-                sql.push_str(" ORDER  BY (SELECT NULL) ")
+                if let Some(offset) = para.offset() {
+                    sql.push_str(
+                        format!(
+                            " OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+                            offset.offset, offset.page_size
+                        )
+                        .as_str(),
+                    );
+                }
+            } else if let Some(offset) = para.offset() {
+                // SQL Server's OFFSET clause can only be used with ORDER BY.
+                sql.push_str(" ORDER  BY (SELECT NULL) ");
+                sql.push_str(
+                    format!(
+                        " OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+                        offset.offset, offset.page_size
+                    )
+                    .as_str(),
+                );
             }
-            let offset = (page - 1) * page_size;
-            sql.push_str(
-                format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", offset, page_size).as_str(),
-            );
         }
 
         sql
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for SqlServerDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let r = match value {
+            serde_json::Value::Null => return anyhow::Ok(None),
+            serde_json::Value::Bool(x) => if *x { "1" } else { "0" }.to_string(),
+            serde_json::Value::Number(number) => number.to_string(),
+            serde_json::Value::String(x) => x.clone(),
+            serde_json::Value::Array(values) => {
+                let r = extract_bytes_from_serde_values(values)?;
+                encode_bytes(&r)
+            }
+            serde_json::Value::Object(..) => {
+                anyhow::bail!("sql server should not have object value in json")
+            }
+        };
+        anyhow::Ok(Some(r))
     }
 }
 
@@ -1342,7 +1541,7 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
                 .map(|x| x.to_string())
                 .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+            tiberius::ColumnData::Date(_) => chrono::NaiveDate::from_sql(value)
                 .ok()
                 .flatten()
                 .map(|x| x.to_string())
@@ -1457,7 +1656,7 @@ impl ExportQueryResult for SqlServerDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         let mut stream = conn.query(sql, &[]).await?;
         let mut row_num = 0;
@@ -1475,7 +1674,7 @@ impl ExportQueryResult for SqlServerDB {
                     }
                     ExportKind::Sql { .. } => anyhow::bail!("can't export query result to sql"),
                     ExportKind::Xlsx { .. } => {
-                        let d = encode_row(&row)?;
+                        let d = encode_row_as_xlsx(&row)?;
                         export_query_as_xlsx_send_data(&mut row_num, d, sender.clone()).await?;
                     }
                     ExportKind::Html { .. } => {
@@ -1506,21 +1705,21 @@ impl ExportQueryResult for SqlServerDB {
                     ExportKind::Sql { .. } => {
                         anyhow::bail!("can't export query result to sql")
                     }
-                    ExportKind::Xlsx { include_header } => {
+                    ExportKind::Xlsx { include_header, .. } => {
                         if first.get() && include_header {
                             for (index, col) in meta.columns().iter().enumerate() {
                                 sender
                                     .send(
                                         XlsxEdit {
                                             row: row_num,
-                                            column: index as rust_xlsxwriter::ColNum,
-                                            content: col.name().to_owned(),
+                                            column: index as u16,
+                                            content: col.name().to_owned().into(),
                                         }
                                         .into(),
                                     )
                                     .await?;
-                                row_num += 1;
                             }
+                            row_num += 1;
                         }
                     }
                     ExportKind::Html { include_header } => {
@@ -1552,6 +1751,20 @@ impl ExportQueryResult for SqlServerDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqlServerDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -1680,10 +1893,15 @@ impl QuerySql for SqlServerDB {
                     emit.send(encode_row(&row)?.into())?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
-                    let f = get_fields_from_meta(&meta);
+                    let fs = get_fields_from_meta(&meta);
                     emit.send(
                         QueryResp {
-                            fields: f,
+                            fields: fs,
+                            sql: Some(sql.to_owned()),
+                            tables: crate::language_server::LangServerCommon::extract_tables(
+                                self, sql,
+                            )
+                            .unwrap_or_default(),
                             ..Default::default()
                         }
                         .into(),
@@ -1742,14 +1960,14 @@ impl crate::db::DBTrait for SqlServerDB {
         Ok(Arc::new(x))
     }
 
-    async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
+    async fn create_schema(&self, _name: &str, _: Option<CreateSchemaArg>) -> anyhow::Result<()> {
         self.can_write()?;
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("create schema")
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop schema")
     }
 }
 
@@ -1791,7 +2009,7 @@ impl CatalogTrait for SqlServerDB {
     async fn create_database(
         &self,
         name: &str,
-        _extra: Option<CreateDatabaseExtra>,
+        _extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("CREATE DATABASE {name}");
@@ -1815,7 +2033,10 @@ impl CatalogTrait for SqlServerDB {
     }
 }
 
+// docker run --name some-sqlserver -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=sfdewRE123" -p 1433:1433 -d mcr.microsoft.com/mssql/server:latest
+
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) async fn make_test_object() -> SqlServerDB {
     SqlServerDB::new(SqlServerDBConfig {
         host: crate::TEST_HOST.to_string(),
@@ -1834,6 +2055,7 @@ pub(crate) async fn make_test_object() -> SqlServerDB {
     .unwrap()
 }
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) fn test_lock() -> &'static Mutex<()> {
     static LOCK: Mutex<()> = Mutex::const_new(());
 
@@ -1845,7 +2067,7 @@ impl ReadOnlyTrait for SqlServerDB {
     }
 }
 
-/// SQL Server `sys` 架构下所有目录视图 / 表的固定名称（完整列表）
+/// Complete list of fixed catalog view/table names in the SQL Server `sys` schema.
 pub const SYS_OBJECTS: &[&str] = &[
     "all_columns",
     "all_objects",
@@ -2118,7 +2340,7 @@ pub const SYS_OBJECTS: &[&str] = &[
     "xml_schema_wildcards",
     "xml_schema_wildcard_namespaces",
 ];
-/// SQL Server INFORMATION_SCHEMA 全部系统视图
+/// All SQL Server INFORMATION_SCHEMA system views.
 pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
     "CHECK_CONSTRAINTS",
     "COLUMN_DOMAIN_USAGE",
@@ -2147,16 +2369,93 @@ impl GetTestExportTableKinds for SqlServerDB {
         false
     }
 }
+
 #[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod tests {
+    use std::process::Command;
+
     use super::*;
-    use crate::db::{
-        CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
-        SqlNullAble, TestQueryEventEmit,
+    use crate::{
+        datasource_config::SSLFiles,
+        db::{
+            CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn,
+            ShowTableParameter, SqlNullAble, TestQueryEventEmit,
+        },
+        helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
     };
 
     #[allow(unused_imports)]
     use crate::enable_test_log;
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object().await;
+
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        // SQL Server foreign key names must be specified by the user (usually custom or generated as table_name_column_name_FK).
+        let _err = db
+            .drop_foreign_key(table_name_comments, "fk_comments_posts")
+            .await;
+
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. Create the parent table test_posts.
+        // SQL Server uses IDENTITY(1,1) instead of AUTO_INCREMENT and NVARCHAR to support Unicode text.
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE test_posts (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            title NVARCHAR(255) NOT NULL,
+            content NVARCHAR(MAX)
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. Create the child table test_comments.
+        // SQL Server constraints are defined at the table level, with syntax similar to:
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE test_comments (
+            comment_id INT IDENTITY(1,1) PRIMARY KEY,
+            author_name NVARCHAR(255),
+            post_id INT,
+            CONSTRAINT fk_comments_posts FOREIGN KEY (post_id) 
+            REFERENCES test_posts(id) 
+            ON DELETE CASCADE
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. List and print the foreign keys.
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
+    }
 
     #[tokio::test]
     async fn test_table_pagination() {
@@ -2194,7 +2493,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
     #[tokio::test]
@@ -2204,7 +2503,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
-            .drop_procedure(&NamedStaff::from("test_procedure".to_string()))
+            .drop_procedure(&NameWithParameter::from("test_procedure".to_string()))
             .await;
         db.execute_sql(
             query_id,
@@ -2232,7 +2531,9 @@ END;
         let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_udf(&NamedStaff::from("test_udf".to_string())).await;
+        let _ = db
+            .drop_udf(&NameWithParameter::from("test_udf".to_string()))
+            .await;
         db.execute_sql(
             query_id,
             r#"
@@ -2388,7 +2689,7 @@ END;
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
 
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -2409,7 +2710,7 @@ END;
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 
@@ -2849,8 +3150,39 @@ END;
         println!("drop table column sql:{}", sql);
     }
 
+    #[ignore = "run by hand"]
+    #[tokio::test]
+    async fn test_offset() {
+        enable_test_log();
+
+        let para = ShowTableParameter::new_stupid_test("id asc");
+        let table_name = "test_type1";
+
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        {
+            let para = para.clone();
+            db.show_table_collect(table_name, para).await.unwrap();
+        }
+        {
+            let mut para = para.clone();
+            para.page = None;
+            para.page_size = None;
+            db.show_table_collect(table_name, para).await.unwrap();
+        }
+        {
+            let mut para = para.clone();
+            para.page = None;
+            para.sort = None;
+            para.page_size = None;
+            db.show_table_collect(table_name, para).await.unwrap();
+        }
+    }
+
     #[tokio::test]
     async fn test_type1() {
+        enable_test_log();
+
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -2884,14 +3216,11 @@ END;
         values.insert("col_bigint".to_string(), Some("10000".to_string()));
         values.insert("col_float".to_string(), Some("3.14".to_string()));
         values.insert("col_double".to_string(), Some("3.14159".to_string()));
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert("id".to_string(), Some("1".to_string()));
+
+        db.table_update(table_name, &values, &wheres).await.unwrap();
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -2899,6 +3228,8 @@ END;
         println!("ret:{:?}", list);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2919,11 +3250,11 @@ END;
                     bit_column bit,
                     nvarchar_column nvarchar(50),
                     varchar_column varchar(50),
-                    nchar_column nchar(50),
-                    char_column char(50),
+                    nchar_column nchar(3),
+                    char_column char(3),
                     ntext_column ntext,
                     text_column text
-                  );
+                );
             "#
             ),
             &[],
@@ -2936,25 +3267,23 @@ END;
         values.insert("nvarchar_column".to_string(), Some("b".to_string()));
         values.insert("varchar_column".to_string(), Some("c".to_string()));
 
-        values.insert("nchar_column".to_string(), Some("d".to_string()));
-        values.insert("char_column".to_string(), Some("e".to_string()));
+        values.insert("nchar_column".to_string(), Some("d  ".to_string()));
+        values.insert("char_column".to_string(), Some("e  ".to_string()));
         values.insert("ntext_column".to_string(), Some("f".to_string()));
         values.insert("text_column".to_string(), Some("g".to_string()));
 
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert("id".to_string(), Some("1".to_string()));
+        db.table_update(table_name, &values, &wheres).await.unwrap();
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2986,37 +3315,39 @@ END;
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("BinaryColumn".to_string(), Some("0x0123456789".to_string()));
-        values.insert("VarBinaryColumn".to_string(), Some("0xABCDEF".to_string()));
+        values.insert(
+            "BinaryColumn".to_string(),
+            Some("0X01234567890000000000".to_string()),
+        );
+        values.insert("VarBinaryColumn".to_string(), Some("0XABCDEF".to_string()));
         values.insert(
             "ImageColumn".to_string(),
-            Some("0x0123456789ABCDEF".to_string()),
+            Some("0X0123456789ABCDEF".to_string()),
         );
 
         values.insert(
             "UniqueIdentifierColumn".to_string(),
-            Some("NEWID()".to_string()),
+            Some("228e0edb-8941-4062-ab0b-0c9c25e23eb9".to_string()),
         );
         values.insert("NumericColumn".to_string(), Some("123.45".to_string()));
         values.insert("DecimalColumn".to_string(), Some("12.3456".to_string()));
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert("id".to_string(), Some("1".to_string()));
+        db.table_update(table_name, &values, &wheres).await.unwrap();
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
     async fn test_type4() {
+        // enable_test_log();
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -3034,7 +3365,7 @@ END;
                     DateTimeData DATETIME,
                     DateTime2Data DATETIME2,
                     SmallDateTimeData SMALLDATETIME,
-                    DateData DATE,
+                    DateData1 DATE,
                     TimeData TIME,
                     DateTimeOffsetData DATETIMEOFFSET
                 );
@@ -3056,32 +3387,162 @@ END;
         );
         values.insert(
             "DateTime2Data".to_string(),
-            Some("2022-01-01 12:34:56.1234567".to_string()),
+            Some("2022-01-01 12:34:56.123".to_string()),
         );
         values.insert(
             "SmallDateTimeData".to_string(),
             Some("2022-01-01 12:34:00".to_string()),
         );
 
-        values.insert("DateData".to_string(), Some("2022-01-01".to_string()));
+        values.insert("DateData1".to_string(), Some("2022-01-01".to_string()));
         values.insert("TimeData".to_string(), Some("12:34:56".to_string()));
         values.insert(
             "DateTimeOffsetData".to_string(),
             Some("2022-01-01 12:34:56.1234567 +01:00".to_string()),
         );
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+
+        println!("values:{:?}", values);
+
+        db.table_insert(table_name, &values).await.unwrap();
+
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(
+            table_name,
+            &values,
+            &[
+                "id",
+                /*
+
+                expect: 2022-01-01 12:34:56.1234567 +01:00
+                This is 12:34:56 as seen in the UTC+1 time zone (such as standard time in Paris or Berlin).
+
+                actual: 2022-01-01 11:34:56.123 +00:00
+                 This is 11:34:56 as seen in UTC+0 (Coordinated Universal Time). */
+                "DateTimeOffsetData",
+            ],
+        )
+        .await;
+    }
+
+    // but macos not passed `A host name mismatch has occurred.`
+    // This may pass on Linux; validation may be stricter on macOS.
+    #[tokio::test]
+    async fn test_ssl_sqlserver() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 1. Prepare the certificates and configuration required by SQL Server.
+        // SQL Server requires the certificate and private key to be in the same .pem file or specified separately.
+        // Here, assume server.crt and server.key are used and configured through mssql.conf.
+        let ca_volume = format!("{}/ca.crt:/etc/ssl/certs/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/ssl/certs/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/ssl/certs/server.key", cert_dir);
+
+        // 2. Create the SQL Server configuration file mssql.conf to enable SSL.
+        let mssql_conf_content = r#"
+[network]
+tlscert = /etc/ssl/certs/server.crt
+tlskey = /etc/ssl/certs/server.key
+tlsprotocols = 1.2
+forceencryption = 1
+"#;
+        let conf_path = format!("{}/mssql.conf", cert_dir);
+        std::fs::write(&conf_path, mssql_conf_content).unwrap();
+
+        // 3. Create the initialization script (create a test database and user).
+        let init_script_content = r#"
+CREATE DATABASE testdb;
+GO
+USE testdb;
+GO
+CREATE LOGIN testuser WITH PASSWORD = 'testpass';
+GO
+CREATE USER testuser FOR LOGIN testuser;
+GO
+ALTER ROLE db_owner ADD MEMBER testuser;
+GO
+"#;
+        let init_script_path = format!("{}/init-sqlserver.sql", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+
+        // 4. Start the SQL Server container with SSL configured correctly.
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "sqlserver-ssl-test"])
+            .args(["-p", format!("{}:1433", port).as_str()])
+            .args(["-e", "ACCEPT_EULA=Y"])
+            .args(["-e", "MSSQL_PID=Express"])
+            .args(["-e", "SA_PASSWORD=YourStrong!Password"])
+            .args(["-e", "MSSQL_AGENT_ENABLED=true"])
+            // Mount the certificates and configuration file.
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .args([
+                "-v",
+                format!("{}:/var/opt/mssql/mssql.conf", conf_path).as_str(),
+            ])
+            .args([
+                "-v",
+                format!("{}:/docker-entrypoint-initdb.d/init.sql", init_script_path).as_str(),
+            ])
+            .arg("mcr.microsoft.com/mssql/server")
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("SQL Server 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // SQL Server starts slowly, so wait longer.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        // Check the container logs to confirm the SSL configuration.
+        let check_output = Command::new("docker")
+            .args(["logs", &container_id, "--tail", "30"])
+            .output()
+            .unwrap();
+        println!(
+            "SQL Server logs: {}",
+            String::from_utf8_lossy(&check_output.stdout)
+        );
+
+        start_docker_container(&container_id).unwrap();
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        {
+            let db = SqlServerDB::new(SqlServerDBConfig {
+                host: "localhost".to_string(),
+                port,
+                username: Some("sa".to_string()),
+                password: "YourStrong!Password".to_owned().into(),
+                db: None,
+                trust_cert: false,
+                schema: None,
+                read_only: false,
+                conn_timeout: Some(5000.into()),
+                cert_ca: SSLFiles::test_cert().ssl_ca,
+            })
+            .await
+            .unwrap();
+
+            let d = db.check_conn().await.unwrap();
+            println!("check conn:{:?}", d);
+        }
     }
 }

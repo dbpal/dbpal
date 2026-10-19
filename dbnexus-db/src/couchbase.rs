@@ -1,26 +1,34 @@
 // couchbase only allow use query on schema so we can get scope.
 // docker run -d --name some-couchbase -p 8091-8094:8091-8094 -p 11210:11210 couchbase
-use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
-
 use couchbase::{
     authenticator::{Authenticator, PasswordAuthenticator},
     bucket::Bucket,
     cluster::Cluster,
     management::buckets::bucket_settings::{BucketSettings, BucketType},
-    options::{cluster_options::ClusterOptions, query_options::QueryOptions},
+    options::{
+        cluster_options::{ClusterOptions, TlsOptions},
+        query_options::QueryOptions,
+    },
     scope::Scope,
 };
 use futures_util::StreamExt;
 use serde::Serialize;
 use serde_json::{ser::PrettyFormatter, Serializer, Value};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
+use tokio::io::AsyncBufReadExt;
 
 use crate::{
     datasource_config::CouchBaseDBConfig,
     db::{
-        BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseExtra, DBTrait,
-        ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
-        QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowTableParameter, SqlBuilder,
+        BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseArg, DBTrait,
+        EncodeXlsxDatetime, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
+        GetBackendKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
+        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TableImportPara,
     },
 };
 
@@ -48,25 +56,32 @@ impl CheckConn for CouchBaseDB {
 
 impl CouchBaseDB {
     pub async fn new(config: CouchBaseDBConfig) -> anyhow::Result<Self> {
-        let cluster = tokio::time::timeout(
-            config
-                .conn_timeout
-                .map(Duration::from)
-                .unwrap_or(Duration::from_secs(60)),
-            async {
-                Cluster::connect(
-                    &config.conn_str,
-                    ClusterOptions::new(Authenticator::PasswordAuthenticator(
-                        PasswordAuthenticator {
-                            username: config.username.clone(),
-                            password: config.password.clone(),
-                        },
-                    )),
-                )
-                .await
+        let mut op = ClusterOptions::new(Authenticator::PasswordAuthenticator(
+            PasswordAuthenticator {
+                username: config.username.clone(),
+                password: config.password.clone(),
             },
-        )
-        .await??;
+        ));
+        if config.ssl_enable {
+            let mut tls = TlsOptions::new();
+            tls.danger_accept_invalid_certs = config.danger_accept_invalid_certificates;
+            tls.danger_accept_invalid_hostnames = config.danger_accept_invalid_hostnames;
+            for file in config.ca_certificates.iter() {
+                tls = tls.add_ca_certificate(
+                    tokio_native_tls::native_tls::Certificate::from_pem(
+                        tokio::fs::read(file).await?.as_slice(),
+                    )
+                    .map_err(|e| {
+                        anyhow::Error::msg(format!(
+                            "'{}' not valid certificate file,err:{}",
+                            file, e
+                        ))
+                    })?,
+                );
+            }
+            op = op.tls_options(tls);
+        }
+        let cluster = Cluster::connect(&config.conn_str(), op).await?;
         anyhow::Ok(Self {
             cluster: Arc::new(cluster),
             config,
@@ -99,9 +114,51 @@ impl ServerMetas for CouchBaseDB {
     }
 }
 
+impl CouchBaseDB {
+    pub async fn ai_query_sql(
+        &self,
+        sql: &str,
+        max_row: usize,
+    ) -> anyhow::Result<(Vec<serde_json::Value>, bool)> {
+        let scope = self.get_scope()?;
+        let mut ret = Vec::with_capacity(max_row + 1); // a extra position to check if exceed
+        let mut query_result = scope
+            .query(sql, {
+                let op = QueryOptions::default();
+                let op = op.read_only(self.config.read_only);
+                Some(op)
+            })
+            .await?;
+        let mut stream = query_result.rows::<'_, serde_json::Value>();
+        while let Some(x) = stream.next().await {
+            let x = x?;
+            ret.push(x);
+            if ret.len() > max_row {
+                return anyhow::Ok((ret, true));
+            }
+        }
+        anyhow::Ok((ret, false))
+    }
+}
+
 #[async_trait::async_trait]
 
 impl QuerySql for CouchBaseDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn get_update_sql_from_result_set(
+        &self,
+        _sql: &str,
+        _old_values: &[Option<String>],
+        _new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        self.backend_kind()
+            .not_support_feature("get update sql form result set")
+    }
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn query_sql(
         &self,
         _query_id: &str,
@@ -130,39 +187,21 @@ impl QuerySql for CouchBaseDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<crate::db::QueryResp, String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("execute sql")
     }
 
     async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("simple execute sql")
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("open connetion")
     }
 
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("close connection")
     }
-}
-
-pub trait CouchBaseDBQueryEmit {
-    fn emit(&self, _: serde_json::Value) -> anyhow::Result<()>;
-}
-
-fn extract_id_and_value(
-    values: &HashMap<String, Option<String>>,
-) -> anyhow::Result<(&String, serde_json::Value)> {
-    // accept two parameter id and value
-    let id = match values.get("id") {
-        Some(Some(x)) => x,
-        _ => anyhow::bail!("id is required"),
-    };
-    let value = match values.get("value") {
-        Some(Some(x)) => serde_json::Value::from_str(x)?,
-        _ => anyhow::bail!("value is required"),
-    };
-    anyhow::Ok((id, value))
 }
 
 impl CouchBaseDB {
@@ -219,9 +258,126 @@ impl CouchBaseDB {
     }
 }
 
+impl ExtractSqlValeFromJsonValue for CouchBaseDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        _value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        anyhow::bail!("couchbase don't need impl this")
+    }
+}
+
+fn extract_id_and_value(
+    values: &HashMap<String, Option<String>>,
+) -> anyhow::Result<(&String, serde_json::Value)> {
+    // accept two parameter id and value
+    let id = match values.get("id") {
+        Some(Some(x)) => x,
+        _ => anyhow::bail!("id is required"),
+    };
+    let value = match values.get("value") {
+        Some(Some(x)) => serde_json::Value::from_str(x)?,
+        _ => anyhow::bail!("value is required"),
+    };
+    anyhow::Ok((id, value))
+}
+
+impl EncodeXlsxDatetime for CouchBaseDB {}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for CouchBaseDB {
+    async fn table_import_data_from_file(
+        &self,
+        table: &str,
+        para: TableImportPara,
+    ) -> anyhow::Result<()> {
+        /*
+        {
+            "id": "aaaa",
+            "test_show_table": {
+                "data": "hello world.",
+                "id": "abc",
+                "b": 1
+            }
+        }
+        extrat a value like this.
+        */
+        fn extract_id_and_table_value(
+            map: &serde_json::Map<String, serde_json::Value>,
+        ) -> anyhow::Result<(&String, &serde_json::Value)> {
+            if map.len() != 2 {
+                anyhow::bail!("this json value should contains 2 keys")
+            }
+            let id = "id";
+            let id_value = match map.get(id) {
+                Some(value) => match value {
+                    serde_json::Value::String(x) => x,
+                    _ => {
+                        anyhow::bail!("the id should have value string.")
+                    }
+                },
+                None => anyhow::bail!("this value should contains id"),
+            };
+
+            let value_key = {
+                let mut keys = map.keys().collect::<HashSet<_>>();
+                keys.remove(&id.to_string());
+                let keys = keys.into_iter().collect::<Vec<_>>();
+                keys[0]
+            };
+            let table_value = match map.get(value_key) {
+                Some(x) => x,
+                None => unreachable!(),
+            };
+            anyhow::Ok((id_value, table_value))
+        }
+
+        let scope = self.get_scope()?;
+
+        // try create table is not exists.
+
+        if !self.table_exists(table).await? {
+            let sql = format!("CREATE COLLECTION `{}`", table);
+            scope.query(sql, None).await?;
+        }
+
+        let path_lower = para.path.to_lowercase();
+        if path_lower.ends_with(".json") {
+            let path = para.path.clone();
+
+            let values = tokio::task::spawn_blocking(move || {
+                let f = std::fs::File::open(&path)?;
+                let buf = std::io::BufReader::new(f);
+                let ret: Vec<serde_json::Map<String, serde_json::Value>> =
+                    serde_json::from_reader(buf)?;
+                anyhow::Ok(ret)
+            })
+            .await??;
+
+            for v in values.iter() {
+                let (id, value) = extract_id_and_table_value(v)?;
+                scope.collection(table).insert(id, value, None).await?;
+            }
+            anyhow::Ok(())
+        } else if path_lower.contains(".jsonl") {
+            let f = tokio::fs::File::open(&para.path).await?;
+            let reader = tokio::io::BufReader::new(f);
+            let mut lines = reader.lines();
+            while let Some(line) = lines.next_line().await? {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let value = serde_json::from_str(&line)?;
+                let (id, value) = extract_id_and_table_value(&value)?;
+                scope.collection(table).insert(id, value, None).await?;
+            }
+            anyhow::Ok(())
+        } else {
+            anyhow::bail!(format!("unsupported file type:{}", para.path))
+        }
+    }
     async fn export_table_or_view(
         &self,
         name: &str,
@@ -231,7 +387,7 @@ impl SchemaTrait for CouchBaseDB {
     ) -> anyhow::Result<()> {
         let sql = self.gen_show_sql(name, None, para.as_ref());
         let mut resp = self.get_scope()?.query(sql, None).await?;
-        let mut rows = resp.rows::<'_, serde_json::Value>();
+        let mut rows = resp.rows::<'_, serde_json::Map<String, serde_json::Value>>();
 
         while let Some(row) = rows.next().await {
             let row = row?;
@@ -253,12 +409,12 @@ impl SchemaTrait for CouchBaseDB {
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
 
         let scope = self.get_scope()?;
-        let (id, value) = extract_id_and_value(&values)?;
+        let (id, value) = extract_id_and_value(values)?;
         scope.collection(table_name).insert(id, value, None).await?;
         anyhow::Ok(None)
     }
@@ -266,11 +422,11 @@ impl SchemaTrait for CouchBaseDB {
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        _wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        _wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
-        let (id, value) = extract_id_and_value(&values)?;
+        let (id, value) = extract_id_and_value(values)?;
         let scope = self.get_scope()?;
         let col = scope.collection(table_name);
         col.replace(id, value, None).await?;
@@ -319,10 +475,15 @@ impl SchemaTrait for CouchBaseDB {
     async fn table_delete(
         &self,
         table_name: &str,
-        mut wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
-        let id = wheres.remove("id").unwrap_or_default().unwrap_or_default();
+        let id = wheres
+            .clone()
+            .remove("id")
+            .expect("must have id filed")
+            .clone()
+            .expect("must have id");
         let scope = self.get_scope()?;
         scope.collection(table_name).remove(id, None).await?;
         anyhow::Ok(None)
@@ -356,13 +517,11 @@ impl SchemaTrait for CouchBaseDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let sql = self.gen_show_sql(table_name, None, Some(&para));
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         emit.send(
             QueryResp {
                 sql: Some(sql.clone()),
-                total,
+                total: total as f64,
                 ..Default::default()
             }
             .into(),
@@ -379,7 +538,7 @@ impl SchemaTrait for CouchBaseDB {
                 )),
             };
 
-            let indent = " ".repeat(para.tab_size); // 这里可以是 b"\t" 或任意字节序列
+            let indent = " ".repeat(para.tab_size as usize); // This could be b"\t" or any byte sequence.
             let formatter = PrettyFormatter::with_indent(indent.as_bytes());
 
             let mut buf = Vec::new();
@@ -432,8 +591,8 @@ impl SqlBuilder for CouchBaseDB {
         self.config.scope.as_deref()
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+    fn encode_value(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature("put value in sql")
     }
 
     fn gen_show_sql(
@@ -446,10 +605,8 @@ impl SqlBuilder for CouchBaseDB {
 
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(w) = where_str {
@@ -458,9 +615,11 @@ impl SqlBuilder for CouchBaseDB {
             if let Some(o) = order_by {
                 sql.push_str(format!(" ORDER BY {}", o).as_str());
             }
-            sql.push_str(
-                format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size).as_str(),
-            );
+            if let Some(offset) = para.offset() {
+                sql.push_str(
+                    format!(" LIMIT {} OFFSET {}", offset.page_size, offset.offset).as_str(),
+                );
+            }
         }
         sql
     }
@@ -536,7 +695,7 @@ impl DBTrait for CouchBaseDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<crate::db::CreateSchemaExtra>,
+        _extra: Option<crate::db::CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         self.get_bucket()?
@@ -577,11 +736,11 @@ impl CatalogTrait for CouchBaseDB {
     async fn create_database(
         &self,
         name: &str,
-        extra: Option<CreateDatabaseExtra>,
+        extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let setting = match extra {
-            Some(CreateDatabaseExtra::Couchbase {
+            Some(CreateDatabaseArg::Couchbase {
                 ram_quota_mb,
                 flush_enabled,
                 num_replicas,
@@ -589,11 +748,11 @@ impl CatalogTrait for CouchBaseDB {
                 bucket_type,
             }) => {
                 let mut setting = BucketSettings::new(name);
-                setting = setting.ram_quota_mb(ram_quota_mb);
+                setting = setting.ram_quota_mb(ram_quota_mb as u64);
                 setting = setting.flush_enabled(flush_enabled);
                 setting = setting.num_replicas(num_replicas);
                 if let Some(max_expiry) = max_expiry {
-                    setting = setting.max_expiry(Duration::from_secs(max_expiry));
+                    setting = setting.max_expiry(Duration::from_secs(max_expiry as u64));
                 }
                 let ty = match bucket_type {
                     CouchBaseBucketType::Couchbase => BucketType::COUCHBASE,
@@ -624,17 +783,22 @@ impl CatalogTrait for CouchBaseDB {
     }
 }
 
-// http://localhost:8091/ui/index.html 通过这个初始化
+// Initialize it through http://localhost:8091/ui/index.html.
 #[cfg(test)]
 async fn make_test_object() -> CouchBaseDB {
     CouchBaseDB::new(CouchBaseDBConfig {
-        conn_str: "couchbase://127.0.0.1".into(),
+        host: "127.0.0.1".into(),
+        port: 11210,
         username: "Administrator".into(),
         password: "test1234".into(),
         read_only: false,
         bucket: Some("test".to_string()),
         scope: Some("xxx".to_string()),
         conn_timeout: Some(4000.into()),
+        ssl_enable: false,
+        danger_accept_invalid_hostnames: None,
+        danger_accept_invalid_certificates: None,
+        ca_certificates: vec![],
     })
     .await
     .unwrap()
@@ -642,8 +806,14 @@ async fn make_test_object() -> CouchBaseDB {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
-    use crate::enable_test_log;
+    use crate::{
+        datasource_config::SSLFiles,
+        enable_test_log,
+        helper::{cert_files_dir, DockerContainerDropper},
+    };
     use couchbase::{
         authenticator::{Authenticator, PasswordAuthenticator},
         cluster::Cluster,
@@ -693,18 +863,15 @@ mod tests {
             let _ = db.truncate_table(table_name_dup).await;
         }
         let id = "aaaa";
-        db.table_insert(table_name, {
-            let mut values = HashMap::new();
-            values.insert("id".to_string(), Some(id.to_owned()));
-            values.insert("value".to_owned(), {
-                let mut m = serde_json::Map::new();
-                m.insert("data".to_string(), serde_json::Value::from("hello world."));
-                Some(serde_json::to_string(&m).unwrap())
-            });
-            values
-        })
-        .await
-        .unwrap();
+
+        let mut values = HashMap::new();
+        values.insert("id".to_string(), Some(id.to_owned()));
+        values.insert("value".to_owned(), {
+            let mut m = serde_json::Map::new();
+            m.insert("data".to_string(), serde_json::Value::from("hello world."));
+            Some(serde_json::to_string(&m).unwrap())
+        });
+        db.table_insert(table_name, &values).await.unwrap();
 
         db.duplicate_table(table_name, table_name_dup)
             .await
@@ -733,7 +900,7 @@ mod tests {
         )
         .await
         .unwrap();
-        // 不能执行多条语句呢
+        // Multiple statements cannot be executed.
         let mut resp = c.query("select 1", None).await.unwrap();
         let mut stream = resp.rows::<'_, serde_json::Value>();
         while let Some(row) = stream.next().await {
@@ -758,23 +925,18 @@ mod tests {
         }
 
         for i in 0..155 {
-            db.table_insert(table_name, {
-                let mut values = HashMap::new();
-                values.insert("id".to_string(), Some(format!("id_{}", i)));
+            let mut values = HashMap::new();
+            values.insert("id".to_string(), Some(format!("id_{}", i)));
 
-                values.insert("value".to_owned(), {
-                    let mut m = serde_json::Map::new();
-                    m.insert(
-                        "data".to_string(),
-                        serde_json::Value::from(format!("hello world.{}", i)),
-                    );
-                    Some(serde_json::to_string(&m).unwrap())
-                });
-
-                values
-            })
-            .await
-            .unwrap();
+            values.insert("value".to_owned(), {
+                let mut m = serde_json::Map::new();
+                m.insert(
+                    "data".to_string(),
+                    serde_json::Value::from(format!("hello world.{}", i)),
+                );
+                Some(serde_json::to_string(&m).unwrap())
+            });
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -790,23 +952,159 @@ mod tests {
             .await;
         db.truncate_table(table_name).await.unwrap();
         let id = "aaaa";
-        db.table_insert(table_name, {
-            let mut values = HashMap::new();
-            values.insert("id".to_string(), Some(id.to_owned()));
-            values.insert("value".to_owned(), {
-                let mut m = serde_json::Map::new();
-                m.insert("data".to_string(), serde_json::Value::from("hello world."));
-                m.insert("id".into(), "abc".into());
-                Some(serde_json::to_string(&m).unwrap())
-            });
-            values
-        })
-        .await
-        .unwrap();
+        let mut values = HashMap::new();
+        values.insert("id".to_string(), Some(id.to_owned()));
+        values.insert("value".to_owned(), {
+            let mut m = serde_json::Map::new();
+            m.insert("name".to_string(), serde_json::Value::from("john"));
+            m.insert("age".into(), 18.into());
+            Some(serde_json::to_string(&m).unwrap())
+        });
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
+
+        let cols = db.show_table_columns(table_name).await.unwrap();
+        for col in cols.iter() {
+            println!("column:{:?}", col);
+        }
+
+        db.test_table_export_and_import_json(table_name).await;
+        db.test_table_export_and_import_jsonline(table_name).await;
+
+        let resp = db
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+    }
+
+    #[tokio::test]
+    async fn test_ssl_couchbase() {
+        enable_test_log();
+        let port = portpicker::pick_unused_port().unwrap();
+        let port2 = portpicker::pick_unused_port().unwrap();
+        println!("test port:{} port2:{}", port, port2);
+        let cert_dir = cert_files_dir();
+
+        let ca_volume = format!(
+            "{}/ca.crt:/opt/couchbase/var/lib/couchbase/ca.pem",
+            cert_dir
+        );
+        let cert_volume = format!(
+            "{}/server.crt:/opt/couchbase/var/lib/couchbase/chain.pem",
+            cert_dir
+        );
+        let key_volume = format!(
+            "{}/server.key:/opt/couchbase/var/lib/couchbase/pkey.key",
+            cert_dir
+        );
+
+        // Start the container (without setting environment variables).
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "couchbase-ssl-test"])
+            .args(["-p", format!("{}:8091", port).as_str()])
+            .args(["-p", format!("{}:11207", port2).as_str()])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .arg("couchbase/server")
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("Couchbase 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // ===== Wait for Couchbase to start =====
+        println!("等待 Couchbase 启动...");
+        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+
+        // ===== Manually initialize the cluster (set the password) =====
+        let init_output = Command::new("docker")
+            .arg("exec")
+            .arg(&container_id)
+            .arg("couchbase-cli")
+            .arg("cluster-init")
+            .arg("-c")
+            .arg("localhost:8091")
+            .arg("--cluster-username=Administrator")
+            .arg("--cluster-password=test1234") // ← Set the password.
+            .arg("--cluster-port=8091")
+            .arg("--services=data,index,query,fts")
+            .output()
+            .unwrap();
+
+        if !init_output.status.success() {
+            eprintln!(
+                "集群初始化失败: {}",
+                String::from_utf8_lossy(&init_output.stderr)
+            );
+            return;
+        }
+        println!("✅ 集群初始化成功，密码已设置为: test1234");
+
+        // ===== Create a bucket =====
+        let bucket_output = Command::new("docker")
+            .arg("exec")
+            .arg(&container_id)
+            .arg("couchbase-cli")
+            .arg("bucket-create")
+            .arg("-c")
+            .arg(format!("localhost:{}", port))
+            .arg("-u")
+            .arg("Administrator")
+            .arg("-p")
+            .arg("test1234")
+            .arg("--bucket=test")
+            .arg("--bucket-type=couchbase")
+            .arg("--bucket-ramsize=256")
+            .output()
+            .unwrap();
+
+        if !bucket_output.status.success() {
+            eprintln!(
+                "Bucket 创建失败: {}",
+                String::from_utf8_lossy(&bucket_output.stderr)
+            );
+            return;
+        }
+        println!("✅ Bucket 'test' 创建成功");
+
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+        println!("trying to connect to server.",);
+
+        let db = CouchBaseDB::new(CouchBaseDBConfig {
+            host: "127.0.0.1".into(),
+            port: port2,
+            username: "Administrator".to_string(),
+            password: "test1234".to_string(), // ← Use the configured password.
+            read_only: false,
+            bucket: "test".to_string().into(),
+            scope: None,
+            conn_timeout: Some(8000.into()),
+            ssl_enable: true,
+            danger_accept_invalid_hostnames: Some(true),
+            danger_accept_invalid_certificates: Some(true),
+            ca_certificates: vec![SSLFiles::test_cert().ssl_ca.unwrap()],
+        })
+        .await
+        .unwrap();
+
+        db.check_conn().await.unwrap();
+        println!("✅ 连接测试成功！");
     }
 }

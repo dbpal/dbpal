@@ -1,20 +1,27 @@
 import { MultiQueryResp } from "./QueryResp";
-import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { FaExclamation } from "react-icons/fa";
-import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import FastForwardIcon from "@mui/icons-material/FastForward";
+import { Chip, Dialog, Divider, IconButton, Stack, Tooltip } from "@mui/material";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
+import { PlayArrowIcon, FaExclamation } from "./icons";
+import React, {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { FastForwardIcon } from "./icons";
 import { editor } from "monaco-editor";
 import { isRedisCode, isSQLCode, NameAndQueryId, QueryConn } from "./Common.ts";
-import { BsFillLightbulbFill } from "react-icons/bs";
-import { FaUpload } from "react-icons/fa";
-import { MdOutlineReply } from "react-icons/md";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import { BsFillLightbulbFill, FaUpload, MdOutlineReply, RefreshIcon } from "./icons";
 import {
   DataSourceKind,
   getEditorText,
-  resizeHandlerSize,
   rustResultOk,
   secondConfirm,
   TabContext,
@@ -22,11 +29,13 @@ import {
   saveQueryKey,
   MonacoEditor,
   QueryIDEditorChatCtx,
-  getDefaultLanguage,
+  getDatabaseKindLanguage,
   jumpToEditorText,
   QueryRespData,
+  DbnameContext,
+  resizeHandlerSize,
 } from "./helper.ts";
-import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import { ArrowCircleDownRoundedIcon } from "./icons";
 import { ExportView } from "./Export.tsx";
 import {
   AiMarkdownModel,
@@ -49,8 +58,6 @@ import {
   useBoolSwitch,
   useConfirmMsg,
   useNotification,
-  useOneShotDialogUI,
-  useQueryExtraUI,
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
@@ -95,7 +102,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
   useEffect(() => {
-    //这里的顺序很重要
+    // The order here is important.
     setTxCount((e) => e + 1);
     queryCommit();
   }, [executeTimes, queryCommit]);
@@ -284,56 +291,36 @@ function QueryButtons(props: {
   );
 }
 
-function SqlQuery(props: {
-  uuid: string;
+function SqlQuery_(props: {
   value?: string;
   favoriteName?: string;
-  kind: DataSourceKind;
   extraButtons?: ReactNode;
 }) {
-  const { uuid, value, favoriteName, kind, extraButtons } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+  const { value, favoriteName, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification();
   const [executeTimes, setExecuteTimes] = useState(0);
   const { queryId } = useContext(QueryIDEditorChatCtx);
-  const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
+  const conn = useRef<QueryConn>(new QueryConn(dbName, queryId, kind));
   const getSize = useSizeStore((s) => s.getSize);
   const [openOk, setOpenOk] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
-  const tabCtx = useContext(TabContext);
-  const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { save: saveQueryLog } = useQueryLogStore();
   const [markdownModel, setMarkdownModel] = useState(false);
-  const { setUi: setOneShotUI } = useOneShotDialogUI();
   const { getSwitch } = useBoolSwitch();
-  const setEditorContext = useContext(QueryIDEditorChatCtx);
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    setEditorContext.setEditor(editor);
-  }, [editor, setEditorContext]);
+  const { setEditor, editor } = useContext(QueryIDEditorChatCtx);
+  const [showExport, setShowExport] = useState(false);
 
-  const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
-    setEditor(ed);
-  }, []);
-
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    let x = editor.getModel().onDidChangeContent(() => {
-      if (markdownModel) {
-        return;
-      }
-    });
-    return () => {
-      x.dispose();
-    };
-  }, [editor, markdownModel, uuid]);
+  const handleEditorDidMount = useCallback(
+    (ed: editor.IStandaloneCodeEditor) => {
+      setEditor(ed);
+    },
+    [setEditor],
+  );
 
   useEffect(() => {
     setMakeConnLoading(true);
@@ -413,7 +400,7 @@ function SqlQuery(props: {
       .executeOP(text)
       .then((e) => {
         if (getSwitch(saveQueryKey)) {
-          saveQueryLog(uuid, text, rustResultOk(e));
+          saveQueryLog(dbName, text, rustResultOk(e));
         }
         setTimeout(() => {
           setResp([...resp, e]);
@@ -450,13 +437,13 @@ function SqlQuery(props: {
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
           if (getSwitch(saveQueryKey)) {
-            saveQueryLog(uuid, text, true);
+            saveQueryLog(dbName, text, true);
           }
           showNotification({ severity: "success", title: "query OK" });
         })
         .catch((e) => {
           if (getSwitch(saveQueryKey)) {
-            saveQueryLog(uuid, text, false);
+            saveQueryLog(dbName, text, false);
           }
           showNotification({ severity: "error", title: "query failed", message: e });
         })
@@ -465,14 +452,14 @@ function SqlQuery(props: {
           setLoading(false);
         });
     },
-    [getSize, getSwitch, saveQueryLog, showNotification, uuid, warnDangerousSql],
+    [getSize, getSwitch, saveQueryLog, showNotification, dbName, warnDangerousSql],
   );
 
   useEffect(() => {
     if (editor) {
-      editor.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
+      editor.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind, queryId);
     }
-  }, [editor, kind, queryId, uuid]);
+  }, [editor, kind, queryId, dbName]);
 
   const supportExplain = [
     DataSourceKind.Sqlite,
@@ -488,6 +475,10 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
     DataSourceKind.DuckDB,
   ].includes(kind);
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "sql-query-layout",
+    panelIds: ["query-panel", "resp-panel"],
+  });
 
   return (
     <div
@@ -504,17 +495,22 @@ function SqlQuery(props: {
           cancelTask(queryId);
         }}
       />
-      <PanelGroup direction="vertical" style={{ flex: 1 }} autoSaveId="sql-query">
+      <PanelGroup
+        orientation="vertical"
+        style={{ flex: 1 }}
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}>
         <Panel
-          minSize={10}
-          maxSize={100}
-          defaultSize={40}
+          minSize={"10%"}
+          maxSize={"100%"}
+          defaultSize={"40%"}
           style={{
             display: "flex",
             flexDirection: "column",
           }}
+          id="query-panel"
           collapsible
-          collapsedSize={0}>
+          collapsedSize={"0%"}>
           <QueryStatus status={queryStatus} />
           <Stack
             direction="row"
@@ -553,6 +549,31 @@ function SqlQuery(props: {
                 </IconButton>
               </span>
             </Tooltip>
+
+            {showExport && (
+              <Dialog
+                open={showExport}
+                onClose={() => {
+                  setShowExport(false);
+                }}>
+                <ExportView
+                  supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
+                  exportOP={async (kind, file, taskId, sizeEmitter) => {
+                    const sql = getEditorText(editor, showNotification, true);
+                    return conn.current.exportQueryResult(
+                      queryId,
+                      sql,
+                      kind,
+                      file,
+                      taskId,
+                      sizeEmitter,
+                    );
+                  }}
+                  name="export_query_result"
+                />
+              </Dialog>
+            )}
+
             {openOk && (
               <Tooltip title="export query result to a file">
                 <span>
@@ -563,31 +584,7 @@ function SqlQuery(props: {
                       if (!value) {
                         return;
                       }
-                      setOneShotUI(
-                        <ExportView
-                          supportKind={[
-                            "csv",
-                            "json",
-                            "jsonline",
-                            "xlsx",
-                            "html",
-                            "markdown",
-                          ]}
-                          exportOP={async (kind, file, taskId, sizeEmitter) => {
-                            const sql = getEditorText(editor, showNotification, true);
-                            return conn.current.exportQueryResult(
-                              queryId,
-                              sql,
-                              kind,
-                              file,
-                              taskId,
-                              sizeEmitter,
-                            );
-                          }}
-                          name="export_query_result"
-                        />,
-                        `export query result to a file`,
-                      );
+                      setShowExport(true);
                     }}
                     disabled={markdownModel}
                     color="primary">
@@ -596,12 +593,7 @@ function SqlQuery(props: {
                 </span>
               </Tooltip>
             )}
-            <SaveFavoriteSqlView
-              favoriteName={favoriteName}
-              uuid={uuid}
-              kind={kind}
-              editor={editor}
-            />
+            <SaveFavoriteSqlView favoriteName={favoriteName} editor={editor} />
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
@@ -613,7 +605,7 @@ function SqlQuery(props: {
                 kind={kind}
               />
             )}
-            <ShowQueryLog uuid={uuid} kind={kind} />
+            <ShowQueryLog />
 
             {extraButtons}
             <ModifyLLMConfigModal />
@@ -623,7 +615,6 @@ function SqlQuery(props: {
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
             />
-            {querySomeShow.get(tabCtx.id)}
 
             <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />
@@ -667,7 +658,7 @@ function SqlQuery(props: {
               display: markdownModel ? "none" : "block",
             }}>
             <MonacoEditor
-              language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
+              language={markdownModel ? "markdown" : getDatabaseKindLanguage(kind)}
               value={value}
               onMount={handleEditorDidMount}
             />
@@ -676,18 +667,19 @@ function SqlQuery(props: {
 
         {resp.length > 0 && (
           <>
-            <PanelResizeHandle
+            <Separator
               style={{ height: resizeHandlerSize }}
               className="resize-handle"
             />
             <Panel
+              id="resp-panel"
               style={{ overflow: "auto" }}
               collapsible
-              collapsedSize={0}
-              maxSize={100}
-              minSize={10}>
+              collapsedSize={"0%"}
+              maxSize={"100%"}
+              minSize={"10%"}>
               <div style={{ height: "100%" }}>
-                <MultiQueryResp data={resp} />
+                <MultiQueryResp data={resp} setData={setResp} />
               </div>
             </Panel>
           </>
@@ -696,6 +688,8 @@ function SqlQuery(props: {
     </div>
   );
 }
+
+const SqlQuery = React.memo(SqlQuery_);
 
 function appendQueryResult(
   data: QueryRespData[],

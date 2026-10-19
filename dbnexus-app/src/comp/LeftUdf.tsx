@@ -1,46 +1,33 @@
-import {
-  Divider,
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Stack,
-} from "@mui/material";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import InfoIcon from "@mui/icons-material/Info";
-import { MdFunctions } from "react-icons/md";
+import { Divider, ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { DeleteForeverIcon, InfoIcon } from "./icons";
+import { MdFunctions } from "./icons";
 import { DefAndMetasView } from "./DefAndMetaView";
-
-import { TbMathFunction } from "react-icons/tb";
-import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
-import { CopySql, ShowingCount } from "./CommonComp2";
+import { TbMathFunction } from "./icons";
+import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
 import {
-  useMatcher,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-} from "./store";
-import { commands, NamedStaff } from "./bindings.ts";
-import { uuidv4 } from "./Common.ts";
+  MenuRefresh,
+  MyTreeItem,
+  UdfNameAndParameters,
+  VirtualListLeft,
+} from "./CommonComp";
+import { CopySql, ShowingCount } from "./CommonComp2";
+import { useNotification, useTabsManage, useMatcherFn } from "./store";
+import { commands, NameWithParameter } from "./bindings.ts";
 
 function UdfsTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
 
-  const [udfs, setUdfs] = useState<NamedStaff[]>([]);
+  const [udfs, setUdfs] = useState<NameWithParameter[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return udfs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [udfs, maxTree, matchPattern]);
+    return udfs.filter((e) => matchPattern(e.name));
+  }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
     commands
-      .listUdf(uuid)
+      .listUdf(dbName)
       .then((data) => {
         setUdfs(data);
       })
@@ -51,62 +38,49 @@ function UdfsTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   useEffect(() => {
     reload();
   }, [reload]);
-
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const treeID = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={treeID.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh reload={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      enable={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <TbMathFunction />
         <span> udfs </span>
         <ShowingCount showing={showItems.length} total={udfs.length} />
-      </Stack>>
-      {showItems.map((udf) => {
-        const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
-        return (
-          <TreeItem
-            key={id}
-            itemId={id}
-            label=<Stack
-              direction="row"
-              sx={{ alignItems: "center" }}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
-                  ),
-                  event: e,
-                });
-              }}>
-              <TbMathFunction />
+      </>>
+      <VirtualListLeft
+        data={showItems}
+        makeMenu={(e) => {
+          return <UdfMenu reload={reload} dbName={dbName} kind={kind} udf={e} />;
+        }}
+        show={(udf) => {
+          return (
+            <>
               <UdfNameAndParameters udf={udf} kind={kind} />
-            </Stack>
-          />
-        );
-      })}
-    </TreeItem>
+            </>
+          );
+        }}
+      />
+    </MyTreeItem>
   );
 }
 
-function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind }) {
-  const { uuid, udf, reload, kind } = props;
+function UdfMenu(props: {
+  dbName;
+  udf: NameWithParameter;
+  reload;
+  kind: DataSourceKind;
+}) {
+  const { dbName, udf, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
@@ -115,12 +89,12 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
         udf.name,
         <DefAndMetasView
           reloadOP={async () => {
-            return commands.showUdf(uuid, udf);
+            return commands.showUdf(dbName, udf);
           }}
-          kind={kind}
-          uuid={uuid}
         />,
         <TbMathFunction />,
+        dbName,
+        kind,
       ),
     );
   };
@@ -135,7 +109,7 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
       return;
     }
     commands
-      .dropUdf(uuid, udf)
+      .dropUdf(dbName, udf)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -176,12 +150,12 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
 }
 
 function CassandraAggregateMenu(props: {
-  uuid: string;
+  dbName: string;
   agg: string;
   parameters: string[] | null;
   reload;
 }) {
-  const { uuid, agg, reload, parameters } = props;
+  const { dbName, agg, reload, parameters } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
@@ -191,12 +165,12 @@ function CassandraAggregateMenu(props: {
         agg,
         <DefAndMetasView
           reloadOP={async () => {
-            return await commands.cassandraShowAggregate(uuid, agg, parameters);
+            return await commands.cassandraShowAggregate(dbName, agg, parameters);
           }}
-          uuid={uuid}
-          kind={DataSourceKind.Cassandra}
         />,
         <MdFunctions />,
+        dbName,
+        DataSourceKind.Cassandra,
       ),
     );
   };
@@ -212,7 +186,7 @@ function CassandraAggregateMenu(props: {
     }
 
     commands
-      .cassandraDropAggregate(uuid, agg, parameters)
+      .cassandraDropAggregate(dbName, agg, parameters)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -258,12 +232,12 @@ function CassandraAggregateMenu(props: {
 }
 
 function CassandraAggregatesTree() {
-  const { uuid } = useContext(UuidContext);
-  const [aggs, setAggs] = useState<NamedStaff[]>([]);
+  const { dbName } = useContext(DbnameContext);
+  const [aggs, setAggs] = useState<NameWithParameter[]>([]);
   const { showNotification } = useNotification();
   const reload = useCallback(() => {
     commands
-      .cassandraListAggregate(uuid)
+      .cassandraListAggregate(dbName)
       .then((ts) => {
         setAggs(ts);
       })
@@ -274,71 +248,52 @@ function CassandraAggregatesTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
-  const { maxTree } = useMatcher();
+  }, [showNotification, dbName]);
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return aggs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [aggs, matchPattern, maxTree]);
+    return aggs.filter((e) => matchPattern(e.name));
+  }, [aggs, matchPattern]);
 
   useEffect(() => {
     reload();
   }, [reload]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const tressId = useRef(uuidv4());
+
   return (
-    <TreeItem
-      itemId={tressId.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh reload={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      enable={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <MdFunctions />
         <span> aggregates </span>
         <ShowingCount showing={showItems.length} total={aggs.length} />
-      </Stack>>
-      {showItems.map((agg) => {
-        const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
-        return (
-          <TreeItem
-            key={
-              agg.name +
-              "-" +
-              (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
-            }
-            itemId={id}
-            label=<Stack
-              direction="row"
-              sx={{ alignItems: "center" }}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <CassandraAggregateMenu
-                      reload={reload}
-                      uuid={uuid}
-                      agg={agg.name}
-                      parameters={agg.cassandra_parameters}
-                    />
-                  ),
-                  event: e,
-                });
-              }}>
-              <MdFunctions />
+      </>>
+      <VirtualListLeft
+        data={aggs}
+        makeMenu={(agg) => {
+          return (
+            <CassandraAggregateMenu
+              reload={reload}
+              dbName={dbName}
+              agg={agg.name}
+              parameters={agg.cassandra_parameters}
+            />
+          );
+        }}
+        show={(agg) => {
+          return (
+            <>
               <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
-            </Stack>
-          />
-        );
-      })}
-    </TreeItem>
+            </>
+          );
+        }}
+      />
+    </MyTreeItem>
   );
 }
 

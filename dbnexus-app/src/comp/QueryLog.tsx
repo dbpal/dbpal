@@ -1,6 +1,5 @@
 import {
   AlertTitle,
-  Button,
   Checkbox,
   Dialog,
   FormControlLabel,
@@ -9,20 +8,28 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
-import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
-import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
-import DoneIcon from "@mui/icons-material/Done";
-import CloseIcon from "@mui/icons-material/Close";
 import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
+import { DoneIcon, CloseIcon } from "./icons";
+import {
+  createMongoModel,
   dataGridStyle,
   DataSourceKind,
-  getDefaultLanguage,
+  getDatabaseKindLanguage,
   pageSizeOptions,
   saveQueryKey,
   secondConfirm,
+  DbnameContext,
 } from "./helper.ts";
-import { ResizeParentHeight } from "./CommonComp.tsx";
-import { BsFillLightbulbFill } from "react-icons/bs";
+import { DeleteForeverIcon, BsFillLightbulbFill } from "./icons";
 import {
   AppDataGridPagination,
   EscPressedDo,
@@ -37,18 +44,18 @@ import {
 } from "./store.tsx";
 import { CustomToolbar } from "./CustomToolBar.tsx";
 import { DataGrid, GridColDef, GridSlotsComponent } from "./datagridExport.ts";
+import { ResizeParentHeight } from "./CommonComp.tsx";
 
 function QueryLog(props: {
-  uuid: string;
   showQueryLog: boolean;
   setShowQueryLog: Dispatch<SetStateAction<boolean>>;
   queryId?: string;
-  kind: DataSourceKind;
 }) {
-  const { uuid, showQueryLog, setShowQueryLog, queryId, kind } = props;
-  const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
+  const { dbName, kind } = useContext(DbnameContext);
+  const { showQueryLog, setShowQueryLog, queryId } = props;
+  const [selectSql, setSelectSql] = useState<string>("");
   const [logs, setLogs] = useState([]);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const { query, deleteByUuid } = useQueryLogStore();
 
   const [loading, setLoading] = useState(false);
@@ -62,45 +69,47 @@ function QueryLog(props: {
       break;
   }
   const { showNotification } = useNotification();
-  const columns: GridColDef[] = [
-    {
-      field: "create_at",
-      width: getColumnWidth("create_at"),
-      renderHeader: () => {
-        return "time";
+  const columns = useMemo((): GridColDef[] => {
+    return [
+      {
+        field: "create_at",
+        width: getColumnWidth("create_at"),
+        renderHeader: () => {
+          return "time";
+        },
+        renderCell: (params) => {
+          // The trailing Z indicates UTC.
+          return <div>{new Date(params.value).toLocaleString()}</div>;
+        },
       },
-      renderCell: (params) => {
-        // 加z是utc时间
-        return <div>{new Date(params.value).toLocaleString()}</div>;
+      {
+        width: getColumnWidth("success"),
+        field: "success",
+        renderCell: (p) => {
+          const success = p.row.success;
+          if (success) {
+            return <DoneIcon color="success" />;
+          } else {
+            return <CloseIcon color="error" />;
+          }
+        },
+        filterable: false,
       },
-    },
-    {
-      width: getColumnWidth("success"),
-      field: "success",
-      renderCell: (p) => {
-        const success = p.row.success;
-        if (success) {
-          return <DoneIcon color="success" />;
-        } else {
-          return <CloseIcon color="error" />;
-        }
+      {
+        field: "sql",
+        flex: 1,
+        renderHeader: () => {
+          return sqlDesc;
+        },
       },
-      filterable: false,
-    },
-    {
-      field: "sql",
-      flex: 1,
-      renderHeader: () => {
-        return sqlDesc;
-      },
-    },
-  ];
+    ];
+  }, [getColumnWidth, sqlDesc]);
 
   useEffect(() => {
     const handleReload = async () => {
       setLoading(true);
       try {
-        const logs = await query(uuid);
+        const logs = await query(dbName);
         setLogs(logs);
       } catch (e) {
         showNotification({
@@ -116,7 +125,7 @@ function QueryLog(props: {
     if (showQueryLog) {
       handleReload();
     }
-  }, [query, showNotification, showQueryLog, uuid]);
+  }, [query, showNotification, showQueryLog, dbName]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -142,6 +151,11 @@ function QueryLog(props: {
       },
     } as Partial<GridSlotsComponent>;
   }, []);
+
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectSql(e.row.sql);
+  }, []);
+
   return (
     <Paper
       style={{
@@ -188,7 +202,7 @@ function QueryLog(props: {
         </StackRowCenter>
         <StackRowCenter>
           {logs.length > 0 && (
-            <Button
+            <IconButton
               onClick={async () => {
                 try {
                   const confirm = await secondConfirm({
@@ -198,7 +212,7 @@ function QueryLog(props: {
                   if (!confirm) {
                     return;
                   }
-                  const rowsAffected = await deleteByUuid(uuid);
+                  const rowsAffected = await deleteByUuid(dbName);
                   showNotification({
                     severity: "success",
                     title: `deleted ${rowsAffected} query log`,
@@ -213,16 +227,16 @@ function QueryLog(props: {
                   return;
                 }
               }}>
-              delete
-            </Button>
+              <DeleteForeverIcon color="warning" />
+            </IconButton>
           )}
           <Tooltip title={`auto save query log to local database maybe danger.`}>
             <FormControlLabel
               control={
                 <Checkbox
                   checked={getSwitch(saveQueryKey)}
-                  onChange={() => {
-                    setSwitch(saveQueryKey, !getSwitch(saveQueryKey));
+                  onChange={(e) => {
+                    setSwitch(saveQueryKey, e.target.checked);
                   }}
                 />
               }
@@ -233,23 +247,15 @@ function QueryLog(props: {
       </Stack>
       {showQueryLog && logs.length > 0 && (
         <DataGrid
-          onRowDoubleClick={(e) => {
-            setSelectSql(e.row);
-          }}
-          showToolbar={false}
+          onRowDoubleClick={onRowDoubleClick}
           columns={columns}
           rows={logs}
           slots={slots}
           style={dataGridStyle}
+          showToolbar={false}
           pageSizeOptions={pageSizeOptions}
           initialState={{
             sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
-          }}
-          onColumnResize={({ colDef, width }) => {
-            const field = colDef.field;
-            if (field == "create_at" || field == "success") {
-              setColumnWidth(field, width);
-            }
           }}
           loading={loading}
         />
@@ -271,13 +277,18 @@ function QueryLog(props: {
           disableAutoFocus>
           <AlertTitle> view sql </AlertTitle>
           <SimpleFlexEditor
-            value={selectSql.sql}
-            handleEditor={(e) => {
-              e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
+            value={selectSql}
+            handleEditor={(ed) => {
+              if (kind == DataSourceKind.Mongo) {
+                const model = createMongoModel(`//@ts-ignore
+const { db, FS, HTTP, BSON } = mongoHandle;
+`);
+                ed.setModel(model);
+              }
+              ed.focus();
+              ed.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind, queryId);
             }}
-            language={
-              selectSql.language ? selectSql.language : getDefaultLanguage(kind)
-            }
+            language={getDatabaseKindLanguage(kind)}
           />
         </Dialog>
       )}

@@ -1,2 +1,2 @@
-select id from employees
-10 id  ; 25  employees
+SELECT * FROM `VIEWS` WHERE  tabl
+33 table_catalog

@@ -6,19 +6,19 @@ use dbnexus_db::datasource_config::{
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
-    BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
-    ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
+    parse_bson_doc, BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn,
+    DBTrait, ExportQueryResult, JsUint8Array, QuerySql, SchemaTrait, ServerMetas,
 };
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
+#[cfg(feature = "duckdb")]
+use dbnexus_db2::duckdb::DuckDB;
 use font_kit::error::SelectionError;
-use specta::datatype::DataType;
 use std::any::Any;
-use std::ops::Deref;
 
-use mongodb::bson::{self, Document};
+use mongodb::bson::{self};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,7 +32,7 @@ pub struct OpenAIReq {
     pub model: String,
     pub prompt: String,
     pub temperature: Option<f64>,
-    pub max_tokens: Option<u64>,
+    pub max_tokens: Option<u32>,
     pub top_p: Option<f64>,
     // data:image/jpeg;base64 data encoded in base64 image data
     pub images: Vec<String>,
@@ -44,17 +44,24 @@ pub struct OpenAIReq {
     pub search_engine: AiOnlineSearch,
     pub chat_history: Vec<ChatHistory>,
 }
+
+#[derive(Clone, Debug, specta::Type, serde::Serialize, serde::Deserialize)]
+pub struct XlsxCellData {
+    pub row: rust_xlsxwriter::RowNum,
+    pub column: rust_xlsxwriter::ColNum,
+    pub content: String,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 #[serde(tag = "resp_type", rename_all = "lowercase")]
-
 pub enum AISteamResp {
     Content {
         msg: String,
     },
     TokenUsage {
-        input_token: u64,
-        output_token: u64,
-        total_token: u64,
+        input_token: Option<u32>,
+        output_token: Option<u32>,
+        total_token: Option<u32>,
     },
 }
 
@@ -76,7 +83,7 @@ impl std::fmt::Display for AISteamResp {
                     output_token,
                     total_token,
                 } => format!(
-                    "input_token: {}, output_token: {}, total_token: {}",
+                    "input_token: {:?}, output_token: {:?}, total_token: {:?}",
                     input_token, output_token, total_token
                 ),
             }
@@ -107,10 +114,10 @@ impl DBConnectionConfig {
             | DBConnectionConfig::ClickHouse { name, .. }
             | DBConnectionConfig::LibSql { name, .. }
             | DBConnectionConfig::FireBird { name, .. }
-            | DBConnectionConfig::DuckDB { name, .. }
             | DBConnectionConfig::CockRoach { name, .. }
             | DBConnectionConfig::Db2 { name, .. }
-            | DBConnectionConfig::CouchBase { name, .. } => name.as_str(),
+            | DBConnectionConfig::CouchBase { name, .. }
+            | DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
     }
 }
@@ -345,10 +352,15 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
+
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
+                #[cfg(not(feature = "duckdb"))]
+                {
+                    anyhow::bail!("need enable duckdb feature")
+                }
                 #[cfg(feature = "duckdb")]
                 {
-                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone()).await?;
+                    let db = DuckDB::new(_conn.clone()).await?;
                     match &_conn.db {
                         Some(_) => match &_conn.schema {
                             Some(_) => anyhow::Ok(DatabaseBackend::from(
@@ -363,8 +375,6 @@ impl DBConnectionConfig {
                         }
                     }
                 }
-                #[cfg(not(feature = "duckdb"))]
-                anyhow::bail!("duckdb feature not enabled")
             }
             DBConnectionConfig::ClickHouse { conn, .. } => {
                 let db = dbnexus_db::clickhouse::ClickHouseDB::new(conn.clone())?;
@@ -672,6 +682,21 @@ pub struct ErrorFrontend {
     pub cancelled: bool,
 }
 
+impl std::fmt::Display for ErrorFrontend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.reason)
+    }
+}
+
+impl From<calamine::Error> for ErrorFrontend {
+    fn from(value: calamine::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
 impl ErrorFrontend {
     pub(crate) fn cancelled(msg: Option<String>) -> Self {
         Self {
@@ -686,7 +711,7 @@ pub fn append_handle_name(name: &str, name2: &str) -> String {
     format!("{}/{}", name, name2)
 }
 
-// 管理所有任务的取消令牌
+// Manage cancellation tokens for all tasks.
 
 #[derive(Clone, Default)]
 pub struct TaskManager {
@@ -832,25 +857,6 @@ impl TaskManager {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-#[serde(transparent)]
-
-pub struct JsUint8Array(Vec<u8>);
-
-impl specta::Type for JsUint8Array {
-    fn definition(_: &mut specta::Types) -> DataType {
-        DataType::Reference(specta_typescript::define("Uint8Array"))
-    }
-}
-
-impl Deref for JsUint8Array {
-    type Target = Vec<u8>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 pub struct MongoFindParameter {
     pub(crate) filter: JsUint8Array,
@@ -859,12 +865,8 @@ pub struct MongoFindParameter {
     pub(crate) sort: Option<JsUint8Array>,
     pub(crate) min: Option<JsUint8Array>,
     pub(crate) max: Option<JsUint8Array>,
-    pub(crate) limit: Option<i64>,
-    pub(crate) skip: Option<u64>,
-}
-
-pub fn parse_bson_doc(bs: &[u8]) -> Result<Document, ErrorFrontend> {
-    bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(ErrorFrontend::from)
+    pub(crate) limit: Option<f64>,
+    pub(crate) skip: Option<f64>,
 }
 
 impl From<mongodb::bson::de::Error> for ErrorFrontend {
@@ -917,8 +919,8 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
             } else {
                 None
             },
-            limit,
-            skip,
+            limit: limit.map(|x| x as i64),
+            skip: skip.map(|x| x as u64),
         };
         Ok(r)
     }
@@ -928,8 +930,8 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
 pub struct MongoShowTablePara {
     pub(crate) sort: JsUint8Array,
     pub(crate) filter: JsUint8Array,
-    pub(crate) page: u64,
-    pub(crate) page_size: u64,
+    pub(crate) page: u32,
+    pub(crate) page_size: u32,
 }
 
 impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
@@ -975,6 +977,16 @@ pub struct AiOnlineSearch {
     pub enable: bool,
     pub provider: String, // duckduckgo
     pub api_key: Option<String>,
+}
+
+impl From<rust_xlsxwriter::XlsxError> for ErrorFrontend {
+    fn from(value: rust_xlsxwriter::XlsxError) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
 }
 
 #[cfg(test)]

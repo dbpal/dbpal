@@ -4,15 +4,14 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { IoConstructOutline } from "react-icons/io5";
+import { IoConstructOutline } from "./icons";
 import {
   Button,
   ButtonGroup,
   CircularProgress,
+  Dialog,
   Divider,
   ListItemIcon,
   ListItemText,
@@ -21,12 +20,14 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import ViewComfyAltIcon from "@mui/icons-material/ViewComfyAlt";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import ListIcon from "@mui/icons-material/List";
+import {
+  ContentCopyIcon,
+  ArrowCircleDownIcon,
+  DeleteForeverIcon,
+  VisibilityIcon,
+  ViewComfyAltIcon,
+  ListIcon,
+} from "./icons";
 import { SqlTableView } from "./SqlTableView";
 import { ExportTableOrView } from "./Export";
 import {
@@ -36,11 +37,10 @@ import {
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
-  textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
   ViewKind,
 } from "./helper";
-import { MenuRefresh } from "./CommonComp";
+import { MenuRefresh, MyTreeItem, LeftTableNameAndColumns } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 
 import {
@@ -51,41 +51,36 @@ import {
   ShowingCount,
 } from "./CommonComp2";
 import { listView } from "./handlers";
-import { filesize } from "filesize";
 import {
-  useMatcher,
   useContextMenu,
   useNotification,
   useTabsManage,
   useColumnWidthStore,
   useMatcherFn,
-  useOneShotDialogUI,
 } from "./store";
-import { AllKindChat } from "./Chat";
-import { commands, Field, ListTable } from "./bindings";
-import { uuidv4 } from "./Common";
+import { commands, DefAndMetas, Field, ListTable } from "./bindings";
 import {
   DataGrid,
   GridColDef,
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "./datagridExport";
+import { DefAndMetasView } from "./DefAndMetaView";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-
-  const { maxTree } = useMatcher();
+  const [showExport, setShowExport] = useState("");
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return views.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [views, maxTree, matchPattern]);
+    return views.filter((e) => matchPattern(e.name));
+  }, [views, matchPattern]);
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    listView(uuid, viewKind)
+    listView(dbName, viewKind)
       .then((ts) => {
         setViews(ts);
       })
@@ -95,12 +90,10 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid, viewKind]);
+  }, [showNotification, dbName, viewKind]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   let name = "";
   const icon = getIcon(viewKind);
@@ -112,96 +105,84 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       name = "materialized views";
       break;
   }
-  const tressId = useRef(uuidv4());
+
   return (
-    <TreeItem
-      itemId={tressId.current}
-      label=<Stack
-        direction="row"
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh reload={handleReload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      enable={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         {icon}
         <span> {name} </span>
         <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
-      </Stack>>
-      {showItems.map((e) => {
-        return (
-          <ViewTree
-            viewKind={viewKind}
-            key={e.name}
-            view={e.name}
-            reload={handleReload}
-            size={e.size}
+      </>>
+      {showItems.map((view) => (
+        <LeftTableNameAndColumns
+          key={view.name}
+          makeMenu={() => {
+            return (
+              <ViewMenu
+                kind={kind}
+                reload={handleReload}
+                view={view.name}
+                dbName={dbName}
+                viewKind={viewKind}
+                showExport={() => {
+                  setShowExport(view.name);
+                }}
+              />
+            );
+          }}
+          table={view}
+          isTable={false}
+        />
+      ))}
+      {showExport && (
+        <Dialog
+          open={!!showExport}
+          onClose={() => {
+            setShowExport("");
+          }}>
+          <ExportTableOrView
+            tableName={showExport}
+            isTable={false}
+            handleClose={() => {
+              setShowExport("");
+            }}
           />
-        );
-      })}
-    </TreeItem>
+        </Dialog>
+      )}
+    </MyTreeItem>
   );
 }
 
-function StatementStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  view: string;
-  viewKind: ViewKind;
-}) {
-  const { uuid, kind, view, viewKind } = props;
-  const [sql, setSql] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { showNotification } = useNotification();
-  const handleReload = useCallback(() => {
-    setLoading(true);
-    commands
-      .createViewSql(uuid, view, viewKind == ViewKind.MaterializedView)
-      .then((e) => {
-        setSql(e);
-      })
-      .catch((e) => {
-        showNotification({
-          severity: "error",
-          title: "fetch create sql failed",
-          message: e,
-        });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [showNotification, uuid, view, viewKind]);
-  useEffect(() => {
-    handleReload();
-  }, [handleReload]);
-
+function StatementStructure(props: { view: string; viewKind: ViewKind }) {
+  const { dbName } = useContext(DbnameContext);
+  const { view, viewKind } = props;
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
-        <RefreshButton
-          loading={loading}
-          onClick={() => {
-            handleReload();
-          }}
-        />
-      </Stack>
-      {sql && <AllKindChat uuid={uuid} kind={kind} value={sql} />}
+      <DefAndMetasView
+        reloadOP={() => {
+          return commands
+            .createViewSql(dbName, view, viewKind == ViewKind.MaterializedView)
+            .then((sql): DefAndMetas => {
+              return { def: sql, metas: [] };
+            });
+        }}
+      />
     </Stack>
   );
 }
 
-function ViewStructure(props: {
-  uuid: string;
-  view: string;
-  viewKind: ViewKind;
-  kind: DataSourceKind;
-}) {
-  const { uuid, view, viewKind, kind } = props;
+function ViewStructure(props: { view: string; viewKind: ViewKind }) {
+  const { kind } = useContext(DbnameContext);
+  const { view, viewKind } = props;
 
   const [structure, setStructure] = useState("column");
   const structures = ["column"];
@@ -240,9 +221,9 @@ function ViewStructure(props: {
           </ButtonGroup>
         </Stack>
       </Stack>
-      {structure == "column" && <ColumnsContent uuid={uuid} view={view} />}
+      {structure == "column" && <ColumnsContent view={view} />}
       {structure == "statement" && (
-        <StatementStructure uuid={uuid} kind={kind} viewKind={viewKind} view={view} />
+        <StatementStructure viewKind={viewKind} view={view} />
       )}
     </Stack>
   );
@@ -268,26 +249,24 @@ function ColumnsMenu(props: { content: string }) {
   );
 }
 
-function ColumnsContent(props: { uuid: string; view: string }) {
-  const { uuid, view } = props;
+function ColumnsContent(props: { view: string }) {
+  const { view } = props;
+  const { dbName } = useContext(DbnameContext);
 
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
+  const { getColumnWidth } = useColumnWidthStore();
 
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .showViewColumns(uuid, view)
+      .showViewColumns(dbName, view)
       .then((fs) => {
+        fs.forEach((e, index) => {
+          e["id"] = index;
+        });
         setFields(fs);
       })
       .catch((e) => {
@@ -300,7 +279,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid, view]);
+  }, [showNotification, dbName, view]);
 
   useEffect(() => {
     handleReload();
@@ -347,28 +326,24 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     };
   }, [setUpMenu]);
 
-  const getRowId = useCallback((e) => {
-    return e["field"];
-  }, []);
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={view}
             left=<RefreshButton loading={loading} onClick={handleReload} />
           />
         );
       },
       pagination: AppDataGridPagination,
     };
-  }, [handleReload, loading]);
+  }, [handleReload, loading, view]);
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slots={slots}
-        getRowId={getRowId}
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
         columns={cols}
         rows={fields}
         style={dataGridStyle}
@@ -386,61 +361,17 @@ function getIcon(viewKind: ViewKind) {
       return <VisibilityIcon />;
   }
 }
-function ViewTree(props: {
-  view: string;
-  reload: () => void;
-  viewKind: ViewKind;
-  size?: number;
-}) {
-  const { view, reload, viewKind, size } = props;
-  const { uuid, kind } = useContext(UuidContext);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const icon = getIcon(viewKind);
-
-  return (
-    <TreeItem
-      itemId={uuid + "-view-" + viewKind + "-" + view}
-      label={
-        <Stack
-          direction="row"
-          sx={{ justifyContent: "space-between" }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <ViewMenu
-                  kind={kind}
-                  reload={reload}
-                  view={view}
-                  uuid={uuid}
-                  viewKind={viewKind}
-                />
-              ),
-              event: e,
-            });
-          }}>
-          <Stack direction="row" style={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-            {icon} <span style={textEllipsisStyle}> {view} </span>
-          </Stack>
-          {viewKind == ViewKind.MaterializedView && size && (
-            <span> {filesize(size, { round: 0 })} </span>
-          )}
-        </Stack>
-      }
-    />
-  );
-}
 
 function ViewMenu(props: {
   view: string;
-  uuid: string;
   reload: () => void;
-  kind: DataSourceKind;
   viewKind: ViewKind;
+  dbName: string;
+  kind: DataSourceKind;
+  showExport: () => void;
 }) {
-  const { view, uuid, reload, kind, viewKind } = props;
+  const { view, reload, viewKind, dbName, kind, showExport } = props;
   const { showNotification } = useNotification();
-
-  const { setUi } = useOneShotDialogUI();
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
@@ -452,8 +383,8 @@ function ViewMenu(props: {
     }
 
     (viewKind == ViewKind.MaterializedView
-      ? commands.dropMaterializedView(uuid, view)
-      : commands.dropView(uuid, view)
+      ? commands.dropMaterializedView(dbName, view)
+      : commands.dropView(dbName, view)
     )
       .then((sql) => {
         showNotification({
@@ -471,43 +402,25 @@ function ViewMenu(props: {
   const handleViewData = () => {
     let list: ReactNode = null;
     switch (kind) {
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.Mysql:
-      case DataSourceKind.SqlServer:
-      case DataSourceKind.Sqlite:
-      case DataSourceKind.Postgres:
-      case DataSourceKind.Oracle:
-      case DataSourceKind.TiDB:
-      case DataSourceKind.Cassandra:
-      case DataSourceKind.ClickHouse:
-      case DataSourceKind.LibSql:
-      case DataSourceKind.FireBird:
-      case DataSourceKind.DuckDB:
-      case DataSourceKind.Cockroach:
-        list = (
-          <SqlTableView isTable={false} tableName={view} kind={kind} uuid={uuid} />
-        );
-        break;
-
       case DataSourceKind.Mongo:
-        list = <MongoTable isTable={false} uuid={uuid} table={view} />;
+        list = <MongoTable isTable={false} table={view} />;
         break;
       default:
-        showNotification({
-          severity: "error",
-          title: `data source ${kind} need impl view`,
-        });
+        list = <SqlTableView isTable={false} tableName={view} />;
+        break;
     }
 
-    appendTab(new TabContent(view, list, <VisibilityIcon />));
+    appendTab(new TabContent(view, list, <VisibilityIcon />, dbName, kind));
   };
 
   const handleStructure = () => {
     appendTab(
       new TabContent(
         `${view}`,
-        <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
+        <ViewStructure view={view} viewKind={viewKind} />,
         <IoConstructOutline />,
+        dbName,
+        kind,
       ),
     );
   };
@@ -541,10 +454,7 @@ function ViewMenu(props: {
       <Divider />
       <MenuItem
         onClick={() => {
-          setUi(
-            <ExportTableOrView uuid={uuid} name={view} isTable={false} kind={kind} />,
-            `export view ${view}`,
-          );
+          showExport();
         }}>
         <ListItemIcon>
           <ArrowCircleDownIcon />

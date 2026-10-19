@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import ClearIcon from "@mui/icons-material/Clear";
+import { AddIcon } from "./icons";
 import {
   TextField,
   Button,
@@ -25,11 +25,12 @@ import {
   InputAdornment,
   IconButton,
   Autocomplete,
+  Slider,
+  Alert,
 } from "@mui/material";
+import { CancelIcon } from "./icons";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
-import SaveIcon from "@mui/icons-material/Save";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import { VisibilityIcon } from "./icons";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { extractBaseName } from "./Common.ts";
 import { DataSourceKind } from "./helper.ts";
@@ -41,12 +42,8 @@ import {
   commands,
   DBConnectionConfig,
   MysqlDBConfig,
-  MysqlSsl,
-  MySqlSslMode,
   OdbcCommon,
   PGDBConfig,
-  PgSsl,
-  PgSslMode,
   SSLFiles,
   OracleDBConfig,
   ClickHouseConfig,
@@ -60,7 +57,10 @@ import {
   LibSqlDBConfig,
   Db2Config,
   CouchBaseDBConfig,
+  CassandraDialect,
+  SslFilesWithStrModel,
 } from "./bindings.ts";
+import { SelectPath } from "./CommonComp.tsx";
 
 /**
  * Host and port input pair used by several connection forms.
@@ -91,59 +91,6 @@ function HostAndPort(props: {
         error={isNaN(parseInt(port))}
         value={port}
         onChange={(event) => setPort(event.target.value)}
-      />
-    </Stack>
-  );
-}
-
-/**
- * Path selector input with a file chooser button.
- */
-function SelectPath(props: {
-  path: string;
-  setPath: Dispatch<SetStateAction<string>>;
-  label: string;
-  required: boolean;
-}) {
-  const { path, setPath, label, required } = props;
-  return (
-    <Stack direction="row" sx={{ alignItems: "center" }}>
-      <TextField
-        value={path}
-        onChange={(event) => {
-          setPath(event.target.value);
-        }}
-        style={{ flex: 1 }}
-        label={label}
-        required={required}
-        slotProps={{
-          input: {
-            endAdornment: (
-              <>
-                {path && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setPath("");
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                )}
-                <IconButton
-                  onClick={() => {
-                    open({ multiple: false }).then((openOk) => {
-                      setPath(openOk);
-                    });
-                  }}
-                  color="primary">
-                  <AttachFileIcon />
-                </IconButton>
-              </>
-            ),
-          },
-        }}
       />
     </Stack>
   );
@@ -182,7 +129,7 @@ function UserAndPassword(props: {
           input: {
             endAdornment: !passwordVisible &&
               password != "" &&
-              platform() != "windows" && ( // window 已经有了这个功能了
+              platform() != "windows" && ( // Windows already has this feature.
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
@@ -273,10 +220,10 @@ function SqlServerCert(props: {
 /**
  * SQL Server certificate settings used for encrypted connections.
  */
-interface SqlServerCertData {
+type SqlServerCertData = {
   trust_cert: boolean;
   cert_ca: string | null;
-}
+};
 
 /**
  * Certificate file selectors for SSL/TLS-enabled connections.
@@ -339,69 +286,78 @@ function SslFiles(props: {
   );
 }
 
-function PGSSL(props: { ssl: PgSsl; setSsl: Dispatch<SetStateAction<PgSsl>> }) {
+function PGSSL(props: {
+  ssl: SslFilesWithStrModel;
+  setSsl: Dispatch<SetStateAction<SslFilesWithStrModel>>;
+}) {
   const { ssl, setSsl } = props;
-  const modes: PgSslMode[] = [
+  const modes: string[] = [
     "disable",
     "allow",
     "prefer",
     "require",
-    "verifyca",
-    "verifyfull",
+    "verify-ca",
+    "verify-full",
   ];
 
   return (
-    <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
-      <FormControl style={{ width: "12rem" }}>
-        <InputLabel> ssl mode </InputLabel>
-        <Select
-          value={ssl.ssl_mode}
-          label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
-          {modes.map((mode) => (
-            <MenuItem value={mode} key={mode}>
-              {mode}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html" />
+    <>
+      <SSLNotice backend="native-tls" />
+      <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+        <FormControl style={{ width: "12rem" }}>
+          <InputLabel> ssl mode </InputLabel>
+          <Select
+            value={ssl.ssl_mode}
+            label="ssl mode"
+            onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
+            {modes.map((mode) => (
+              <MenuItem value={mode} key={mode}>
+                {mode}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html" />
 
-      <SslFiles enabled={ssl.ssl_mode != "disable"} files={ssl} setFiles={setSsl} />
-    </Stack>
+        <SslFiles enabled={ssl.ssl_mode != "disable"} files={ssl} setFiles={setSsl} />
+      </Stack>
+    </>
   );
 }
 function MysqlSSl(props: {
-  ssl: MysqlSsl;
-  setSsl: Dispatch<SetStateAction<MysqlSsl>>;
+  ssl: SslFilesWithStrModel;
+  setSsl: Dispatch<SetStateAction<SslFilesWithStrModel>>;
 }) {
   const { ssl, setSsl } = props;
-  const models: MySqlSslMode[] = [
+  const models: string[] = [
     "disabled",
     "preferred",
     "required",
-    "verifyca",
-    "verifyidentity",
+    "verify_ca",
+    "verify_identity",
   ];
   return (
-    <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
-      <FormControl style={{ width: "12rem" }}>
-        <InputLabel> ssl mode </InputLabel>
-        <Select
-          value={ssl.ssl_mode}
-          label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
-          {models.map((e) => (
-            <MenuItem value={e} key={e}>
-              {e}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html" />
+    <>
+      <SSLNotice backend="native-tls" />
+      <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+        <FormControl style={{ width: "12rem" }}>
+          <InputLabel> ssl mode </InputLabel>
+          <Select
+            value={ssl.ssl_mode}
+            label="ssl mode"
+            onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
+            {models.map((e) => (
+              <MenuItem value={e} key={e}>
+                {e}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-      <SslFiles enabled={ssl.ssl_mode != "disabled"} files={ssl} setFiles={setSsl} />
-    </Stack>
+        <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html" />
+        <SslFiles enabled={ssl.ssl_mode != "disabled"} files={ssl} setFiles={setSsl} />
+      </Stack>
+    </>
   );
 }
 
@@ -490,13 +446,14 @@ function Mysql(props: {
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const [ssl, setSsl] = useState<MysqlSsl>({
+  const [ssl, setSsl] = useState<SslFilesWithStrModel>({
     ssl_mode: config?.ssl_mode || "preferred",
     ssl_ca: config?.ssl_ca,
     ssl_cert: config?.ssl_cert,
     ssl_key: config?.ssl_key,
   });
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [charset, setCharset] = useState(config?.charset || "utf8mb4");
 
   function makeConfig(): DBConnectionConfig {
     const x: MysqlDBConfig = {
@@ -506,6 +463,7 @@ function Mysql(props: {
       password: password ? password : null,
       db: database ? database : null,
       read_only: readOnly,
+      charset,
       conn_timeout: connTimeOut,
       ...ssl,
     };
@@ -545,6 +503,14 @@ function Mysql(props: {
         makeConfig={makeConfig}
       />
       <MysqlSSl ssl={ssl} setSsl={setSsl} />
+      <TextField
+        value={charset}
+        onChange={(e) => {
+          setCharset(e.target.value);
+        }}
+        error={!charset}
+        label="charset"
+      />
     </Stack>
   );
 }
@@ -670,11 +636,80 @@ function ClickHouse(props: {
   );
 }
 
+type PostGresOption = {
+  key: string;
+  value: string;
+};
+
+function PostGresOptions(props: {
+  options: PostGresOption[];
+  setOptions: Dispatch<SetStateAction<PostGresOption[]>>;
+}) {
+  const { options, setOptions } = props;
+
+  return (
+    <Stack style={{ border: "1px solid grey", borderRadius: "0.4rem", padding: "3px" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <IconButton
+          color="primary"
+          onClick={() => {
+            setOptions([...options, { key: "", value: "" }]);
+          }}>
+          <AddIcon />
+        </IconButton>
+        <Typography> extra options </Typography>
+        <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html#method.options" />
+      </Stack>
+      {options.map((value, index) => (
+        <Stack key={index} direction="row" style={{ alignItems: "center" }}>
+          <IconButton
+            onClick={() => {
+              setOptions(options.filter((_, idx) => index != idx));
+            }}>
+            <CancelIcon />
+          </IconButton>
+          <TextField
+            fullWidth
+            value={value.key}
+            onChange={(event) => {
+              setOptions(
+                options.map((op, idx) => {
+                  if (index == idx) {
+                    op.key = event.target.value;
+                  }
+                  return op;
+                }),
+              );
+            }}
+            label="key"
+          />
+          <TextField
+            label="value"
+            fullWidth
+            value={value.value}
+            onChange={(event) => {
+              setOptions(
+                options.map((op, idx) => {
+                  if (index == idx) {
+                    op.value = event.target.value;
+                  }
+                  return op;
+                }),
+              );
+            }}
+          />
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
 function PostGres(props: {
   config?: PGDBConfig;
   kind: DataSourceKind;
   context: AddConnectionContext;
 }) {
+  const { showNotification } = useNotification();
   const { config, kind, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>(
@@ -684,7 +719,7 @@ function PostGres(props: {
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const [ssl, setSSl] = useState<PgSsl>({
+  const [ssl, setSSl] = useState<SslFilesWithStrModel>({
     ssl_mode: config?.ssl_mode || "prefer",
     ssl_ca: config?.ssl_ca,
     ssl_cert: config?.ssl_cert,
@@ -692,9 +727,19 @@ function PostGres(props: {
   });
   const [schema, setSchema] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
-
+  const [options, setOptions] = useState<PostGresOption[]>(
+    (function () {
+      if (!config) {
+        return [];
+      }
+      const ret: PostGresOption[] = [];
+      for (const key in config.options) {
+        ret.push({ key, value: config.options[key] });
+      }
+      return ret;
+    })(),
+  );
   function makeConfig(): DBConnectionConfig {
     const x: PGDBConfig = {
       host,
@@ -705,6 +750,23 @@ function PostGres(props: {
       read_only: readOnly,
       conn_timeout: connTimeOut,
       schema: schema ? schema : null,
+      options: (function () {
+        const ret = {};
+        for (const op of options) {
+          if (!op.key) {
+            continue;
+          }
+          if (op.key in ret) {
+            showNotification({
+              severity: "error",
+              title: `key '${op.key}' duplicated`,
+            });
+            return;
+          }
+          ret[op.key] = op.value;
+        }
+        return ret;
+      })(),
       ...ssl,
     };
     switch (kind) {
@@ -750,6 +812,7 @@ function PostGres(props: {
         />
       )}
       <PGSSL ssl={ssl} setSsl={setSSl} />
+      <PostGresOptions options={options} setOptions={setOptions} />
     </Stack>
   );
 }
@@ -758,6 +821,7 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   const { config, context } = props;
   const [path, setPath] = useState(config?.path || "");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
+  const [lockingModel, setLockingModel] = useState(config?.locking_model || "normal");
 
   function makeConfig(): DBConnectionConfig {
     return {
@@ -766,6 +830,7 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
       path,
       conn_timeout: connTimeOut,
       read_only: readOnly,
+      locking_model: lockingModel,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -773,6 +838,30 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   return (
     <Stack>
       <SelectPath path={path} setPath={setPath} required label="sqlite database file" />
+      <SqliteLockingModel
+        lockingModel={lockingModel}
+        setLockingModel={setLockingModel}
+      />
+    </Stack>
+  );
+}
+
+function SqliteLockingModel({ lockingModel, setLockingModel }) {
+  return (
+    <Stack direction="row" style={{ alignItems: "center", alignContent: "center" }}>
+      <Autocomplete
+        options={["normal", "exclusive"]}
+        value={lockingModel}
+        renderInput={(params) => (
+          <TextField {...params} label={`sqlite locking model`} />
+        )}
+        style={{ width: "12rem" }}
+        freeSolo={false}
+        onChange={(_, value) => {
+          setLockingModel(value);
+        }}
+      />
+      <UrlDocument url="https://www.sqlite.org/pragma.html#pragma_locking_mode" />
     </Stack>
   );
 }
@@ -872,14 +961,14 @@ function TestConnAndSave(props: {
     <Stack>
       <Divider />
       <StackRowCenter>
-        <IconButton
-          color="primary"
+        <Button
+          color="success"
           onClick={() => {
             handleSaveConnection();
           }}
           disabled={cnameDuplicated}>
-          <SaveIcon />
-        </IconButton>
+          save
+        </Button>
         <Button
           variant="outlined"
           sx={{ mr: 1 }}
@@ -928,9 +1017,12 @@ function FireBird(props: { config?: FireBirdConfig; context: AddConnectionContex
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
   const [database, setDatabase] = useState(getDB(config));
+  const [dialect, setDialect] = useState("3");
+
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "firebird",
+      dialect,
       name: connectionName,
       host,
       port: parseInt(port),
@@ -960,6 +1052,17 @@ function FireBird(props: { config?: FireBirdConfig; context: AddConnectionContex
         value={database}
         onChange={(e) => {
           setDatabase(e.target.value);
+        }}
+      />
+
+      <Autocomplete
+        options={["1", "2", "3"]}
+        style={{ width: "22rem" }}
+        value={dialect}
+        renderInput={(params) => <TextField {...params} label={`dialect`} />}
+        freeSolo={false}
+        onChange={(_, value) => {
+          setDialect(value);
         }}
       />
     </Stack>
@@ -1011,6 +1114,7 @@ function Redis(props: { config?: RedisDBConfig; context: AddConnectionContext })
         label="database"
         makeConfig={makeConfig}
       />
+      <SSLNotice backend="native-tls" />
       <FormControlLabel
         control={
           <Checkbox
@@ -1034,12 +1138,9 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
   const [database, setDatabase] = useState(getDB(config));
   const [enableSSL, setEnableSSL] = useState(false);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
+  const [accInvalidHosts, setAccInvalidHosts] = useState(false);
+  const [accInvalidCerts, setAccInvalidCerts] = useState(false);
 
-  const [sslFiles, setSslFile] = useState<SSLFiles>({
-    ssl_ca: null,
-    ssl_cert: null,
-    ssl_key: null,
-  });
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "mongo",
@@ -1051,9 +1152,10 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
       conn_timeout: connTimeOut,
       port: parseInt(port),
       save_password: savePassword,
-      enable_ssl: enableSSL,
+      ssl_enable: enableSSL,
       db: database ? database : null,
-      ...sslFiles,
+      allow_invalid_certificates: accInvalidCerts,
+      allow_invalid_hostnames: accInvalidHosts,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -1074,6 +1176,7 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
         label="database"
         makeConfig={makeConfig}
       />
+
       <Stack direction="row" style={{ alignItems: "center" }}>
         <FormControlLabel
           style={{ width: "180px" }}
@@ -1085,8 +1188,16 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
           }
           label="Enable SSL"
         />
-        <SslFiles enabled={enableSSL} files={sslFiles} setFiles={setSslFile} />
+        {enableSSL && (
+          <AccInvalidHostNameAndCerts
+            accInvalidCerts={accInvalidCerts}
+            setAccInvalidHosts={setAccInvalidHosts}
+            accInvalidHosts={accInvalidHosts}
+            setAccInvalidCerts={setAccInvalidCerts}
+          />
+        )}
       </Stack>
+      {enableSSL && <SSLNotice backend="native-tls" />}
     </Stack>
   );
 }
@@ -1094,8 +1205,9 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
 function Cassandra(props: {
   config?: CassandraDBConfig;
   context: AddConnectionContext;
+  dialect: CassandraDialect;
 }) {
-  const { config, context } = props;
+  const { config, context, dialect } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 9042) + "");
   const [user, setUser] = useState(getUser(config));
@@ -1103,12 +1215,15 @@ function Cassandra(props: {
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState("");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
+  const [enableSSL, setEnableSSL] = useState(!!config?.ssl_enable);
+  const [caFile, setCaFile] = useState("");
+  const [consistency, setConsistency] = useState(config?.consistency || 1);
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "cassandra",
       name: connectionName,
       host,
+      consistency,
       username: user ? user : "",
       password: password ? password : null,
       db: database ? database : null,
@@ -1116,7 +1231,9 @@ function Cassandra(props: {
       read_only: readOnly,
       conn_timeout: connTimeOut,
       port: parseInt(port),
-      ssl: { ssl_ca: null, ssl_cert: null, ssl_key: null },
+      dialect,
+      ssl_enable: enableSSL,
+      ssl_ca_file: caFile ? caFile : null,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -1131,12 +1248,51 @@ function Cassandra(props: {
         savePassword={savePassword}
         setSavePassword={setSavePassword}
       />
+      <SSLNotice backend="openssl" />
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <FormControlLabel
+          style={{ width: "180px" }}
+          control={
+            <Checkbox
+              checked={enableSSL}
+              onChange={(e) => setEnableSSL(e.target.checked)}
+            />
+          }
+          label="Enable SSL"
+        />
+        {enableSSL && (
+          <SelectPath
+            path={caFile}
+            setPath={setCaFile}
+            required={false}
+            label="ca file "
+          />
+        )}
+      </Stack>
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
-        label="database"
+        label="key space"
         makeConfig={makeConfig}
       />
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <FormControlLabel
+          control={
+            <Slider
+              style={{ width: "9rem" }}
+              step={1}
+              min={0}
+              max={9}
+              value={consistency}
+              onChange={(_, value) => {
+                setConsistency(value);
+              }}
+            />
+          }
+          label="Consistency"
+        />
+        <UrlDocument url="https://docs.rs/scylla/latest/scylla/frame/types/enum.Consistency.html" />
+      </Stack>
     </Stack>
   );
 }
@@ -1211,7 +1367,7 @@ function SqlServer(props: {
 
 function AddConnection(props: { config?: DBConnectionConfig }) {
   const { config } = props;
-  const [connectionType, setConnectionType] = useState<DataSourceKind>(
+  const [connectionType, setConnectionType] = useState<DataSourceKind | "scylla">(
     (config?.conn_type as DataSourceKind) || DataSourceKind.Mysql,
   );
   const [connectionName, setConnectionName] = useState(config?.name || "");
@@ -1259,6 +1415,7 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
           <MenuItem value={DataSourceKind.Oracle}>Oracle</MenuItem>
           <MenuItem value={DataSourceKind.SqlServer}>Sql Server(microsoft)</MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
+          <MenuItem value="scylla">Scylla</MenuItem>
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
@@ -1343,9 +1500,19 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
         )}
 
         {connectionType === DataSourceKind.Cassandra && (
-          <Cassandra context={context} config={config as CassandraDBConfig} />
+          <Cassandra
+            context={context}
+            config={config as CassandraDBConfig}
+            dialect={"Cassandra"}
+          />
         )}
-
+        {connectionType == "scylla" && (
+          <Cassandra
+            context={context}
+            config={config as CassandraDBConfig}
+            dialect="Scylla"
+          />
+        )}
         {connectionType === DataSourceKind.Redis && (
           <Redis context={context} config={config as RedisDBConfig} />
         )}
@@ -1397,7 +1564,7 @@ function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext })
   const [db, setDb] = useState(getConfigStr("db"));
   const [schema, setSchema] = useState(getConfigStr("schema"));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
+  const [maxMemory, setMaxMemory] = useState("");
   function makeConfig(): DBConnectionConfig {
     const x: DBConnectionConfig = {
       conn_type: "duckdb",
@@ -1406,6 +1573,7 @@ function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext })
       conn_timeout: connTimeOut,
       name: connectionName,
       read_only: readOnly,
+      max_memory: maxMemory ? maxMemory : null,
       schema: schema ? schema : null,
     };
     console.info("makeConfig", x);
@@ -1431,6 +1599,14 @@ function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext })
           makeConfig={makeConfig}
         />
       )}
+
+      <TextField
+        label="max memory"
+        value={maxMemory}
+        onChange={(e) => {
+          setMaxMemory(e.target.value);
+        }}
+      />
     </Stack>
   );
 }
@@ -1649,26 +1825,66 @@ function Db2(props: { config?: Db2Config; context: AddConnectionContext }) {
   );
 }
 
+function AccInvalidHostNameAndCerts({
+  accInvalidCerts,
+  setAccInvalidCerts,
+  accInvalidHosts,
+  setAccInvalidHosts,
+}) {
+  return (
+    <>
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={accInvalidCerts}
+            onChange={(event) => setAccInvalidCerts(event.target.checked)}
+          />
+        }
+        label="accpet invalid certs"
+      />
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={accInvalidHosts}
+            onChange={(event) => setAccInvalidHosts(event.target.checked)}
+          />
+        }
+        label="accpet invalid host names"
+      />
+    </>
+  );
+}
+
 function CouchBase(props: {
   config?: CouchBaseDBConfig;
   context: AddConnectionContext;
 }) {
   const { config, context } = props;
-  const [connStr, setConnStr] = useState(
-    (config && config["conn_str"]) || "couchbase://127.0.0.1",
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState(
+    (function () {
+      if (!config) {
+        return "11210";
+      }
+      return config.port + "";
+    })(),
   );
   const [user, setUser] = useState(getUser(config) || "Administrator");
   const [password, setPassword] = useState(getPassword(config));
   const [bucket, setBucket] = useState(getDB(config));
   const [scope, setScope] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [sslEnable, setSslEnable] = useState(false);
+  const [accInvalidHosts, setAccInvalidHosts] = useState(false);
+  const [accInvalidCerts, setAccInvalidCerts] = useState(false);
+  const [certFile, setCertFile] = useState("");
 
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "couchbase",
-      conn_str: connStr,
+      host: host,
+      port: parseInt(port),
       username: user,
       password: password,
       save_password: savePassword,
@@ -1677,21 +1893,25 @@ function CouchBase(props: {
       conn_timeout: connTimeOut,
       read_only: readOnly,
       name: connectionName,
+      ssl_enable: sslEnable,
+      danger_accept_invalid_certificates: accInvalidCerts,
+      danger_accept_invalid_hostnames: accInvalidHosts,
+      ca_certificates: certFile ? [certFile] : [],
     };
   }
+
+  useEffect(() => {
+    if (sslEnable) {
+      setPort("11207");
+    } else {
+      setPort("11210");
+    }
+  }, [sslEnable]);
 
   makeConfigRef.current = makeConfig;
   return (
     <Stack>
-      <ClearableTextField
-        fullWidth
-        label="connection string"
-        value={connStr}
-        sx={{ mr: 1 }}
-        onChange={(e) => setConnStr(e.target.value)}
-        onClear={() => setConnStr("")}
-        required
-      />
+      <HostAndPort host={host} setHost={setHost} port={port} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -1706,6 +1926,35 @@ function CouchBase(props: {
         label="bucket"
         makeConfig={makeConfig}
       />
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={sslEnable}
+              onChange={(event) => setSslEnable(event.target.checked)}
+            />
+          }
+          label="SSL"
+        />
+        {sslEnable && (
+          <AccInvalidHostNameAndCerts
+            accInvalidCerts={accInvalidCerts}
+            setAccInvalidHosts={setAccInvalidHosts}
+            accInvalidHosts={accInvalidHosts}
+            setAccInvalidCerts={setAccInvalidCerts}
+          />
+        )}
+      </Stack>
+      {sslEnable && (
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <SelectPath
+            path={certFile}
+            setPath={setCertFile}
+            label="certificate file"
+            required={false}
+          />
+        </Stack>
+      )}
       {bucket && (
         <DbSchemaCadidates
           name={scope}
@@ -1715,6 +1964,14 @@ function CouchBase(props: {
         />
       )}
     </Stack>
+  );
+}
+
+function SSLNotice(props: { backend: "native-tls" | "openssl" }) {
+  return (
+    <Alert severity="info">
+      SSL connections are implemented using {props.backend} as the backend
+    </Alert>
   );
 }
 

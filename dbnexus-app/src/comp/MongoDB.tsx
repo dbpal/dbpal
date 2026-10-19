@@ -18,13 +18,9 @@ import {
   Typography,
 } from "@mui/material";
 import * as monaco from "monaco-editor";
-import MongoBsonWorker from "./MongoBsonWorker.ts?worker";
-
-import ListIcon from "@mui/icons-material/List";
-import { editor, languages } from "monaco-editor";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV, FaUpload } from "react-icons/fa";
+import { UploadIcon, ListIcon } from "./icons";
+import { editor, languages, MarkerSeverity } from "monaco-editor";
+import { DeleteForeverIcon, FilterAltIcon, FaArrowsAltV, FaUpload } from "./icons";
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
@@ -38,6 +34,7 @@ import {
   ReactNode,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -46,7 +43,7 @@ import {
 
 import { BSON, EJSON } from "bson";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { ContentCopyIcon } from "./icons";
 import {
   modalStyle,
   reloadOK,
@@ -55,15 +52,19 @@ import {
   modalHandleClose,
   FieldAndGridField,
 } from "./Common";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import { BsFillLightbulbFill } from "react-icons/bs";
-import DataObjectIcon from "@mui/icons-material/DataObject";
+import {
+  ArrowUpwardIcon,
+  ArrowDownwardIcon,
+  BsFillLightbulbFill,
+  DataObjectIcon,
+} from "./icons";
 import {
   AppColumnMenu,
+  ExportTableOnTheFilterSort,
   ModalHeader,
   ResetColumnWidth,
   SelectPageSize,
+  SqlExportTableOnFilterSortNotice,
 } from "./CommonComp";
 import {
   DocsAndCount,
@@ -76,11 +77,20 @@ import {
   MonacoEditor,
   extractFieldAndIDFromMouseEvent,
   DataSourceKind,
-  StupidIMarker,
+  AppColumnMenuCtx,
+  columnHeaderStyle,
+  gridColumnHeaderSelectClassName,
+  allGridHeaderTitle,
+  clickDataGridColumn,
+  TabContent,
+  DbnameContext,
+  newEmptyResp,
+  arrayToHex,
 } from "./helper";
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
+  ExportQueryResultToFile,
   ListenElementSize,
   RefreshButton,
   SimpleFlexEditor,
@@ -101,6 +111,7 @@ import {
   useMongoViewModelStore,
   useMongoEditorViewModelStore,
   useMongoTableFilterOp,
+  useTabsManage,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -110,25 +121,16 @@ import {
   GridPaginationModel,
   GridSlotsComponent,
   GridSlotsComponentsProps,
+  useGridApiRef,
 } from "./datagridExport";
 import { useDebounce } from "use-debounce";
+import { isEqual } from "lodash-es";
+import { MongoTableImportFile } from "./CreateTable";
 
-const bsonWorker = new MongoBsonWorker();
-
-bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: StupidIMarker[] }>) => {
-  const { id, markers } = e.data;
-  const model = monaco.editor.getModels().find((e) => e.id == id);
-  if (model) {
-    markers.forEach((e) => {
-      e.resource = model.uri;
-    });
-    monaco.editor.setModelMarkers(model, mongoBsonCompilerOwner, markers);
-  }
-};
 const mongoID = "_id";
 
 const mongoBsonKeywords =
-  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
+  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|dbName|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
 function mongoBsonAutoCompletion(): languages.CompletionList {
   const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map(
     (e): languages.CompletionItem => {
@@ -305,15 +307,6 @@ function MongoBsonEditor(props: {
 
   const [editorValueDebounced] = useDebounce(editorValue, 1000);
 
-  useEffect(() => {
-    if (!editor.current) {
-      return;
-    }
-    bsonWorker.postMessage({
-      code: editorValueDebounced,
-      id: editor.current.getModel().id,
-    });
-  }, [editorValueDebounced]);
   return (
     <Stack style={{ flex: 1 }}>
       <div
@@ -329,6 +322,40 @@ function MongoBsonEditor(props: {
               {setOP && (
                 <IconButton
                   loading={loading}
+                  disabled={(function () {
+                    let x = undefined;
+                    try {
+                      x = parseMongoBson(editorValueDebounced).compile();
+                      monaco.editor.setModelMarkers(
+                        editor.current.getModel(),
+                        mongoBsonCompilerOwner,
+                        [],
+                      );
+                    } catch (e) {
+                      if (e instanceof MongoBsonError) {
+                        monaco.editor.setModelMarkers(
+                          editor.current.getModel(),
+                          mongoBsonCompilerOwner,
+                          [
+                            {
+                              severity: MarkerSeverity.Error,
+                              message: e.msg,
+                              startLineNumber: e?.loc.start.line,
+                              startColumn: e?.loc.start.column + 1,
+                              endLineNumber: e?.loc.end.line,
+                              endColumn: e?.loc.end.column + 1,
+                            },
+                          ],
+                        );
+                      } else {
+                        console.error("compile should not throw other error", e);
+                      }
+
+                      return true;
+                    }
+
+                    return isEqual(x, doc);
+                  })()}
                   onClick={() => {
                     setLoading(true);
                     let doc = undefined;
@@ -455,7 +482,6 @@ function MongoTableToolBar(props: {
   filter: BSON.Document;
   someNotice?: ReactNode;
   loading: boolean;
-  uuid: string;
   table: string;
   isTable: boolean;
 }) {
@@ -467,15 +493,16 @@ function MongoTableToolBar(props: {
     filter,
     someNotice,
     loading,
-    uuid,
     table,
     isTable,
   } = props;
+  const { dbName } = useContext(DbnameContext);
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
   const [modalBox, setModalBox] = useState(null);
   const tabSize = useTabSize();
   const { viewModel, setViewModel } = useMongoViewModelStore();
+  const { appendTab } = useTabsManage();
   return (
     <Stack
       direction="row"
@@ -533,9 +560,35 @@ function MongoTableToolBar(props: {
           />
         </Tooltip>
 
+        {isTable && <AddTableModal kind={DataSourceKind.Mongo} tableName={table} />}
         {isTable && (
-          <AddTableModal uuid={uuid} kind={DataSourceKind.Mongo} tableName={table} />
+          <IconButton
+            color="success"
+            onClick={() => {
+              appendTab(
+                new TabContent(
+                  table,
+                  <MongoTableImportFile hasTableName={table} />,
+                  <UploadIcon />,
+                  dbName,
+                  DataSourceKind.Mongo,
+                ),
+              );
+            }}>
+            <UploadIcon />
+          </IconButton>
         )}
+        <ExportTableOnTheFilterSort
+          isTable={isTable}
+          para={(function () {
+            const whereStr = arrayToHex(BSON.serialize(filter));
+            const sortStr = arrayToHex(BSON.serialize(sort));
+            return { filter: whereStr, sort: sortStr };
+          })()}
+          extraUI=<SqlExportTableOnFilterSortNotice />
+          tableName={table}
+        />
+
         {someNotice}
       </Stack>
 
@@ -840,6 +893,11 @@ function JsonEditor(props: {
   const { value, modifyOP, delOP } = props;
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
+  const [newValueD] = useDebounce(newValue, 2000);
+
+  let oldObject = useMemo(() => {
+    return EJSON.parse(value);
+  }, [value]);
 
   return (
     <SimpleFlexEditor
@@ -858,6 +916,15 @@ function JsonEditor(props: {
                 setLoading(false);
               });
             }}
+            disabled={(function (): boolean {
+              let x: object = null;
+              try {
+                x = EJSON.parse(newValueD);
+              } catch {
+                return true;
+              }
+              return isEqual(x, oldObject);
+            })()}
             loading={loading}>
             <FaUpload />
           </IconButton>
@@ -977,7 +1044,7 @@ function ModalObjectNotice() {
     binary_field3: '68656c6c6f' as binary generic,
     binary_field4: '68656c6c6f' as binary encrypted,
     binary_field5: '68656c6c6f' as binary sensitive,
-    uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary uuid,
+    uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary dbName,
     array_field: [1,2,3],
     object_field: {nested_key: 'nested_value'},
     decimal_field: '1' as decimal,
@@ -999,7 +1066,6 @@ function MongoTableList(props: {
   loading: boolean;
   setLoading: Dispatch<SetStateAction<boolean>>;
   tableName: string;
-  uuid: string;
 }) {
   const {
     reloadOP,
@@ -1012,16 +1078,18 @@ function MongoTableList(props: {
     loading,
     tableName,
     setLoading,
-    uuid,
   } = props;
+  const { dbName } = useContext(DbnameContext);
   const [page, setPage] = useState(0);
   const { mongo: pageSize, setPageSize } = usePageSize();
   const { showNotification } = useNotification();
-  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
-  const [clickedField, setClickedField] = useState("");
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+  const apiRef = useGridApiRef();
+
   const handleReload = useCallback(
     async (showOK) => {
       setLoading(true);
@@ -1039,13 +1107,14 @@ function MongoTableList(props: {
               const field = e.colDef as unknown as FieldAndGridField;
               return (
                 <Stack
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setClickedField(field.field);
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, field.field, setSelectColumns);
                   }}
                   style={{
                     alignItems: "center",
                     cursor: "default",
+                    ...columnHeaderStyle,
                   }}
                   direction="row">
                   <Typography sx={{ fontSize: dataGridheaderFontSize }}>
@@ -1071,7 +1140,7 @@ function MongoTableList(props: {
           setLoading(false);
         });
     },
-    [getColumnWidth, page, pageSize, reloadOP, setLoading, showNotification],
+    [apiRef, getColumnWidth, page, pageSize, reloadOP, setLoading, showNotification],
   );
 
   useEffect(() => {
@@ -1136,9 +1205,6 @@ function MongoTableList(props: {
   );
 
   const handleDel = useMemo(() => {
-    if (!resp) {
-      return undefined;
-    }
     return deleteOP
       ? async (id: string) => {
           if (!(await secondConfirm({ title: "sure to delete?" }))) {
@@ -1157,7 +1223,7 @@ function MongoTableList(props: {
   }, [deleteOP, handleReload, resp, showNotification]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     if (!resp) {
       return undefined;
     }
@@ -1192,13 +1258,13 @@ function MongoTableList(props: {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDel, resp, setSort, setUpMenu]);
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
-        return <AppDataGridToolBar title={tableName} />;
+        return <AppDataGridToolBar titleName={tableName} />;
       },
       pagination: () => {
         return (
@@ -1212,6 +1278,7 @@ function MongoTableList(props: {
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <ResetColumnWidth />
+              <ExportQueryResultToFile />
               <DoubleClickToModify />
             </Stack>
             <AppDataGridPagination showPageSelect />
@@ -1221,34 +1288,50 @@ function MongoTableList(props: {
     } as Partial<GridSlotsComponent>;
   }, [tableName]);
 
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
   const [modalBox, setModalBox] = useState(null);
-  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
-    (s) => s,
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore();
+  const onColumnVisibilityModelChange = useCallback(
+    (e) => {
+      setColumnVisibility(dbName, tableName, e);
+    },
+    [dbName, setColumnVisibility, tableName],
   );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const onCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, tableName),
+    [dbName, getColumnVisibility, tableName],
+  );
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
+
   return (
     <Stack style={{ height: "100%" }}>
-      {resp && (
+      <AppColumnMenuCtx value={columnMenuValue}>
         <DataGrid
-          getCellClassName={(e) => {
-            if (e.field == clickedField) {
-              return "datagrid-field-clicked";
-            } else {
-              return "";
-            }
-          }}
-          onCellClick={() => {
-            setClickedField("");
-          }}
-          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, tableName, e);
-          }}
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+          getCellClassName={getCellClassName}
+          onCellClick={onCellClick}
+          apiRef={apiRef}
           loading={loading}
           slots={slots}
           style={dataGridStyle}
@@ -1264,9 +1347,9 @@ function MongoTableList(props: {
           onRowDoubleClick={onRowDoubleClick}
           sortingMode="server"
           onSortModelChange={onSortModelChange}
-          onColumnResize={onColumnResize}
         />
-      )}
+      </AppColumnMenuCtx>
+
       <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify-doc" />
       {selectModifyDoc && (
         <Modal
@@ -1510,7 +1593,7 @@ class MongoTableHandler {
   }
 
   static async reloadTableList(
-    uuid: string,
+    dbName: string,
     table: string,
     filter,
     sort,
@@ -1523,52 +1606,57 @@ class MongoTableHandler {
       page,
       pageSize,
     );
-    return await commands.mongoShowCollectionTableList(uuid, table, para);
+    return await commands.mongoShowCollectionTableList(dbName, table, para);
   }
 
-  static reloadDocs(uuid: string, table: string, filter, sort, page, pageSize) {
+  static reloadDocs(dbName: string, table: string, filter, sort, page, pageSize) {
     let para: MongoShowTablePara = MongoTableHandler.makeShowTablePara(
       filter,
       sort,
       page,
       pageSize,
     );
-    return commands.mongoShowCollectionDocs(uuid, table, para).then((x) => {
+    return commands.mongoShowCollectionDocs(dbName, table, para).then((x) => {
       const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
       const count = x.count;
       return new DocsAndCount(docs, count);
     });
   }
 
-  static loadOne(uuid: string, table: string) {
+  static loadOne(dbName: string, table: string) {
     return async (id): Promise<BSON.Document> => {
       return commands
-        .mongoGetOneDocumentById(uuid, table, JSON.stringify(EJSON.serialize(id)))
+        .mongoGetOneDocumentById(dbName, table, JSON.stringify(EJSON.serialize(id)))
         .then((x) => {
           return BSON.deserialize(new Uint8Array(x));
         });
     };
   }
 
-  static modifyOP(uuid: string, table: string) {
+  static modifyOP(dbName: string, table: string) {
     return async (doc) => {
-      return commands.mongoUpdateOne(uuid, table, BSON.serialize(doc));
+      return commands.mongoUpdateOne(dbName, table, BSON.serialize(doc));
     };
   }
-  static deleteOP(uuid, table) {
+  static deleteOP(dbName, table) {
     return async (ids) => {
       if (!Array.isArray(ids)) {
         ids = [ids];
       }
-      return commands.mongoDeleteIds(uuid, table, JSON.stringify(EJSON.serialize(ids)));
+      return commands.mongoDeleteIds(
+        dbName,
+        table,
+        JSON.stringify(EJSON.serialize(ids)),
+      );
     };
   }
 }
-function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
-  const { uuid, table, isTable } = props;
-  const modifyOP = isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined;
-  const loadOne = MongoTableHandler.loadOne(uuid, table);
-  const deleteOP = isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined;
+function MongoTable(props: { table: string; isTable: boolean }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table, isTable } = props;
+  const modifyOP = isTable ? MongoTableHandler.modifyOP(dbName, table) : undefined;
+  const loadOne = MongoTableHandler.loadOne(dbName, table);
+  const deleteOP = isTable ? MongoTableHandler.deleteOP(dbName, table) : undefined;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
   const { viewModel } = useMongoViewModelStore();
@@ -1581,7 +1669,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   const reloadTable = useCallback(
     (page: number, pageSize: number) => {
       return MongoTableHandler.reloadTableList(
-        uuid,
+        dbName,
         table,
         filter,
         sort,
@@ -1589,14 +1677,14 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
         pageSize,
       );
     },
-    [filter, sort, table, uuid],
+    [filter, sort, table, dbName],
   );
   useEffect(() => {}, [reloadTable]);
   const reloadDocs = useCallback(
     (page: number, pageSize: number) => {
-      return MongoTableHandler.reloadDocs(uuid, table, filter, sort, page, pageSize);
+      return MongoTableHandler.reloadDocs(dbName, table, filter, sort, page, pageSize);
     },
-    [filter, sort, table, uuid],
+    [filter, sort, table, dbName],
   );
 
   return (
@@ -1614,7 +1702,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           setTriggerReload((prev) => prev + 1);
         }}
         loading={loading}
-        uuid={uuid}
         table={table}
         isTable={isTable}
       />
@@ -1630,7 +1717,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           loading={loading}
           setLoading={setLoading}
           tableName={table}
-          uuid={uuid}
         />
       )}
       {viewModel != MongoDataViewModel.TableList && (

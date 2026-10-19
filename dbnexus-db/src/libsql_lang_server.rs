@@ -1,8 +1,8 @@
 use crate::db::name_start_ascii_alphabetic;
 
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite::SqliteDB;
@@ -57,7 +57,7 @@ impl LanguageServer for LibSqlDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -101,13 +101,11 @@ impl LangServerCommon for LibSqlDB {
         let sql = "SELECT name  FROM pragma_module_list";
         let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
-        let mut ret = vec![];
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
-            ret.push(name);
+            lock.push(name);
         }
-        *lock = ret.clone();
-        anyhow::Ok(ret)
+        anyhow::Ok(lock.clone())
     }
 
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -117,21 +115,19 @@ impl LangServerCommon for LibSqlDB {
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-        let sql: &'static str = r#"
+        let sql = r#"
             PRAGMA pragma_list
         "#;
-        let mut ret = vec![];
         let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
-            ret.push(CompletionItem {
+            lock.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Pragma,
                 desc: None,
             });
         }
-        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 
@@ -173,20 +169,17 @@ impl LangServerCommon for LibSqlDB {
         "#;
         let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
-        let mut ret = Vec::new();
-
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
             if !name_start_ascii_alphabetic(&name) {
                 continue;
             }
-            ret.push(CompletionItem {
+            lock.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Function,
                 desc: None,
             });
         }
-        *lock = ret.clone();
         return anyhow::Ok(lock.clone());
     }
 
@@ -300,8 +293,8 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 测试用到的表格 和建表语句
-            -- 创建 departments 表
+            -- Tables and table creation statements used in the test.
+            -- Create the departments table.
             CREATE TABLE departments (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL
@@ -315,7 +308,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 创建 employees 表
+            -- Create the employees table.
             CREATE TABLE employees (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
