@@ -21,7 +21,7 @@
    
 
 ## Install
-[https://github.com/dbpal/docs/releases](https://github.com/dbpal/dbpal/releases)
+[install](https://github.com/dbpal/dbpal/releases)
 
 
 macos need extra command to run,or u can build from the source yourself.
