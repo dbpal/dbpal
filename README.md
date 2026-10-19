@@ -1,155 +1,118 @@
-# dbnexus
+# dbpal 
+
+<h1 style="font-weight:bolder"> This is Free software</h1>
+<h1 style="font-weight:bolder"> This is Free software</h1>
+<h1 style="font-weight:bolder"> This is Free software</h1>
+
+
+<img src="./images/icon.png" width="70"> **dbpal is a very simple database management system with good
+        functionality, ease of use and low resource usage. It supports postgres,
+        mysql, sqlite, etc...**
+![img](./images/query.png)
 
 
 
+## Donation
+* [windows](https://apps.microsoft.com/detail/9nw4d1fn94kn?hl=en-US&gl=US)
+* [ko-fi](https://ko-fi.com/young38925)
+* <img src="./images/wechat_pay.jpg" style="width: 12rem; display: inline-block; vertical-align: middle;" />
+* <img src="./images/alipay.jpg" style="width: 12rem; display: inline-block; vertical-align: middle;" />
 
-## how to run dbnexus-app 
-~~~
-cd dbnexus-app
-pnpm run dev
-cargo r
+   
 
-
- 
-
- 
-
-~~~
+## Install
+https://github.com/dbpal/docs/releases
 
 
- SELECT *
-FROM V$RESERVED_WORDS;
-
-怎么去获取这么多内置的可以查询的对象
- 
-table function 是啥啊
-
-
-
-
-PostgreSQL 外部表（Foreign Table） 是 “看起来像本地表，实际数据却存放在别的系统里” 的一张虚拟表。
-你可以对它做 SELECT、JOIN、INSERT、UPDATE、DELETE，但数据不保存在 PostgreSQL 本地，而是由外部数据源（另一个数据库、文件、对象存储、API…）实时提供。
-
-拉oracle数据库要用美国的代理
-
-
-openPath for open export file
-
-
-
-
-sqlite virtual table
-use blew code to test
-~~~
-CREATE VIRTUAL TABLE documents USING fts5(title, content); 
-
-
-INSERT INTO documents (title, content) VALUES ('First Document', 'This is the content of the first document.');
-INSERT INTO documents (title, content) VALUES ('Second Document', 'This is the content of the second document.');
-~~~
-
-
-
-redis分页实现要好好研究下
-oracle add table column有问题
-
-检查default value
-
-781128
-
-
-
-
-###可以把日志文件变大一点
-perl -e 'print "hello world\n" x 1024 for 1..2048' > dbpal.log
-
-
-
-这个导致linux的title不对呢
-https://github.com/tauri-apps/tauri/issues/13749
-
-
-
-
-CONFIG HELP redis返回的值不对啊
-
-
-列出重复的依赖
-cargo tree -d
-
-
-
-
- npx eslint src --ext .js,.jsx,.ts,.tsx --fix
-
-
-
- 
-
- SELECT
-    *
-from
-    has_data_2,
-    Persons ,
-    has_data_1  
-
-
-
-
-
-统计
-~~~bash 
-
-find . -path ./target -prune -o -name '*.rs' -exec wc -l {} +
+macos need extra command to run,somehow I have difficulties to apply developer account.
 
 ~~~
-
-
-#C7C0B4 
-
-
-some-couchbase password
-test1234
-
-
-couchbase create bucket
-
-
-docker run  --name some-neo4j  -d     \
-    --publish=7474:7474 --publish=7687:7687 \
-    neo4j
- 默认密码是和用户名一样 我改成test1234
-。
-
-
-
-~~~
-解决没有签名的问题
+# after install on macos execute  
 xattr -d com.apple.quarantine /Applications/dbpal.app  
 ~~~
 
+##  supported database system
+* mysql
+* tidb
+* mariadb
+* sqlite
+* redis 
+* mongo
+* oracle
+* sql server(microsoft)
+* postgres
+* clickhouse
+* libsql
+* firebird
+* cockroach
+* cassandra
+* duckdb 
+* couchbase
 
-保存不显示的列m
+## AI Powered chat 
+
+![img](./images/ai_chat_1.png)
+![img](./images/ai_chat_2.png)
+
+## report issue
+[issue](https://github.com/dbpal/docs/issues)
+
+## features
+* easy to use
+* fast
+* low memory consumption
+* low cpu usage
+* sql editor(auto completion ,high light)
+* security (power by rust)
+* small binary size
+* export query to file
+* export table or view to file
+* streamed query through rust [Stream](https://docs.rs/futures/latest/futures/prelude/trait.Stream.html) and [Channel](https://v2.tauri.app/develop/calling-frontend/#channels)
+* start at instant
+* separate query window
+
+## mongo query editor
+mongo use webkit build in js interpreter via `eval`, `dbpal` predefine
+some variable for interact with database such as `db` etc ...
+
+![img](./images/mongo_query.png) 
 
 
-https://api.openai-proxy.org/v1
-
-
-
-
-// api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
-// https://api.moonshot.cn/v1
 
 
 
 
 
 
+## Privacy Policy
+Effective Date: April 28, 2025
+<br/>
+At dbpal, we are committed to protecting your privacy. This Privacy Policy outlines our practices regarding the collection, use, and protection of your information.
 
-UPDATE "information_schema"."sql_features" SET "sub_feature_name" = NULL,"sub_feature_id" = NULL,"comments" = NULL WHERE  "comments" = '' AND  "sub_feature_id" = '' AND  "feature_name" = 'Embedded PL/I' AND  "sub_feature_name" = '' AND  "is_supported" = 'NO' AND  "is_verified_by" IS NULL AND  "feature_id" = 'B017' 这个语句做了啥啊
+1. Information We Do Not Collect
+  <br/>
+  We do not collect any personal information from our users. This includes, but is not limited to:
+    * Names
+    * Email addresses
+    * Phone numbers
+    * Payment information
+    * Location data
+2. Use of Information 
+<br/>
+Since we do not collect any personal information, we do not use, share, or sell any user information to third parties.
+
+3. Changes to This Privacy Policy 
+  <br/>
+We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on our website. Your continued use of our services after any changes indicates your acceptance of the new policy.
+
+4. Contact Us
+  <br/>
+If you have any questions about this Privacy Policy, please contact us at:
+756445638@qq.com 
 
 
-这个 SQL UPDATE 语句是在更新 information_schema.sql_features 表中的一条记录，但看起来是在将字段值清空为 NULL。
-
-
-pg好像会返回Opiton为null但是返回了Some("") 导致pg的一个前端页面没有修改的东西 也出现了提示用户修改
+## screen shots
+![img](./images/add_connection.png)
+![img](./images/table_menu.png)
+![img](./images/table_structure.png)
+![img](./images/sql_table_view.png)
