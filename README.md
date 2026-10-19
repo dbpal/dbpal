@@ -24,7 +24,7 @@
 https://github.com/dbpal/docs/releases
 
 
-macos need extra command to run,somehow I have difficulties to apply developer account.
+macos need extra command to run,or u can build from the source yourself.
 
 ~~~
 # after install on macos execute  
