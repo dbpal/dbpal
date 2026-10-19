@@ -1,4 +1,4 @@
-dbpal Copyright (C) 2020-present yuyangxxxmail@gmail.com, 756445638@qq.com
+dbpal Copyright (C) 2024-present yuyangxxxmail@gmail.com, 756445638@qq.com
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
